@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101217">
+<title>Pocket Caddy Scorecard</title>
+<!--
+  Pocket Caddy Scorecard
+  ----------------------
+  Die Runde steht komplett hinter dem # im Link und wird nur hier im Browser
+  ausgewertet. Alles nach dem # wird von Browsern NICHT an den Server
+  geschickt, die Daten verlassen das Handy also nicht.
+
+  Format:  #JJMMTT-PSPSPS...
+    JJMMTT  Datum, z.B. 260816 = 16.08.2026
+    danach  je Loch zwei Zeichen: erst Par, dann Schlaege
+            Schlaege als Hex-Ziffer, damit 10 in ein Zeichen passt
+            (bei Par 6 sind bis zu Par+4 = 10 Schlaege moeglich):
+            0-9 = 0-9,  a = 10
+  Beispiel: #260816-4533   ->  16.08.2026, Loch 1 Par 4 / 5 Schlaege,
+                                           Loch 2 Par 3 / 3 Schlaege
+-->
+<style>
+  :root{
+    --bg:#101217; --card:#161921; --bar:#1a1d24; --lime:#a3e635;
+    --txt:#fff; --mut:#7c8593; --good:#5ede8f; --bad:#ff5c5c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0;background:var(--bg);color:var(--txt);
+    font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    padding:24px 16px calc(28px + env(safe-area-inset-bottom));
+  }
+  .wrap{max-width:520px;margin:0 auto}
+  header{text-align:center;margin-bottom:20px}
+  h1{margin:0;font-size:15px;letter-spacing:.16em;text-transform:uppercase;
+     color:var(--mut);font-weight:600}
+  .date{margin-top:6px;font-size:14px;color:var(--mut)}
+  .total{margin:16px 0 26px;text-align:center}
+  .total .num{font-size:64px;font-weight:800;line-height:1;color:var(--lime)}
+  .total .sub{font-size:13px;color:var(--mut);letter-spacing:.1em;
+              text-transform:uppercase;margin-top:8px}
+  table{width:100%;border-collapse:collapse;background:var(--card);
+        border-radius:14px;overflow:hidden}
+  th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);
+     font-weight:600;text-align:right;padding:12px 14px;background:var(--bar)}
+  th:first-child,td:first-child{text-align:left}
+  td{padding:11px 14px;text-align:right;font-variant-numeric:tabular-nums;
+     border-top:1px solid #ffffff0d}
+  tbody tr:first-child td{border-top:none}
+  .good{color:var(--good)} .bad{color:var(--bad)} .even{color:var(--txt)}
+  tfoot td{background:var(--bar);font-weight:700;border-top:2px solid #ffffff1a}
+  .hint{margin-top:20px;font-size:13px;color:var(--mut);text-align:center;line-height:1.7}
+  .hint b{color:#aab4c0}
+  .empty{background:var(--card);border-radius:14px;padding:26px 20px;
+         text-align:center;color:var(--mut);line-height:1.7}
+  .empty b{color:var(--txt);display:block;margin-bottom:8px;font-size:17px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Pocket Caddy</h1>
+    <div class="date" id="date"></div>
+  </header>
+  <div id="content"></div>
+</div>
+
+<script>
+(function () {
+  var content = document.getElementById('content');
+  var raw = (location.hash || '').replace(/^#/, '');
+
+  if (!raw) {
+    content.innerHTML =
+      '<div class="empty"><b>Keine Runde geladen</b>' +
+      'Scanne den QR-Code auf deinem Pocket Caddy, um die Scorecard zu sehen.</div>';
+    return;
+  }
+
+  var parts = raw.split('-');
+  var dpart = parts.length > 1 ? parts[0] : '';
+  var data  = parts.length > 1 ? parts[1] : parts[0];
+
+  if (/^\d{6}$/.test(dpart)) {
+    document.getElementById('date').textContent =
+      dpart.slice(4, 6) + '.' + dpart.slice(2, 4) + '.20' + dpart.slice(0, 2);
+  }
+
+  var holes = [], totalDiff = 0, totalStrokes = 0, totalPar = 0;
+  for (var i = 0; i + 1 < data.length; i += 2) {
+    var par = parseInt(data.charAt(i), 10);
+    var sc  = parseInt(data.charAt(i + 1), 16);   // Hex: a = 10
+    if (isNaN(par) || isNaN(sc)) continue;
+    holes.push({ par: par, sc: sc, diff: sc - par });
+    totalDiff += sc - par; totalStrokes += sc; totalPar += par;
+  }
+
+  if (!holes.length) {
+    content.innerHTML =
+      '<div class="empty"><b>Daten nicht lesbar</b>' +
+      'Der Link scheint unvollständig zu sein. Bitte den QR-Code neu scannen.</div>';
+    return;
+  }
+
+  function cls(d) { return d < 0 ? 'good' : (d > 0 ? 'bad' : 'even'); }
+  function sign(d) { return (d > 0 ? '+' : '') + d; }
+
+  var rows = holes.map(function (h, idx) {
+    return '<tr><td>' + (idx + 1) + '</td><td>' + h.par + '</td><td>' + h.sc +
+           '</td><td class="' + cls(h.diff) + '">' + sign(h.diff) + '</td></tr>';
+  }).join('');
+
+  var totalColor = totalDiff < 0 ? 'var(--good)'
+                 : (totalDiff > 0 ? 'var(--bad)' : 'var(--txt)');
+
+  content.innerHTML =
+    '<div class="total">' +
+      '<div class="num" style="color:' + totalColor + '">' + sign(totalDiff) + '</div>' +
+      '<div class="sub">' + holes.length + ' L\u00f6cher &middot; Par ' + totalPar + '</div>' +
+    '</div>' +
+    '<table>' +
+      '<thead><tr><th>Loch</th><th>Par</th><th>Schl\u00e4ge</th><th>Diff</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td>Gesamt</td><td>' + totalPar + '</td><td>' + totalStrokes +
+      '</td><td class="' + cls(totalDiff) + '">' + sign(totalDiff) + '</td></tr></tfoot>' +
+    '</table>' +
+    '<p class="hint">Zum Behalten: <b>Teilen &rarr; Als PDF sichern</b><br>' +
+    'oder einfach einen Screenshot machen.</p>';
+})();
+</script>
+</body>
+</html>
