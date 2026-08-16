@@ -89,6 +89,20 @@
   .empty b{color:var(--txt);display:block;margin-bottom:8px;font-size:17px}
 
   .date{text-align:center;font-size:14px;color:var(--mut);margin-bottom:2px}
+  .datewrap{display:flex;justify-content:center}
+  .datebtn{display:inline-flex;align-items:center;gap:8px;background:transparent;
+           border:1px solid var(--line);border-radius:999px;color:var(--mut);
+           font:inherit;font-size:14px;padding:8px 14px;cursor:pointer}
+  .datebtn:active{background:#ffffff10}
+  .datebtn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;
+               stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .datebtn .tag{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+                background:#ffffff14;border-radius:99px;padding:3px 7px}
+  #dateInput{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+  /* Datum steht am Bildschirm im antippbaren Knopf, in der Unterzeile waere
+     es doppelt. Im PDF ist der Knopf ausgeblendet, dort wird es gebraucht. */
+  #subDate{display:none}
+  #subDate + .dot{display:none}
   .total{margin:14px 0 24px;text-align:center}
   .total .num{font-size:64px;font-weight:800;line-height:1}
   .total .sub{font-size:13px;color:var(--mut);letter-spacing:.1em;
@@ -169,7 +183,8 @@
     html,body{background:var(--bg) !important;color:var(--txt);
       -webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;font-size:11pt}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .topbar,.actions,.hint,.del,.sheet,.sheetbg,.toast{display:none !important}
+    .topbar,.actions,.hint,.del,.sheet,.sheetbg,.toast,.datewrap{display:none !important}
+    #subDate{display:inline}
     .wrap{max-width:none;padding:13mm 16mm}
     .date{text-align:left}
     .total{margin:0 0 6mm;text-align:left;display:flex;align-items:baseline;gap:6mm}
@@ -277,13 +292,30 @@
       }
     }
 
+    // Vereinheitlichung: In frueheren Fassungen stand der Datumsvorsatz mit
+    // im Feld code ("260816-4533..."). Dadurch waere dieselbe Runde einmal
+    // mit und einmal ohne Vorsatz als zwei verschiedene gezaehlt worden.
+    // Hier wird der Vorsatz einmalig herausgeloest.
+    function normalize() {
+      var FLAG = 'pc_normalized_v2';
+      try { if (localStorage.getItem(FLAG)) return; } catch (e) { return; }
+      var arr = readRaw() || [];
+      arr.forEach(function (r) {
+        var m = /^(\d{6})-(.+)$/.exec(r.code || '');
+        if (m) { if (!r.date) r.date = m[1]; r.code = m[2]; }
+      });
+      if (writeRaw(arr)) {
+        try { localStorage.setItem(FLAG, '1'); } catch (e) {}
+      }
+    }
+
     function all() {
-      migrate();
+      migrate(); normalize();
       return (readRaw() || []).filter(function (r) { return !r.deleted; });
     }
 
     function allIncludingDeleted() {
-      migrate();
+      migrate(); normalize();
       return readRaw() || [];
     }
 
@@ -296,8 +328,25 @@
       return writeRaw(arr) ? rec : null;
     }
 
-    function hasCode(code) {
-      return all().some(function (r) { return r.code === code; });
+    // Eine Runde gilt als bereits gespeichert, wenn Code UND Datum passen.
+    // Nur der Code reicht nicht: Ohne Datum im QR-Code waere eine zweite
+    // Runde mit exakt denselben Pars und Schlaegen sonst faelschlich eine
+    // Dublette. An einem anderen Tag ist es eine neue Runde.
+    function findSaved(code, date) {
+      var hit = null;
+      all().forEach(function (r) {
+        if (r.code === code && (r.date || '') === (date || '')) hit = r;
+      });
+      return hit;
+    }
+
+    function setDate(id, date) {
+      var arr = allIncludingDeleted();
+      var hit = false;
+      arr.forEach(function (r) {
+        if (r.id === id) { r.date = date || ''; r.updatedAt = Date.now(); hit = true; }
+      });
+      return hit && writeRaw(arr);
     }
 
     function remove(id) {
@@ -376,12 +425,30 @@
       return { ok:true, added:added, updated:updated, restored:restored };
     }
 
-    return { available:available, all:all, add:add, hasCode:hasCode,
-             remove:remove, removeAll:removeAll,
+    return { available:available, all:all, add:add, findSaved:findSaved,
+             setDate:setDate, remove:remove, removeAll:removeAll,
              exportData:exportData, importData:importData };
   })();
 
   /* ---------- Hilfsfunktionen ---------- */
+
+  // Heutiges Datum des Geraets im Format JJMMTT
+  function todayCode() {
+    var d = new Date();
+    var p = function (v) { return (v < 10 ? '0' : '') + v; };
+    return p(d.getFullYear() % 100) + p(d.getMonth() + 1) + p(d.getDate());
+  }
+
+  // JJMMTT -> Wert fuer ein <input type="date"> (JJJJ-MM-TT) und zurueck
+  function codeToInput(c) {
+    if (!/^\d{6}$/.test(c)) return '';
+    return '20' + c.slice(0,2) + '-' + c.slice(2,4) + '-' + c.slice(4,6);
+  }
+  function inputToCode(v) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
+    return m ? m[1].slice(2) + m[2] + m[3] : '';
+  }
+
   function parseCode(raw) {
     var parts = raw.split('-');
     var d    = parts.length > 1 ? parts[0] : '';
@@ -394,8 +461,15 @@
       holes.push({ par:p, sc:s, diff:s - p });
       diff += s - p; strokes += s; par += p;
     }
-    return { date:/^\d{6}$/.test(d) ? d : '', code:raw,
-             holes:holes, diff:diff, strokes:strokes, par:par };
+    // Gespeichert wird nur der Spieldaten-Teil, das Datum getrennt davon.
+    // Sonst gaelte dieselbe Runde einmal mit und einmal ohne Datumsvorsatz
+    // im QR-Code als zwei verschiedene Runden.
+    // Enthaelt der Code kein Datum, nehmen wir das heutige Datum des Geraets.
+    // Gescannt wird ueblicherweise direkt nach der Runde, und korrigieren
+    // laesst es sich vor dem Speichern.
+    var hasDate = /^\d{6}$/.test(d);
+    return { date:hasDate ? d : todayCode(), dateFromDevice:!hasDate,
+             data:data, code:raw, holes:holes, diff:diff, strokes:strokes, par:par };
   }
   function fmtDate(d) {
     if (!/^\d{6}$/.test(d)) return '';
@@ -420,6 +494,7 @@
     home:'<svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 21v-7h6v7"/></svg>',
     box:'<svg viewBox="0 0 24 24"><path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M2 4h20v4H2z"/><path d="M10 12h4"/></svg>',
     info:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+    cal:'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>',
     down:'<svg viewBox="0 0 24 24"><path d="M12 3v13"/><path d="M7 12l5 5 5-5"/><path d="M4 21h16"/></svg>',
     up:'<svg viewBox="0 0 24 24"><path d="M12 21V8"/><path d="M7 12l5-5 5 5"/><path d="M4 3h16"/></svg>'
   };
@@ -470,7 +545,10 @@
   function renderHome() {
     brand.textContent = 'Pocket Caddy';
     var arr = Store.all().map(function (x) {
-      var p = parseCode(x.code); p.id = x.id; p.createdAt = x.createdAt; return p;
+      var p = parseCode(x.code);
+      p.id = x.id; p.createdAt = x.createdAt;
+      p.date = x.date || p.date;   // gespeichertes Datum hat Vorrang
+      return p;
     }).filter(function (p) { return p.holes.length; });
 
     if (!arr.length) {
@@ -493,7 +571,9 @@
     var avg  = arr.reduce(function (s, r) { return s + r.diff; }, 0) / arr.length;
 
     var items = arr.map(function (r) {
-      return '<button class="item" data-code="' + esc(r.code) + '">' +
+      // Datum mitgeben, sonst wuerde beim Oeffnen das heutige ergaenzt
+      var link = (r.date ? r.date + '-' : '') + r.data;
+      return '<button class="item" data-code="' + esc(link) + '">' +
         '<span class="big" style="color:' + colorOf(r.diff) + '">' + sign(r.diff) + '</span>' +
         '<span class="meta"><span class="d">' + (fmtDate(r.date) || 'ohne Datum') + '</span>' +
         '<span class="s">' + r.holes.length + ' L\u00f6cher &middot; ' + r.strokes +
@@ -527,20 +607,31 @@
       return '<tr><td>' + (i+1) + '</td><td>' + h.par + '</td><td>' + h.sc +
              '</td><td class="' + cls(h.diff) + '">' + sign(h.diff) + '</td></tr>';
     }).join('');
-    var known = Store.hasCode(r.code);
+
+    // Datum ist waehrend der Ansicht aenderbar, deshalb lokal merken
+    var curDate = r.date;
+    var savedRec = Store.findSaved(r.data, curDate);
+
+    function dateBlock() {
+      return '<button class="datebtn" id="btnDate">' + I.cal +
+             '<span>' + (fmtDate(curDate) || 'Datum w\u00e4hlen') + '</span>' +
+             (r.dateFromDevice ? '<span class="tag">heute</span>' : '') +
+             '</button>' +
+             '<input type="date" id="dateInput" value="' + codeToInput(curDate) + '">';
+    }
 
     content.innerHTML =
-      '<div class="date">' + (fmtDate(r.date) || '') + '</div>' +
+      '<div class="datewrap">' + dateBlock() + '</div>' +
       '<div class="total"><div class="num" style="color:' + colorOf(r.diff) + '">' +
-        sign(r.diff) + '</div><div class="sub">' + r.holes.length + ' L\u00f6cher &middot; Par ' +
+        sign(r.diff) + '</div><div class="sub"><span id="subDate">' +
+        fmtDate(curDate) + ' &middot; </span>' + r.holes.length + ' L\u00f6cher &middot; Par ' +
         r.par + ' &middot; ' + r.strokes + ' Schl\u00e4ge</div></div>' +
       '<table><thead><tr><th>Loch</th><th>Par</th><th>Schl\u00e4ge</th><th>Diff</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
         '<tfoot><tr><td>Gesamt</td><td>' + r.par + '</td><td>' + r.strokes +
         '</td><td class="' + cls(r.diff) + '">' + sign(r.diff) + '</td></tr></tfoot></table>' +
       '<div class="actions">' +
-        '<button class="btn ' + (known ? 'saved' : '') + '" id="btnKeep">' +
-          (known ? I.check + 'Gespeichert' : I.save + 'Runde speichern') + '</button>' +
+        '<button class="btn" id="btnKeep"></button>' +
         '<button class="btn ghost" id="btnPdf">' + I.pdf + 'PDF</button>' +
         '<button class="btn ghost" id="btnShare">' + I.share + 'Teilen</button>' +
       '</div>' +
@@ -548,18 +639,45 @@
         ? 'Gespeicherte Runden bleiben auf diesem Ger\u00e4t.'
         : 'Dieser Browser erlaubt kein Speichern (privater Modus?).') + '</p>' +
       backButton('btnHome') +
-      '<div class="print-foot"><span>Pocket Caddy</span><span>' + fmtDate(r.date) + '</span></div>';
+      '<div class="print-foot"><span>Pocket Caddy</span><span id="pfDate">' +
+        fmtDate(curDate) + '</span></div>';
 
     var keep = document.getElementById('btnKeep');
+
+    function refreshKeep() {
+      savedRec = Store.findSaved(r.data, curDate);
+      keep.className = 'btn' + (savedRec ? ' saved' : '');
+      keep.innerHTML = savedRec ? I.check + 'Gespeichert' : I.save + 'Runde speichern';
+    }
+    refreshKeep();
+
     keep.addEventListener('click', function () {
-      if (Store.hasCode(r.code)) return;
-      if (Store.add(r.code, r.date)) {
-        keep.className = 'btn saved'; keep.innerHTML = I.check + 'Gespeichert';
-        toast('Runde gespeichert.');
-      } else {
-        toast('Speichern hat nicht geklappt.', true);
-      }
+      if (savedRec) return;
+      if (Store.add(r.data, curDate)) { refreshKeep(); toast('Runde gespeichert.'); }
+      else { toast('Speichern hat nicht geklappt.', true); }
     });
+
+    // Datum aendern: oeffnet die Datumsauswahl des Geraets
+    var di = document.getElementById('dateInput');
+    document.getElementById('btnDate').addEventListener('click', function () {
+      if (di.showPicker) { try { di.showPicker(); return; } catch (e) {} }
+      di.click();
+    });
+    di.addEventListener('change', function () {
+      var nd = inputToCode(di.value);
+      if (!nd) return;
+      curDate = nd;
+      r.dateFromDevice = false;
+      // War die Runde unter dem alten Datum schon gespeichert, wandert sie mit
+      if (savedRec) Store.setDate(savedRec.id, curDate);
+      document.querySelector('#btnDate span').textContent = fmtDate(curDate);
+      var tag = document.querySelector('#btnDate .tag');
+      if (tag) tag.remove();
+      document.getElementById('pfDate').textContent = fmtDate(curDate);
+      document.getElementById('subDate').innerHTML = fmtDate(curDate) + ' &middot; ';
+      refreshKeep();
+    });
+
     document.getElementById('btnPdf').addEventListener('click', function(){ window.print(); });
     wireBack('btnHome');
 
@@ -567,7 +685,7 @@
     if (navigator.share) {
       sh.addEventListener('click', function () {
         navigator.share({
-          title:'Golf-Runde ' + fmtDate(r.date),
+          title:'Golf-Runde ' + fmtDate(curDate),
           text:r.holes.length + ' L\u00f6cher, ' + r.strokes + ' Schl\u00e4ge, ' +
                sign(r.diff) + ' zu Par',
           url:location.href
