@@ -4,41 +4,88 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#101217">
-<title>Pocket Caddy Scorecard</title>
+<title>Pocket Caddy</title>
 <!--
-  Pocket Caddy Scorecard
-  ----------------------
-  Die Runde steht komplett hinter dem # im Link und wird nur hier im Browser
-  ausgewertet. Alles nach dem # wird von Browsern NICHT an den Server
-  geschickt, die Daten verlassen das Handy also nicht.
+  Pocket Caddy
+  ------------
+  Ansichten (ueber den Teil hinter dem # gesteuert):
+    #            Startseite: Verlauf aller gespeicherten Runden
+    #JJMMTT-...  Scorecard einer Runde (so kommt es aus dem QR-Code)
+    #menu/xyz    Menuepunkte
 
-  Format:  #JJMMTT-PSPSPS...
+  Gespeichert wird ausschliesslich lokal im Browser (localStorage).
+  Es geht nichts an einen Server, und alles hinter dem # wird von Browsern
+  ohnehin nie an den Server geschickt.
+
+  Datenformat:  JJMMTT-PSPSPS...
     JJMMTT  Datum, z.B. 260816 = 16.08.2026
     danach  je Loch zwei Zeichen: erst Par, dann Schlaege
             Schlaege als Hex-Ziffer, damit 10 in ein Zeichen passt
-            (bei Par 6 sind bis zu Par+4 = 10 Schlaege moeglich):
-            0-9 = 0-9,  a = 10
-  Beispiel: #260816-4533   ->  16.08.2026, Loch 1 Par 4 / 5 Schlaege,
-                                           Loch 2 Par 3 / 3 Schlaege
+            (bei Par 6 sind bis zu Par+4 = 10 Schlaege moeglich): a = 10
 -->
 <style>
   :root{
     --bg:#101217; --card:#161921; --bar:#1a1d24; --lime:#a3e635;
     --txt:#fff; --mut:#7c8593; --good:#5ede8f; --bad:#ff5c5c;
+    --line:#ffffff14;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   body{
     margin:0;background:var(--bg);color:var(--txt);
     font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    padding:24px 16px calc(28px + env(safe-area-inset-bottom));
+    padding:0 0 calc(28px + env(safe-area-inset-bottom));
   }
-  .wrap{max-width:520px;margin:0 auto}
-  header{text-align:center;margin-bottom:20px}
-  h1{margin:0;font-size:15px;letter-spacing:.16em;text-transform:uppercase;
-     color:var(--mut);font-weight:600}
-  .date{margin-top:6px;font-size:14px;color:var(--mut)}
-  .total{margin:16px 0 26px;text-align:center}
-  .total .num{font-size:64px;font-weight:800;line-height:1;color:var(--lime)}
+  .wrap{max-width:520px;margin:0 auto;padding:0 16px}
+
+  /* ---------- Kopfleiste ---------- */
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:calc(14px + env(safe-area-inset-top)) 16px 14px;
+    max-width:520px;margin:0 auto;
+  }
+  .topbar .brand{font-size:14px;letter-spacing:.16em;text-transform:uppercase;
+                 color:var(--mut);font-weight:600}
+  .iconbtn{background:transparent;border:0;color:var(--txt);padding:8px;
+           margin:-8px;cursor:pointer;display:flex;border-radius:10px}
+  .iconbtn:active{background:#ffffff12}
+  .iconbtn svg{width:22px;height:22px;fill:none;stroke:currentColor;
+               stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+  /* ---------- Statistikstreifen ---------- */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:22px}
+  .stat{background:var(--card);border-radius:14px;padding:14px 10px;text-align:center}
+  .stat .v{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+  .stat .k{font-size:11px;color:var(--mut);letter-spacing:.07em;
+           text-transform:uppercase;margin-top:6px}
+
+  /* ---------- Verlaufsliste ---------- */
+  .sectionhead{display:flex;justify-content:space-between;align-items:baseline;
+               margin:0 2px 12px}
+  .sectionhead .t{font-size:13px;letter-spacing:.1em;text-transform:uppercase;
+                  color:var(--mut);font-weight:600}
+  .sectionhead .c{font-size:12.5px;color:var(--mut)}
+  .list{display:flex;flex-direction:column;gap:10px}
+  .item{background:var(--card);border-radius:14px;padding:14px 16px;
+        display:flex;align-items:center;gap:14px;cursor:pointer;
+        border:0;width:100%;text-align:left;color:inherit;font:inherit}
+  .item:active{background:var(--bar)}
+  .item .big{font-size:24px;font-weight:800;min-width:54px;
+             font-variant-numeric:tabular-nums}
+  .item .meta{flex:1;min-width:0}
+  .item .meta .d{display:block;font-size:15px}
+  .item .meta .s{display:block;font-size:12.5px;color:var(--mut);margin-top:3px}
+  .item .chev{color:var(--mut);flex:none;display:flex}
+  .item .chev svg{width:18px;height:18px;fill:none;stroke:currentColor;
+                  stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+  .empty{background:var(--card);border-radius:14px;padding:28px 22px;
+         text-align:center;color:var(--mut);line-height:1.7}
+  .empty b{color:var(--txt);display:block;margin-bottom:8px;font-size:17px}
+
+  /* ---------- Scorecard ---------- */
+  .date{text-align:center;font-size:14px;color:var(--mut);margin-bottom:2px}
+  .total{margin:14px 0 24px;text-align:center}
+  .total .num{font-size:64px;font-weight:800;line-height:1}
   .total .sub{font-size:13px;color:var(--mut);letter-spacing:.1em;
               text-transform:uppercase;margin-top:8px}
   table{width:100%;border-collapse:collapse;background:var(--card);
@@ -52,156 +99,410 @@
   .good{color:var(--good)} .bad{color:var(--bad)} .even{color:var(--txt)}
   tfoot td{background:var(--bar);font-weight:700;border-top:2px solid #ffffff1a}
 
-  /* Knopfleiste */
   .actions{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
-  button{
+  button.btn{
     font:600 15px/1 inherit;font-family:inherit;color:#0d1117;background:var(--lime);
-    border:0;border-radius:999px;padding:14px 26px;cursor:pointer;
+    border:0;border-radius:999px;padding:14px 24px;cursor:pointer;
     display:inline-flex;align-items:center;gap:9px;
   }
-  button:active{transform:translateY(1px)}
-  button.ghost{background:transparent;color:var(--mut);
-               box-shadow:inset 0 0 0 1px #ffffff1f}
-  button svg{width:17px;height:17px;fill:none;stroke:currentColor;
-             stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  button.btn:active{transform:translateY(1px)}
+  button.btn.ghost{background:transparent;color:var(--mut);
+                   box-shadow:inset 0 0 0 1px #ffffff1f}
+  button.btn.saved{background:#2a3b1c;color:var(--lime)}
+  button.btn svg{width:17px;height:17px;fill:none;stroke:currentColor;
+                 stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .hint{margin-top:14px;font-size:12.5px;color:var(--mut);text-align:center;line-height:1.7}
-  .empty{background:var(--card);border-radius:14px;padding:26px 20px;
-         text-align:center;color:var(--mut);line-height:1.7}
-  .empty b{color:var(--txt);display:block;margin-bottom:8px;font-size:17px}
+
+  /* ---------- Menue ---------- */
+  .sheetbg{position:fixed;inset:0;background:#000a;opacity:0;pointer-events:none;
+           transition:opacity .18s;z-index:20}
+  .sheetbg.on{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;
+         background:var(--card);border-radius:20px 20px 0 0;
+         padding:10px 12px calc(18px + env(safe-area-inset-bottom));
+         transform:translateY(102%);transition:transform .22s cubic-bezier(.2,.7,.3,1);
+         max-width:520px;margin:0 auto}
+  .sheet.on{transform:translateY(0)}
+  .grip{width:38px;height:4px;border-radius:99px;background:#ffffff2b;
+        margin:6px auto 12px}
+  .menuitem{display:flex;align-items:center;gap:14px;width:100%;border:0;
+            background:transparent;color:inherit;font:inherit;text-align:left;
+            padding:14px 12px;border-radius:12px;cursor:pointer}
+  .menuitem:active{background:#ffffff10}
+  .menuitem svg{width:20px;height:20px;fill:none;stroke:currentColor;
+                stroke-width:2;stroke-linecap:round;stroke-linejoin:round;
+                color:var(--mut);flex:none}
+  .menuitem .lbl{flex:1}
+  .menuitem .lbl .sub{display:block;font-size:12.5px;color:var(--mut);margin-top:2px}
+  .badge{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+         color:var(--mut);border:1px solid var(--line);border-radius:99px;
+         padding:4px 9px;flex:none}
+  .sep{height:1px;background:var(--line);margin:8px 12px}
+
+  /* ---------- Platzhalterseiten ---------- */
+  .ph{background:var(--card);border-radius:14px;padding:26px 22px;text-align:center;
+      color:var(--mut);line-height:1.75}
+  .ph .ic{display:flex;justify-content:center;margin-bottom:14px;color:var(--mut)}
+  .ph .ic svg{width:34px;height:34px;fill:none;stroke:currentColor;stroke-width:1.6;
+              stroke-linecap:round;stroke-linejoin:round}
+  .ph b{color:var(--txt);display:block;font-size:18px;margin-bottom:10px}
+  .ph .soon{display:inline-block;margin-top:16px;font-size:11px;letter-spacing:.08em;
+            text-transform:uppercase;color:var(--mut);
+            border:1px solid var(--line);border-radius:99px;padding:5px 12px}
+
+  .del{margin-top:26px;text-align:center}
+  .del button{background:transparent;border:0;color:#8a5050;font:inherit;
+              box-shadow:inset 0 0 0 1px #ff5c5c33;font-size:13.5px;
+              padding:11px 18px;border-radius:999px;cursor:pointer}
+
   .print-foot{display:none}
 
   /* ---------- PDF-Layout ----------
-     Bewusst dunkel wie die Seite selbst, weil das Ergebnis praktisch immer
-     als PDF angeschaut und nicht auf Papier gedruckt wird.
-     print-color-adjust:exact zwingt Browser, Hintergrundfarben mitzunehmen,
-     sonst wuerden sie beim Drucken weggelassen.
-     @page margin:0 sorgt dafuer, dass der dunkle Grund bis an den Rand geht. */
+     Dunkel wie die Seite, weil das Ergebnis praktisch immer als PDF angeschaut
+     und nicht auf Papier gedruckt wird. print-color-adjust:exact zwingt Browser,
+     Hintergrundfarben mitzunehmen. */
   @media print{
     @page{size:A4 portrait;margin:0}
-    html,body{
-      background:var(--bg) !important;color:var(--txt);
-      -webkit-print-color-adjust:exact;print-color-adjust:exact;
-      padding:0;font-size:11pt;
-    }
+    html,body{background:var(--bg) !important;color:var(--txt);
+      -webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;font-size:11pt}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .topbar,.actions,.hint,.del,.sheet,.sheetbg{display:none !important}
     .wrap{max-width:none;padding:13mm 16mm}
-    .actions,.hint{display:none !important}
-    header{margin-bottom:6mm;padding-bottom:4mm;
-           border-bottom:1px solid #ffffff26;
-           text-align:left;display:flex;justify-content:space-between;align-items:baseline}
-    h1{font-size:12pt}
-    .date{margin:0;font-size:11pt}
+    .date{text-align:left}
     .total{margin:0 0 6mm;text-align:left;display:flex;align-items:baseline;gap:6mm}
     .total .num{font-size:34pt}
     .total .sub{margin:0;font-size:9pt}
     th{padding:2.4mm 4mm;font-size:8.5pt}
     td{padding:2.1mm 4mm}
-    .print-foot{margin-top:6mm;padding-top:3.5mm;border-top:1px solid #ffffff1a;
-                font-size:8.5pt;color:var(--mut);
-                display:flex;justify-content:space-between}
+    .print-foot{display:flex;margin-top:6mm;padding-top:3.5mm;
+                border-top:1px solid #ffffff1a;font-size:8.5pt;color:var(--mut);
+                justify-content:space-between}
     tr{break-inside:avoid}
   }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>Pocket Caddy</h1>
-    <div class="date" id="date"></div>
-  </header>
-  <div id="content"></div>
+
+<div class="topbar">
+  <span class="brand" id="brand">Pocket Caddy</span>
+  <button class="iconbtn" id="btnMenu" aria-label="Men\u00fc">
+    <svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
+  </button>
+</div>
+
+<div class="wrap"><div id="content"></div></div>
+
+<div class="sheetbg" id="sheetbg"></div>
+<div class="sheet" id="sheet">
+  <div class="grip"></div>
+  <div id="menuItems"></div>
 </div>
 
 <script>
 (function () {
+  'use strict';
+
+  var STORE   = 'pc_rounds_v1';
   var content = document.getElementById('content');
-  var raw = (location.hash || '').replace(/^#/, '');
+  var brand   = document.getElementById('brand');
 
-  if (!raw) {
-    content.innerHTML =
-      '<div class="empty"><b>Keine Runde geladen</b>' +
-      'Scanne den QR-Code auf deinem Pocket Caddy, um die Scorecard zu sehen.</div>';
-    return;
+  // ---------- Speicher ----------
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORE);
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+  function save(arr) {
+    try { localStorage.setItem(STORE, JSON.stringify(arr)); return true; }
+    catch (e) { return false; }
+  }
+  function storageWorks() {
+    try { localStorage.setItem('pc_t','1'); localStorage.removeItem('pc_t'); return true; }
+    catch (e) { return false; }
   }
 
-  var parts = raw.split('-');
-  var dpart = parts.length > 1 ? parts[0] : '';
-  var data  = parts.length > 1 ? parts[1] : parts[0];
-
-  var dateText = '';
-  if (/^\d{6}$/.test(dpart)) {
-    dateText = dpart.slice(4, 6) + '.' + dpart.slice(2, 4) + '.20' + dpart.slice(0, 2);
-    document.getElementById('date').textContent = dateText;
+  // ---------- Hilfsfunktionen ----------
+  function parseCode(raw) {
+    var parts = raw.split('-');
+    var d    = parts.length > 1 ? parts[0] : '';
+    var data = parts.length > 1 ? parts[1] : parts[0];
+    var holes = [], diff = 0, strokes = 0, par = 0;
+    for (var i = 0; i + 1 < data.length; i += 2) {
+      var p = parseInt(data.charAt(i), 10);
+      var s = parseInt(data.charAt(i + 1), 16);   // Hex: a = 10
+      if (isNaN(p) || isNaN(s)) continue;
+      holes.push({ par: p, sc: s, diff: s - p });
+      diff += s - p; strokes += s; par += p;
+    }
+    return { date: /^\d{6}$/.test(d) ? d : '', code: raw,
+             holes: holes, diff: diff, strokes: strokes, par: par };
   }
-
-  var holes = [], totalDiff = 0, totalStrokes = 0, totalPar = 0;
-  for (var i = 0; i + 1 < data.length; i += 2) {
-    var par = parseInt(data.charAt(i), 10);
-    var sc  = parseInt(data.charAt(i + 1), 16);   // Hex: a = 10
-    if (isNaN(par) || isNaN(sc)) continue;
-    holes.push({ par: par, sc: sc, diff: sc - par });
-    totalDiff += sc - par; totalStrokes += sc; totalPar += par;
+  function fmtDate(d) {
+    if (!/^\d{6}$/.test(d)) return '';
+    return d.slice(4,6) + '.' + d.slice(2,4) + '.20' + d.slice(0,2);
   }
+  function sign(n){ return (n > 0 ? '+' : '') + n; }
+  function cls(n){ return n < 0 ? 'good' : (n > 0 ? 'bad' : 'even'); }
+  function colorOf(n){ return n < 0 ? 'var(--good)' : (n > 0 ? 'var(--bad)' : 'var(--txt)'); }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
-  if (!holes.length) {
-    content.innerHTML =
-      '<div class="empty"><b>Daten nicht lesbar</b>' +
-      'Der Link scheint unvollständig zu sein. Bitte den QR-Code neu scannen.</div>';
-    return;
-  }
+  var I = {
+    save:  '<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>',
+    check: '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>',
+    pdf:   '<svg viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg>',
+    share: '<svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>',
+    back:  '<svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>',
+    chev:  '<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
+    user:  '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>',
+    users: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6.5 6.5 0 0 1 13 0v1"/><path d="M17 5.2a3.5 3.5 0 0 1 0 6.6"/><path d="M19.5 21v-1a5.6 5.6 0 0 0-2.2-4.4"/></svg>',
+    chart: '<svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>',
+    home:  '<svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 21v-7h6v7"/></svg>',
+    box:   '<svg viewBox="0 0 24 24"><path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M2 4h20v4H2z"/><path d="M10 12h4"/></svg>',
+    info:  '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>'
+  };
 
-  function cls(d) { return d < 0 ? 'good' : (d > 0 ? 'bad' : 'even'); }
-  function sign(d) { return (d > 0 ? '+' : '') + d; }
+  // ---------- Menue ----------
+  var MENU = [
+    { id:'',         icon:I.home,  label:'Startseite', sub:'Deine Runden',              ready:true },
+    { id:'menu/stats',   icon:I.chart, label:'Statistik',  sub:'Entwicklung und Schnitt',   ready:false },
+    { sep:true },
+    { id:'menu/login',   icon:I.user,  label:'Anmelden',   sub:'Runden ger\u00e4te\u00fcbergreifend sichern', ready:false },
+    { id:'menu/friends', icon:I.users, label:'Freunde',    sub:'Runden vergleichen und teilen', ready:false },
+    { sep:true },
+    { id:'menu/backup',  icon:I.box,   label:'Sicherung',  sub:'Runden exportieren und einlesen', ready:false },
+    { id:'menu/about',   icon:I.info,  label:'\u00dcber',  sub:'Version und Hinweise',      ready:true }
+  ];
 
-  var rows = holes.map(function (h, idx) {
-    return '<tr><td>' + (idx + 1) + '</td><td>' + h.par + '</td><td>' + h.sc +
-           '</td><td class="' + cls(h.diff) + '">' + sign(h.diff) + '</td></tr>';
-  }).join('');
+  var sheet   = document.getElementById('sheet');
+  var sheetbg = document.getElementById('sheetbg');
 
-  var totalColor = totalDiff < 0 ? 'var(--good)'
-                 : (totalDiff > 0 ? 'var(--bad)' : 'var(--txt)');
-
-  content.innerHTML =
-    '<div class="total">' +
-      '<div class="num" style="color:' + totalColor + '">' + sign(totalDiff) + '</div>' +
-      '<div class="sub">' + holes.length + ' L\u00f6cher &middot; Par ' + totalPar +
-        ' &middot; ' + totalStrokes + ' Schl\u00e4ge</div>' +
-    '</div>' +
-    '<table>' +
-      '<thead><tr><th>Loch</th><th>Par</th><th>Schl\u00e4ge</th><th>Diff</th></tr></thead>' +
-      '<tbody>' + rows + '</tbody>' +
-      '<tfoot><tr><td>Gesamt</td><td>' + totalPar + '</td><td>' + totalStrokes +
-      '</td><td class="' + cls(totalDiff) + '">' + sign(totalDiff) + '</td></tr></tfoot>' +
-    '</table>' +
-    '<div class="actions">' +
-      '<button id="btnSave">' +
-        '<svg viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg>' +
-        'Als PDF sichern</button>' +
-      '<button class="ghost" id="btnShare">' +
-        '<svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>' +
-        'Teilen</button>' +
-    '</div>' +
-    '<p class="hint" id="hint">Im Dialog als Ziel &bdquo;Als PDF sichern&ldquo; w&auml;hlen.</p>' +
-    '<div class="print-foot"><span>Pocket Caddy</span><span>' +
-      (dateText || '') + '</span></div>';
-
-  document.getElementById('btnSave').addEventListener('click', function () {
-    window.print();
-  });
-
-  var share = document.getElementById('btnShare');
-  if (navigator.share) {
-    share.addEventListener('click', function () {
-      navigator.share({
-        title: 'Golf-Runde ' + (dateText || ''),
-        text: holes.length + ' L\u00f6cher, ' + totalStrokes + ' Schl\u00e4ge, ' +
-              sign(totalDiff) + ' zu Par',
-        url: location.href
-      }).catch(function () { /* abgebrochen, nichts tun */ });
+  function buildMenu() {
+    document.getElementById('menuItems').innerHTML = MENU.map(function (m) {
+      if (m.sep) return '<div class="sep"></div>';
+      return '<button class="menuitem" data-go="' + m.id + '">' + m.icon +
+             '<span class="lbl">' + m.label +
+               '<span class="sub">' + m.sub + '</span></span>' +
+             (m.ready ? '' : '<span class="badge">bald</span>') +
+             '</button>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('.menuitem'), function (el) {
+      el.addEventListener('click', function () {
+        closeMenu();
+        location.hash = el.getAttribute('data-go');
+        route();
+      });
     });
-  } else {
-    share.style.display = 'none';
   }
+  function openMenu(){ sheet.classList.add('on'); sheetbg.classList.add('on'); }
+  function closeMenu(){ sheet.classList.remove('on'); sheetbg.classList.remove('on'); }
+  document.getElementById('btnMenu').addEventListener('click', openMenu);
+  sheetbg.addEventListener('click', closeMenu);
+
+  // ---------- Startseite ----------
+  function renderHome() {
+    brand.textContent = 'Pocket Caddy';
+
+    var arr = load().map(function (x) {
+      var p = parseCode(x.code); p.savedAt = x.saved || 0; return p;
+    }).filter(function (p) { return p.holes.length; });
+
+    if (!arr.length) {
+      content.innerHTML =
+        '<div class="empty"><b>Noch keine Runden</b>' +
+        'Scanne den QR-Code auf deinem Pocket Caddy und tippe dort auf ' +
+        '&bdquo;Runde speichern&ldquo;. Sie erscheint dann hier.' +
+        (storageWorks() ? '' :
+          '<br><br>Achtung: Dieser Browser erlaubt kein Speichern (privater Modus?).') +
+        '</div>';
+      return;
+    }
+
+    arr.sort(function (a, b) {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      return b.savedAt - a.savedAt;
+    });
+
+    var best = arr.reduce(function (m, r) { return r.diff < m.diff ? r : m; }, arr[0]);
+    var avg  = arr.reduce(function (s, r) { return s + r.diff; }, 0) / arr.length;
+
+    var items = arr.map(function (r) {
+      return '<button class="item" data-code="' + esc(r.code) + '">' +
+               '<span class="big" style="color:' + colorOf(r.diff) + '">' + sign(r.diff) + '</span>' +
+               '<span class="meta">' +
+                 '<span class="d">' + (fmtDate(r.date) || 'ohne Datum') + '</span>' +
+                 '<span class="s">' + r.holes.length + ' L\u00f6cher &middot; ' +
+                   r.strokes + ' Schl\u00e4ge &middot; Par ' + r.par + '</span>' +
+               '</span>' +
+               '<span class="chev">' + I.chev + '</span>' +
+             '</button>';
+    }).join('');
+
+    content.innerHTML =
+      '<div class="stats">' +
+        '<div class="stat"><div class="v">' + arr.length + '</div><div class="k">Runden</div></div>' +
+        '<div class="stat"><div class="v" style="color:' + colorOf(best.diff) + '">' +
+          sign(best.diff) + '</div><div class="k">Beste</div></div>' +
+        '<div class="stat"><div class="v" style="color:' + colorOf(avg) + '">' +
+          (avg > 0 ? '+' : '') + avg.toFixed(1) + '</div><div class="k">Schnitt</div></div>' +
+      '</div>' +
+      '<div class="sectionhead"><span class="t">Verlauf</span>' +
+        '<span class="c">' + arr.length + (arr.length === 1 ? ' Runde' : ' Runden') + '</span></div>' +
+      '<div class="list">' + items + '</div>' +
+      '<div class="del"><button id="btnClear">Alle Runden l\u00f6schen</button></div>';
+
+    Array.prototype.forEach.call(content.querySelectorAll('.item'), function (el) {
+      el.addEventListener('click', function () {
+        location.hash = el.getAttribute('data-code'); route();
+      });
+    });
+    document.getElementById('btnClear').addEventListener('click', function () {
+      if (confirm('Wirklich alle gespeicherten Runden l\u00f6schen? Das l\u00e4sst sich nicht r\u00fcckg\u00e4ngig machen.')) {
+        save([]); renderHome();
+      }
+    });
+  }
+
+  // ---------- Scorecard einer Runde ----------
+  function renderRound(r) {
+    brand.textContent = 'Runde';
+
+    var rows = r.holes.map(function (h, i) {
+      return '<tr><td>' + (i+1) + '</td><td>' + h.par + '</td><td>' + h.sc +
+             '</td><td class="' + cls(h.diff) + '">' + sign(h.diff) + '</td></tr>';
+    }).join('');
+
+    var known = load().some(function (x) { return x.code === r.code; });
+
+    content.innerHTML =
+      '<div class="date">' + (fmtDate(r.date) || '') + '</div>' +
+      '<div class="total">' +
+        '<div class="num" style="color:' + colorOf(r.diff) + '">' + sign(r.diff) + '</div>' +
+        '<div class="sub">' + r.holes.length + ' L\u00f6cher &middot; Par ' + r.par +
+          ' &middot; ' + r.strokes + ' Schl\u00e4ge</div>' +
+      '</div>' +
+      '<table>' +
+        '<thead><tr><th>Loch</th><th>Par</th><th>Schl\u00e4ge</th><th>Diff</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+        '<tfoot><tr><td>Gesamt</td><td>' + r.par + '</td><td>' + r.strokes +
+          '</td><td class="' + cls(r.diff) + '">' + sign(r.diff) + '</td></tr></tfoot>' +
+      '</table>' +
+      '<div class="actions">' +
+        '<button class="btn ' + (known ? 'saved' : '') + '" id="btnKeep">' +
+          (known ? I.check + 'Gespeichert' : I.save + 'Runde speichern') + '</button>' +
+        '<button class="btn ghost" id="btnPdf">' + I.pdf + 'PDF</button>' +
+        '<button class="btn ghost" id="btnShare">' + I.share + 'Teilen</button>' +
+      '</div>' +
+      '<p class="hint" id="hint">' +
+        (storageWorks() ? 'Gespeicherte Runden bleiben auf diesem Ger\u00e4t.'
+                        : 'Dieser Browser erlaubt kein Speichern (privater Modus?).') +
+      '</p>' +
+      '<div class="actions"><button class="btn ghost" id="btnHome">' +
+        I.back + 'Startseite</button></div>' +
+      '<div class="print-foot"><span>Pocket Caddy</span><span>' + fmtDate(r.date) + '</span></div>';
+
+    var keep = document.getElementById('btnKeep');
+    keep.addEventListener('click', function () {
+      var arr = load();
+      if (arr.some(function (x) { return x.code === r.code; })) return;
+      arr.push({ code: r.code, date: r.date, saved: Date.now() });
+      if (save(arr)) { keep.className = 'btn saved'; keep.innerHTML = I.check + 'Gespeichert'; }
+      else { document.getElementById('hint').textContent =
+               'Speichern hat nicht geklappt, evtl. ist der Speicher voll oder gesperrt.'; }
+    });
+    document.getElementById('btnPdf').addEventListener('click', function(){ window.print(); });
+    document.getElementById('btnHome').addEventListener('click', function () {
+      location.hash = ''; route();
+    });
+    var sh = document.getElementById('btnShare');
+    if (navigator.share) {
+      sh.addEventListener('click', function () {
+        navigator.share({
+          title: 'Golf-Runde ' + fmtDate(r.date),
+          text: r.holes.length + ' L\u00f6cher, ' + r.strokes + ' Schl\u00e4ge, ' +
+                sign(r.diff) + ' zu Par',
+          url: location.href
+        }).catch(function(){});
+      });
+    } else { sh.style.display = 'none'; }
+  }
+
+  // ---------- Platzhalterseiten ----------
+  var PAGES = {
+    'menu/stats': { title:'Statistik', icon:I.chart, head:'Statistik kommt noch',
+      text:'Hier siehst du sp\u00e4ter deine Entwicklung \u00fcber die Runden, den Schnitt pro Loch und wo du am meisten Schl\u00e4ge verlierst.' },
+    'menu/login': { title:'Anmelden', icon:I.user, head:'Anmeldung kommt noch',
+      text:'Damit liegen deine Runden nicht nur auf diesem Ger\u00e4t, sondern sind auch nach einem Handywechsel noch da. Bis dahin gilt: Alles wird lokal in diesem Browser gespeichert.' },
+    'menu/friends': { title:'Freunde', icon:I.users, head:'Freunde kommen noch',
+      text:'Geplant ist, Runden mit Freunden zu vergleichen und zu teilen. Bis dahin kannst du eine einzelne Runde \u00fcber den Teilen-Knopf als Link verschicken.' },
+    'menu/backup': { title:'Sicherung', icon:I.box, head:'Sicherung kommt noch',
+      text:'Hier kannst du sp\u00e4ter alle Runden als Datei exportieren und wieder einlesen. Das ist wichtig, solange alles nur lokal gespeichert ist.' }
+  };
+
+  function renderPlaceholder(key) {
+    var p = PAGES[key];
+    brand.textContent = p.title;
+    content.innerHTML =
+      '<div class="ph"><div class="ic">' + p.icon + '</div>' +
+      '<b>' + p.head + '</b>' + p.text +
+      '<div><span class="soon">in Arbeit</span></div></div>' +
+      '<div class="actions"><button class="btn ghost" id="btnHome">' +
+        I.back + 'Startseite</button></div>';
+    document.getElementById('btnHome').addEventListener('click', function () {
+      location.hash = ''; route();
+    });
+  }
+
+  function renderAbout() {
+    brand.textContent = '\u00dcber';
+    var n = load().length;
+    content.innerHTML =
+      '<div class="ph"><div class="ic">' + I.info + '</div>' +
+      '<b>Pocket Caddy</b>' +
+      'Scorecard-Ansicht f\u00fcr den selbstgebauten Golf-Schlagz\u00e4hler.<br><br>' +
+      'Alle Runden werden ausschlie\u00dflich lokal in diesem Browser gespeichert. ' +
+      'Es werden keine Daten an einen Server \u00fcbertragen.<br><br>' +
+      'Gespeicherte Runden: ' + n + '<br>' +
+      'Speicher verf\u00fcgbar: ' + (storageWorks() ? 'ja' : 'nein') +
+      '</div>' +
+      '<div class="actions"><button class="btn ghost" id="btnHome">' +
+        I.back + 'Startseite</button></div>';
+    document.getElementById('btnHome').addEventListener('click', function () {
+      location.hash = ''; route();
+    });
+  }
+
+  // ---------- Weiche ----------
+  function route() {
+    closeMenu();
+    window.scrollTo(0, 0);
+    var raw = (location.hash || '').replace(/^#/, '');
+
+    if (!raw)                  { renderHome(); return; }
+    if (raw === 'menu/about')  { renderAbout(); return; }
+    if (PAGES[raw])            { renderPlaceholder(raw); return; }
+
+    var r = parseCode(raw);
+    if (!r.holes.length) {
+      brand.textContent = 'Pocket Caddy';
+      content.innerHTML =
+        '<div class="empty"><b>Daten nicht lesbar</b>' +
+        'Der Link scheint unvollst\u00e4ndig zu sein. Bitte den QR-Code neu scannen.</div>' +
+        '<div class="actions"><button class="btn ghost" id="btnHome">' +
+          I.back + 'Startseite</button></div>';
+      document.getElementById('btnHome').addEventListener('click', function () {
+        location.hash = ''; route();
+      });
+      return;
+    }
+    renderRound(r);
+  }
+
+  buildMenu();
+  window.addEventListener('hashchange', route);
+  route();
 })();
 </script>
 </body>
