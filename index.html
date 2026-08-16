@@ -181,6 +181,11 @@
   .form input:focus{outline:none;border-color:#ffffff33}
   .form input::placeholder{color:var(--mut)}
   .warn{margin:14px 0 0;font-size:12.5px;color:var(--mut);line-height:1.7}
+  .linkrow{margin-top:14px;text-align:center}
+  .linkbtn{background:transparent;border:0;color:var(--mut);font:inherit;
+           font-size:13.5px;text-decoration:underline;text-underline-offset:3px;
+           cursor:pointer;padding:6px}
+  .linkbtn:active{color:var(--txt)}
 
   .del{margin-top:26px;text-align:center}
   .del button{background:transparent;border:0;color:#8a5050;font:inherit;
@@ -274,6 +279,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
   var Auth = (function () {
     var client = null, user = null, ready = false;
     var listeners = [];
+    var recovery = false;   // kommt gerade aus der "Passwort vergessen"-Mail
 
     function init(cb) {
       try {
@@ -290,10 +296,16 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         cb && cb();
       }).catch(function () { ready = true; cb && cb(); });
 
-      client.auth.onAuthStateChange(function (_evt, session) {
+      client.auth.onAuthStateChange(function (evt, session) {
         var before = user ? user.id : null;
         user = session ? session.user : null;
-        if ((user ? user.id : null) !== before) {
+        // Supabase meldet PASSWORD_RECOVERY, wenn der Link aus der Mail
+        // geoeffnet wurde. Dann zeigen wir das Feld fuer das neue Passwort.
+        if (evt === 'PASSWORD_RECOVERY') {
+          recovery = true;
+          location.hash = 'menu/login';
+        }
+        if ((user ? user.id : null) !== before || evt === 'PASSWORD_RECOVERY') {
           listeners.forEach(function (f) { f(user); });
         }
       });
@@ -304,6 +316,8 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       onChange: function (f) { listeners.push(f); },
       isReady: function () { return ready; },
       isOnline: function () { return !!client; },
+      isRecovery: function () { return recovery; },
+      clearRecovery: function () { recovery = false; },
       user: function () { return user; },
       id: function () { return user ? user.id : null; },
       email: function () { return user ? user.email : ''; },
@@ -312,6 +326,16 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       },
       signIn: function (email, pw) {
         return client.auth.signInWithPassword({ email: email, password: pw });
+      },
+      // Schickt eine Mail mit Link zurueck auf diese Seite. Der Anker
+      // #menu/login sorgt dafuer, dass man direkt im Kontobereich landet.
+      resetPassword: function (email) {
+        return client.auth.resetPasswordForEmail(email, {
+          redirectTo: location.origin + location.pathname + '#menu/login'
+        });
+      },
+      updatePassword: function (pw) {
+        return client.auth.updateUser({ password: pw });
       },
       signOut: function () { return client.auth.signOut(); },
       db: function () { return client; }
@@ -1023,6 +1047,40 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       return;
     }
 
+    // Kommt der Nutzer aus der "Passwort vergessen"-Mail, zuerst das neue
+    // Passwort setzen lassen, bevor irgendetwas anderes angezeigt wird.
+    if (Auth.isRecovery()) {
+      brand.textContent = 'Passwort';
+      content.innerHTML =
+        '<div class="panel"><h3>Neues Passwort setzen</h3>' +
+        '<p>Du bist \u00fcber den Link aus der E-Mail hier gelandet. ' +
+        'Vergib jetzt ein neues Passwort.</p>' +
+        '<div class="form">' +
+        '<input type="password" id="fNew" placeholder="Neues Passwort" ' +
+        'autocomplete="new-password">' +
+        '<input type="password" id="fNew2" placeholder="Noch einmal wiederholen" ' +
+        'autocomplete="new-password">' +
+        '</div>' +
+        '<div class="actions"><button class="btn" id="btnSetPw">Passwort speichern</button></div>' +
+        '<p class="warn">Speichere es am besten gleich im Passwortmanager ' +
+        'deines Ger\u00e4ts.</p></div>';
+
+      document.getElementById('btnSetPw').addEventListener('click', function () {
+        var a  = document.getElementById('fNew').value;
+        var a2 = document.getElementById('fNew2').value;
+        if (a.length < 6) { toast('Das Passwort braucht mindestens 6 Zeichen.', true); return; }
+        if (a !== a2)     { toast('Die beiden Eingaben stimmen nicht \u00fcberein.', true); return; }
+        toast('Speichere \u2026');
+        Auth.updatePassword(a).then(function (r) {
+          if (r.error) { toast(loginError(r.error), true); return; }
+          Auth.clearRecovery();
+          toast('Passwort ge\u00e4ndert.');
+          renderLogin();
+        });
+      });
+      return;
+    }
+
     if (Auth.id()) {
       var n = Store.all().length;
       content.innerHTML =
@@ -1067,9 +1125,11 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       '<button class="btn" id="btnIn">Anmelden</button>' +
       '<button class="btn ghost" id="btnUp">Neu registrieren</button>' +
       '</div>' +
-      '<p class="warn">Es gibt derzeit keine Funktion &bdquo;Passwort ' +
-      'vergessen&ldquo;. Speichere das Passwort am besten im Passwortmanager ' +
-      'deines Ger\u00e4ts.</p></div>' + backButton('btnHome');
+      '<div class="linkrow"><button class="linkbtn" id="btnForgot">' +
+      'Passwort vergessen?</button></div>' +
+      '<p class="warn">Die Mail kommt von Supabase und landet erfahrungs' +
+      'gem\u00e4\u00df oft im Spam-Ordner. Schau dort nach, falls nichts ' +
+      'ankommt.</p></div>' + backButton('btnHome');
 
     function creds() {
       var e = document.getElementById('fEmail').value.trim();
@@ -1114,6 +1174,18 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         // Ohne Sitzung: die Bestaetigung per Mail ist noch eingeschaltet
         toast('Konto angelegt, aber noch nicht best\u00e4tigt. In Supabase ' +
               'muss "Confirm email" ausgeschaltet sein.', true);
+      });
+    });
+
+    document.getElementById('btnForgot').addEventListener('click', function () {
+      var e = document.getElementById('fEmail').value.trim();
+      if (!e) { toast('Bitte zuerst deine E-Mail eintragen.', true); return; }
+      toast('Schicke Mail \u2026');
+      Auth.resetPassword(e).then(function (r) {
+        if (r.error) { toast(loginError(r.error), true); return; }
+        // Bewusst neutral formuliert: die Antwort verraet nicht, ob es zu
+        // dieser Adresse ueberhaupt ein Konto gibt.
+        toast('Falls es ein Konto gibt, ist die Mail unterwegs. Auch im Spam schauen.');
       });
     });
 
