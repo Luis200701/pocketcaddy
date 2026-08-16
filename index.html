@@ -51,11 +51,56 @@
   tbody tr:first-child td{border-top:none}
   .good{color:var(--good)} .bad{color:var(--bad)} .even{color:var(--txt)}
   tfoot td{background:var(--bar);font-weight:700;border-top:2px solid #ffffff1a}
-  .hint{margin-top:20px;font-size:13px;color:var(--mut);text-align:center;line-height:1.7}
-  .hint b{color:#aab4c0}
+
+  /* Knopfleiste */
+  .actions{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  button{
+    font:600 15px/1 inherit;font-family:inherit;color:#0d1117;background:var(--lime);
+    border:0;border-radius:999px;padding:14px 26px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:9px;
+  }
+  button:active{transform:translateY(1px)}
+  button.ghost{background:transparent;color:var(--mut);
+               box-shadow:inset 0 0 0 1px #ffffff1f}
+  button svg{width:17px;height:17px;fill:none;stroke:currentColor;
+             stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .hint{margin-top:14px;font-size:12.5px;color:var(--mut);text-align:center;line-height:1.7}
   .empty{background:var(--card);border-radius:14px;padding:26px 20px;
          text-align:center;color:var(--mut);line-height:1.7}
   .empty b{color:var(--txt);display:block;margin-bottom:8px;font-size:17px}
+  .print-foot{display:none}
+
+  /* ---------- PDF-Layout ----------
+     Bewusst dunkel wie die Seite selbst, weil das Ergebnis praktisch immer
+     als PDF angeschaut und nicht auf Papier gedruckt wird.
+     print-color-adjust:exact zwingt Browser, Hintergrundfarben mitzunehmen,
+     sonst wuerden sie beim Drucken weggelassen.
+     @page margin:0 sorgt dafuer, dass der dunkle Grund bis an den Rand geht. */
+  @media print{
+    @page{size:A4 portrait;margin:0}
+    html,body{
+      background:var(--bg) !important;color:var(--txt);
+      -webkit-print-color-adjust:exact;print-color-adjust:exact;
+      padding:0;font-size:11pt;
+    }
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .wrap{max-width:none;padding:13mm 16mm}
+    .actions,.hint{display:none !important}
+    header{margin-bottom:6mm;padding-bottom:4mm;
+           border-bottom:1px solid #ffffff26;
+           text-align:left;display:flex;justify-content:space-between;align-items:baseline}
+    h1{font-size:12pt}
+    .date{margin:0;font-size:11pt}
+    .total{margin:0 0 6mm;text-align:left;display:flex;align-items:baseline;gap:6mm}
+    .total .num{font-size:34pt}
+    .total .sub{margin:0;font-size:9pt}
+    th{padding:2.4mm 4mm;font-size:8.5pt}
+    td{padding:2.1mm 4mm}
+    .print-foot{margin-top:6mm;padding-top:3.5mm;border-top:1px solid #ffffff1a;
+                font-size:8.5pt;color:var(--mut);
+                display:flex;justify-content:space-between}
+    tr{break-inside:avoid}
+  }
 </style>
 </head>
 <body>
@@ -83,9 +128,10 @@
   var dpart = parts.length > 1 ? parts[0] : '';
   var data  = parts.length > 1 ? parts[1] : parts[0];
 
+  var dateText = '';
   if (/^\d{6}$/.test(dpart)) {
-    document.getElementById('date').textContent =
-      dpart.slice(4, 6) + '.' + dpart.slice(2, 4) + '.20' + dpart.slice(0, 2);
+    dateText = dpart.slice(4, 6) + '.' + dpart.slice(2, 4) + '.20' + dpart.slice(0, 2);
+    document.getElementById('date').textContent = dateText;
   }
 
   var holes = [], totalDiff = 0, totalStrokes = 0, totalPar = 0;
@@ -118,7 +164,8 @@
   content.innerHTML =
     '<div class="total">' +
       '<div class="num" style="color:' + totalColor + '">' + sign(totalDiff) + '</div>' +
-      '<div class="sub">' + holes.length + ' L\u00f6cher &middot; Par ' + totalPar + '</div>' +
+      '<div class="sub">' + holes.length + ' L\u00f6cher &middot; Par ' + totalPar +
+        ' &middot; ' + totalStrokes + ' Schl\u00e4ge</div>' +
     '</div>' +
     '<table>' +
       '<thead><tr><th>Loch</th><th>Par</th><th>Schl\u00e4ge</th><th>Diff</th></tr></thead>' +
@@ -126,8 +173,35 @@
       '<tfoot><tr><td>Gesamt</td><td>' + totalPar + '</td><td>' + totalStrokes +
       '</td><td class="' + cls(totalDiff) + '">' + sign(totalDiff) + '</td></tr></tfoot>' +
     '</table>' +
-    '<p class="hint">Zum Behalten: <b>Teilen &rarr; Als PDF sichern</b><br>' +
-    'oder einfach einen Screenshot machen.</p>';
+    '<div class="actions">' +
+      '<button id="btnSave">' +
+        '<svg viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg>' +
+        'Als PDF sichern</button>' +
+      '<button class="ghost" id="btnShare">' +
+        '<svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>' +
+        'Teilen</button>' +
+    '</div>' +
+    '<p class="hint" id="hint">Im Dialog als Ziel &bdquo;Als PDF sichern&ldquo; w&auml;hlen.</p>' +
+    '<div class="print-foot"><span>Pocket Caddy</span><span>' +
+      (dateText || '') + '</span></div>';
+
+  document.getElementById('btnSave').addEventListener('click', function () {
+    window.print();
+  });
+
+  var share = document.getElementById('btnShare');
+  if (navigator.share) {
+    share.addEventListener('click', function () {
+      navigator.share({
+        title: 'Golf-Runde ' + (dateText || ''),
+        text: holes.length + ' L\u00f6cher, ' + totalStrokes + ' Schl\u00e4ge, ' +
+              sign(totalDiff) + ' zu Par',
+        url: location.href
+      }).catch(function () { /* abgebrochen, nichts tun */ });
+    });
+  } else {
+    share.style.display = 'none';
+  }
 })();
 </script>
 </body>
