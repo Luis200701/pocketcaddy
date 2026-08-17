@@ -187,6 +187,29 @@
            cursor:pointer;padding:6px}
   .linkbtn:active{color:var(--txt)}
 
+  /* Freunde */
+  .codebox{background:var(--bg);border:1px dashed #ffffff2b;border-radius:12px;
+           padding:16px;text-align:center;font-size:26px;font-weight:800;
+           letter-spacing:.14em;font-variant-numeric:tabular-nums;margin-bottom:14px}
+  .item.static{cursor:default}
+  .ava{width:40px;height:40px;border-radius:999px;background:var(--bar);
+       display:flex;align-items:center;justify-content:center;flex:none;
+       font-weight:700;font-size:16px;color:var(--lime)}
+  .ava.dim{color:var(--mut)}
+  .ava.big{width:52px;height:52px;font-size:21px}
+  .btnrow{display:flex;gap:8px;flex:none}
+  .mini{width:36px;height:36px;border-radius:999px;border:1px solid var(--line);
+        background:transparent;display:flex;align-items:center;justify-content:center;
+        cursor:pointer;padding:0;color:var(--mut)}
+  .mini svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2.2;
+            stroke-linecap:round;stroke-linejoin:round}
+  .mini.ok{color:var(--lime);border-color:#a3e63544}
+  .mini.no{color:#c07070;border-color:#ff5c5c33}
+  .mini:active{background:#ffffff10}
+  .friendhead{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+  .friendhead .fname{font-size:20px;font-weight:700}
+  .datebtn.plain{cursor:default}
+
   .del{margin-top:26px;text-align:center}
   .del button{background:transparent;border:0;color:#8a5050;font:inherit;
               box-shadow:inset 0 0 0 1px #ff5c5c33;font-size:13.5px;padding:11px 18px;
@@ -749,6 +772,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     cal:'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>',
     sync:'<svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M3 21v-5h5"/><path d="M21 3v5h-5"/></svg>',
     cloud:'<svg viewBox="0 0 24 24"><path d="M17.5 19a4.5 4.5 0 0 0 .5-9 6 6 0 0 0-11.6-1.6A3.7 3.7 0 0 0 7 19z"/></svg>',
+    x:'<svg viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>',
     down:'<svg viewBox="0 0 24 24"><path d="M12 3v13"/><path d="M7 12l5 5 5-5"/><path d="M4 21h16"/></svg>',
     up:'<svg viewBox="0 0 24 24"><path d="M12 21V8"/><path d="M7 12l5-5 5 5"/><path d="M4 3h16"/></svg>'
   };
@@ -764,7 +788,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         label:loggedIn ? 'Konto' : 'Anmelden',
         sub:loggedIn ? Auth.email() : 'Runden ger\u00e4te\u00fcbergreifend sichern',
         ready:true },
-      { id:'menu/friends',icon:I.users, label:'Freunde',    sub:'Runden vergleichen und teilen', ready:false },
+      { id:'menu/friends',icon:I.users, label:'Freunde',    sub:'Runden vergleichen und teilen', ready:true },
       { sep:true },
       { id:'menu/backup', icon:I.box,   label:'Sicherung',  sub:'Runden exportieren und einlesen', ready:true },
       { id:'menu/about',  icon:I.info,  label:'\u00dcber',  sub:'Version und Hinweise', ready:true }
@@ -861,12 +885,42 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
   }
 
   /* ---------- Eine Runde ---------- */
-  function renderRound(r) {
-    brand.textContent = 'Runde';
+  // opts.owner  -> Name des Freundes: Ansicht nur lesend, kein Speichern,
+  //                kein Datum aendern, Rueckweg fuehrt zum Freund
+  function renderRound(r, opts) {
+    opts = opts || {};
+    var readOnly = !!opts.owner;
+    brand.textContent = readOnly ? esc(opts.owner) : 'Runde';
+
     var rows = r.holes.map(function (h, i) {
       return '<tr><td>' + (i+1) + '</td><td>' + h.par + '</td><td>' + h.sc +
              '</td><td class="' + cls(h.diff) + '">' + sign(h.diff) + '</td></tr>';
     }).join('');
+
+    if (readOnly) {
+      content.innerHTML =
+        '<div class="datewrap"><span class="datebtn plain">' + I.cal +
+        '<span>' + (fmtDate(r.date) || '') + '</span></span></div>' +
+        '<div class="total"><div class="num" style="color:' + colorOf(r.diff) + '">' +
+          sign(r.diff) + '</div><div class="sub">' + r.holes.length +
+          ' L\u00f6cher &middot; Par ' + r.par + ' &middot; ' + r.strokes +
+          ' Schl\u00e4ge</div></div>' +
+        '<table><thead><tr><th>Loch</th><th>Par</th><th>Schl\u00e4ge</th><th>Diff</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+          '<tfoot><tr><td>Gesamt</td><td>' + r.par + '</td><td>' + r.strokes +
+          '</td><td class="' + cls(r.diff) + '">' + sign(r.diff) + '</td></tr></tfoot></table>' +
+        '<p class="hint">Runde von ' + esc(opts.owner) + '</p>' +
+        '<div class="actions"><button class="btn ghost" id="btnPdf">' + I.pdf + 'PDF</button>' +
+        '<button class="btn ghost" id="btnBackF">' + I.back + 'Zur\u00fcck</button></div>' +
+        '<div class="print-foot"><span>Pocket Caddy &middot; ' + esc(opts.owner) +
+        '</span><span>' + fmtDate(r.date) + '</span></div>';
+
+      document.getElementById('btnPdf').addEventListener('click', function(){ window.print(); });
+      document.getElementById('btnBackF').addEventListener('click', function () {
+        location.hash = opts.back || 'menu/friends'; route();
+      });
+      return;
+    }
 
     // Datum ist waehrend der Ansicht aenderbar, deshalb lokal merken
     var curDate = r.date;
@@ -1032,6 +1086,345 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     wireBack('btnHome');
   }
 
+  /* ==========================================================
+     Freunde
+     Alles laeuft ueber die Datenbank, es wird nichts lokal
+     zwischengespeichert. Ohne Anmeldung gibt es hier nichts.
+     ========================================================== */
+  var Friends = (function () {
+    var myProfile = null;
+
+    function db() { return Auth.db(); }
+
+    function loadProfile(force) {
+      if (myProfile && !force) return Promise.resolve(myProfile);
+      if (!Auth.id() || !Auth.isOnline()) return Promise.resolve(null);
+      return db().from('profiles').select('user_id,display_name,friend_code')
+        .eq('user_id', Auth.id()).maybeSingle()
+        .then(function (r) { myProfile = r.data || null; return myProfile; })
+        .catch(function () { return null; });
+    }
+
+    function setName(name) {
+      return db().from('profiles').update({ display_name: name })
+        .eq('user_id', Auth.id())
+        .then(function (r) {
+          if (!r.error && myProfile) myProfile.display_name = name;
+          return r;
+        });
+    }
+
+    // Gibt alle Verbindungen zurueck, angereichert um den Namen des
+    // jeweils anderen. Zwei Abfragen statt einer, weil friendships auf
+    // auth.users zeigt und nicht direkt auf profiles.
+    function list() {
+      var me = Auth.id();
+      if (!me || !Auth.isOnline()) return Promise.resolve({ friends:[], incoming:[], outgoing:[] });
+
+      return db().from('friendships').select('*')
+        .or('requester.eq.' + me + ',addressee.eq.' + me)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var rows = r.data || [];
+          var others = rows.map(function (f) {
+            return f.requester === me ? f.addressee : f.requester;
+          });
+          if (!others.length) return { rows:rows, names:{} };
+          return db().from('profiles').select('user_id,display_name')
+            .in('user_id', others)
+            .then(function (p) {
+              var names = {};
+              (p.data || []).forEach(function (x) { names[x.user_id] = x.display_name; });
+              return { rows:rows, names:names };
+            });
+        })
+        .then(function (res) {
+          var friends = [], incoming = [], outgoing = [];
+          res.rows.forEach(function (f) {
+            var other = f.requester === me ? f.addressee : f.requester;
+            var item = { id:f.id, userId:other, status:f.status,
+                         name:res.names[other] || '' };
+            if (f.status === 'accepted') friends.push(item);
+            else if (f.addressee === me) incoming.push(item);
+            else outgoing.push(item);
+          });
+          return { friends:friends, incoming:incoming, outgoing:outgoing };
+        })
+        .catch(function (e) {
+          return { friends:[], incoming:[], outgoing:[], error:(e && e.message) || 'Fehler' };
+        });
+    }
+
+    function requestByCode(code) {
+      var me = Auth.id();
+      return db().rpc('find_by_friend_code', { code: code })
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var hit = (r.data && r.data.length) ? r.data[0] : null;
+          if (!hit) return { ok:false, reason:'notfound' };
+          return db().from('friendships')
+            .insert({ requester: me, addressee: hit.user_id, status: 'pending' })
+            .then(function (ins) {
+              if (ins.error) {
+                var m = (ins.error.message || '').toLowerCase();
+                if (m.indexOf('duplicate') >= 0 || m.indexOf('unique') >= 0) {
+                  return { ok:false, reason:'exists' };
+                }
+                throw ins.error;
+              }
+              return { ok:true, name:hit.display_name || '' };
+            });
+        })
+        .catch(function (e) {
+          return { ok:false, reason:'error', message:(e && e.message) || '' };
+        });
+    }
+
+    function accept(id) {
+      return db().from('friendships')
+        .update({ status:'accepted', updated_at:new Date().toISOString() })
+        .eq('id', id);
+    }
+
+    function remove(id) {
+      return db().from('friendships').delete().eq('id', id);
+    }
+
+    function roundsOf(userId) {
+      return db().from('rounds').select('*')
+        .eq('user_id', userId).eq('deleted', false)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          return r.data || [];
+        })
+        .catch(function () { return []; });
+    }
+
+    return { loadProfile:loadProfile, setName:setName, list:list,
+             requestByCode:requestByCode, accept:accept, remove:remove,
+             roundsOf:roundsOf,
+             reset:function () { myProfile = null; } };
+  })();
+
+  /* ---------- Freunde ---------- */
+  function nameOf(item) {
+    return item.name || 'Spieler';
+  }
+
+  function renderFriends() {
+    brand.textContent = 'Freunde';
+
+    if (!Auth.id()) {
+      content.innerHTML =
+        '<div class="ph"><div class="ic">' + I.users + '</div>' +
+        '<b>Anmeldung n\u00f6tig</b>' +
+        'Freunde funktionieren nur mit Konto, weil eure Runden dabei \u00fcber ' +
+        'den Server ausgetauscht werden.</div>' +
+        '<div class="actions"><button class="btn" id="btnToLogin">Zur Anmeldung</button></div>' +
+        backButton('btnHome');
+      document.getElementById('btnToLogin').addEventListener('click', function () {
+        location.hash = 'menu/login'; route();
+      });
+      wireBack('btnHome');
+      return;
+    }
+
+    content.innerHTML = '<div class="ph">Lade \u2026</div>';
+
+    Promise.all([Friends.loadProfile(), Friends.list()]).then(function (res) {
+      var prof = res[0], data = res[1];
+      var code = prof && prof.friend_code ? prof.friend_code : '\u2013';
+      var pretty = code.length === 8 ? code.slice(0,4) + ' ' + code.slice(4) : code;
+
+      var html =
+        '<div class="panel"><h3>Dein Code</h3>' +
+        '<p>Gib deinen Freunden diesen Code, damit sie dich hinzuf\u00fcgen ' +
+        'k\u00f6nnen. Erst wenn du eine Anfrage best\u00e4tigst, sieht jemand ' +
+        'deine Runden.</p>' +
+        '<div class="codebox" id="codeBox">' + pretty + '</div>' +
+        '<div class="actions"><button class="btn ghost" id="btnCopy">' +
+        I.share + 'Code teilen</button></div></div>' +
+
+        '<div class="panel"><h3>Freund hinzuf\u00fcgen</h3>' +
+        '<p>Code deines Freundes eintippen. Er bekommt dann eine Anfrage, ' +
+        'die er best\u00e4tigen muss.</p>' +
+        '<div class="form"><input type="text" id="fCode" placeholder="8-stelliger Code" ' +
+        'inputmode="numeric" maxlength="9" autocomplete="off"></div>' +
+        '<div class="actions"><button class="btn" id="btnAdd">Anfrage senden</button></div></div>';
+
+      if (data.incoming.length) {
+        html += '<div class="sectionhead"><span class="t">Offene Anfragen</span>' +
+                '<span class="c">' + data.incoming.length + '</span></div><div class="list">' +
+          data.incoming.map(function (f) {
+            return '<div class="item static"><span class="ava">' +
+              esc(nameOf(f).charAt(0).toUpperCase()) + '</span>' +
+              '<span class="meta"><span class="d">' + esc(nameOf(f)) + '</span>' +
+              '<span class="s">m\u00f6chte sich verbinden</span></span>' +
+              '<span class="btnrow">' +
+              '<button class="mini ok" data-accept="' + f.id + '">' + I.check + '</button>' +
+              '<button class="mini no" data-drop="' + f.id + '">' + I.x + '</button>' +
+              '</span></div>';
+          }).join('') + '</div>';
+      }
+
+      html += '<div class="sectionhead"><span class="t">Freunde</span>' +
+              '<span class="c">' + data.friends.length + '</span></div>';
+
+      if (!data.friends.length) {
+        html += '<div class="empty"><b>Noch keine Freunde</b>' +
+                'Tausche deinen Code aus, dann erscheinen sie hier.</div>';
+      } else {
+        html += '<div class="list">' + data.friends.map(function (f) {
+          return '<button class="item" data-friend="' + f.userId + '">' +
+            '<span class="ava">' + esc(nameOf(f).charAt(0).toUpperCase()) + '</span>' +
+            '<span class="meta"><span class="d">' + esc(nameOf(f)) + '</span>' +
+            '<span class="s">Runden ansehen</span></span>' +
+            '<span class="chev">' + I.chev + '</span></button>';
+        }).join('') + '</div>';
+      }
+
+      if (data.outgoing.length) {
+        html += '<div class="sectionhead"><span class="t">Gesendet</span>' +
+                '<span class="c">' + data.outgoing.length + '</span></div><div class="list">' +
+          data.outgoing.map(function (f) {
+            return '<div class="item static"><span class="ava dim">' +
+              esc(nameOf(f).charAt(0).toUpperCase()) + '</span>' +
+              '<span class="meta"><span class="d">' + esc(nameOf(f)) + '</span>' +
+              '<span class="s">wartet auf Best\u00e4tigung</span></span>' +
+              '<span class="btnrow"><button class="mini no" data-drop="' + f.id +
+              '">' + I.x + '</button></span></div>';
+          }).join('') + '</div>';
+      }
+
+      html += backButton('btnHome');
+      content.innerHTML = html;
+
+      document.getElementById('btnCopy').addEventListener('click', function () {
+        var txt = 'Mein Pocket-Caddy-Code: ' + code;
+        if (navigator.share) {
+          navigator.share({ text: txt }).catch(function(){});
+        } else if (navigator.clipboard) {
+          navigator.clipboard.writeText(code).then(function () { toast('Code kopiert.'); });
+        } else { toast(code); }
+      });
+
+      document.getElementById('btnAdd').addEventListener('click', function () {
+        var c = document.getElementById('fCode').value.replace(/\D/g, '');
+        if (c.length !== 8) { toast('Der Code besteht aus 8 Ziffern.', true); return; }
+        toast('Sende Anfrage \u2026');
+        Friends.requestByCode(c).then(function (r) {
+          if (r.ok) { toast('Anfrage gesendet.'); renderFriends(); return; }
+          if (r.reason === 'notfound') toast('Zu diesem Code gibt es niemanden.', true);
+          else if (r.reason === 'exists') toast('Mit dieser Person besteht schon eine Verbindung.', true);
+          else toast('Hat nicht geklappt: ' + (r.message || 'unbekannt'), true);
+        });
+      });
+
+      Array.prototype.forEach.call(content.querySelectorAll('[data-accept]'), function (el) {
+        el.addEventListener('click', function () {
+          Friends.accept(el.getAttribute('data-accept')).then(function (r) {
+            toast(r.error ? 'Hat nicht geklappt.' : 'Best\u00e4tigt.', !!r.error);
+            renderFriends();
+          });
+        });
+      });
+      Array.prototype.forEach.call(content.querySelectorAll('[data-drop]'), function (el) {
+        el.addEventListener('click', function () {
+          Friends.remove(el.getAttribute('data-drop')).then(function () {
+            toast('Entfernt.'); renderFriends();
+          });
+        });
+      });
+      Array.prototype.forEach.call(content.querySelectorAll('[data-friend]'), function (el) {
+        el.addEventListener('click', function () {
+          location.hash = 'friend/' + el.getAttribute('data-friend'); route();
+        });
+      });
+
+      wireBack('btnHome');
+    });
+  }
+
+  /* ---------- Runden eines Freundes ---------- */
+  function renderFriendRounds(userId) {
+    brand.textContent = 'Freund';
+    content.innerHTML = '<div class="ph">Lade \u2026</div>';
+
+    Promise.all([Friends.list(), Friends.roundsOf(userId)]).then(function (res) {
+      var f = null;
+      res[0].friends.forEach(function (x) { if (x.userId === userId) f = x; });
+      var rows = res[1];
+
+      if (!f) {
+        content.innerHTML =
+          '<div class="empty"><b>Kein Zugriff</b>' +
+          'Diese Verbindung besteht nicht (mehr).</div>' + backButton('btnHome');
+        wireBack('btnHome');
+        return;
+      }
+
+      var arr = rows.map(function (x) {
+        var p = parseCode(x.code);
+        p.date = x.date || p.date;
+        p.createdAt = Date.parse(x.created_at) || 0;
+        return p;
+      }).filter(function (p) { return p.holes.length; });
+
+      arr.sort(function (a, b) {
+        if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+        return b.createdAt - a.createdAt;
+      });
+
+      var head = '<div class="friendhead"><span class="ava big">' +
+                 esc(nameOf(f).charAt(0).toUpperCase()) + '</span>' +
+                 '<span class="fname">' + esc(nameOf(f)) + '</span></div>';
+
+      if (!arr.length) {
+        content.innerHTML = head +
+          '<div class="empty"><b>Noch keine Runden</b>' +
+          esc(nameOf(f)) + ' hat bisher nichts gespeichert.</div>' +
+          '<div class="actions"><button class="btn ghost" id="btnBackF">' +
+          I.back + 'Freunde</button></div>';
+        document.getElementById('btnBackF').addEventListener('click', function () {
+          location.hash = 'menu/friends'; route();
+        });
+        return;
+      }
+
+      var best = arr.reduce(function (m, r) { return r.diff < m.diff ? r : m; }, arr[0]);
+      var avg  = arr.reduce(function (s, r) { return s + r.diff; }, 0) / arr.length;
+
+      content.innerHTML = head +
+        '<div class="stats">' +
+          '<div class="stat"><div class="v">' + arr.length + '</div><div class="k">Runden</div></div>' +
+          '<div class="stat"><div class="v" style="color:' + colorOf(best.diff) + '">' +
+            sign(best.diff) + '</div><div class="k">Beste</div></div>' +
+          '<div class="stat"><div class="v" style="color:' + colorOf(avg) + '">' +
+            (avg > 0 ? '+' : '') + avg.toFixed(1) + '</div><div class="k">Schnitt</div></div>' +
+        '</div>' +
+        '<div class="list">' + arr.map(function (r) {
+          return '<button class="item" data-open="' + esc((r.date ? r.date + '-' : '') + r.data) + '">' +
+            '<span class="big" style="color:' + colorOf(r.diff) + '">' + sign(r.diff) + '</span>' +
+            '<span class="meta"><span class="d">' + (fmtDate(r.date) || 'ohne Datum') + '</span>' +
+            '<span class="s">' + r.holes.length + ' L\u00f6cher &middot; ' + r.strokes +
+            ' Schl\u00e4ge &middot; Par ' + r.par + '</span></span>' +
+            '<span class="chev">' + I.chev + '</span></button>';
+        }).join('') + '</div>' +
+        '<div class="actions"><button class="btn ghost" id="btnBackF">' +
+        I.back + 'Freunde</button></div>';
+
+      Array.prototype.forEach.call(content.querySelectorAll('[data-open]'), function (el) {
+        el.addEventListener('click', function () {
+          location.hash = 'friend/' + userId + '/' + el.getAttribute('data-open');
+          route();
+        });
+      });
+      document.getElementById('btnBackF').addEventListener('click', function () {
+        location.hash = 'menu/friends'; route();
+      });
+    });
+  }
+
   /* ---------- Anmelden / Konto ---------- */
   function renderLogin() {
     brand.textContent = Auth.id() ? 'Konto' : 'Anmelden';
@@ -1092,7 +1485,29 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         '<div class="actions">' +
         '<button class="btn ghost" id="btnSync">' + I.sync + 'Jetzt abgleichen</button>' +
         '<button class="btn ghost" id="btnOut">Abmelden</button></div></div>' +
+
+        '<div class="panel"><h3>Anzeigename</h3>' +
+        '<p>Unter diesem Namen sehen dich deine Freunde. Ohne Namen erscheinst ' +
+        'du dort nur als &bdquo;Spieler&ldquo;.</p>' +
+        '<div class="form"><input type="text" id="fName" placeholder="Dein Name" ' +
+        'maxlength="40" autocomplete="nickname"></div>' +
+        '<div class="actions"><button class="btn ghost" id="btnName">Namen speichern</button></div></div>' +
         backButton('btnHome');
+
+      Friends.loadProfile().then(function (p) {
+        var el = document.getElementById('fName');
+        if (el && p && p.display_name) el.value = p.display_name;
+      });
+
+      document.getElementById('btnName').addEventListener('click', function () {
+        var v = document.getElementById('fName').value.trim();
+        if (!v) { toast('Bitte einen Namen eintragen.', true); return; }
+        Friends.setName(v).then(function (r) {
+          if (r.error) { toast('Hat nicht geklappt.', true); return; }
+          toast('Name gespeichert.');
+          buildMenu();
+        });
+      });
 
       document.getElementById('btnSync').addEventListener('click', function () {
         toast('Gleiche ab \u2026');
@@ -1102,6 +1517,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         });
       });
       document.getElementById('btnOut').addEventListener('click', function () {
+        Friends.reset();
         Auth.signOut().then(function () {
           toast('Abgemeldet.');
           location.hash = ''; route();
@@ -1237,6 +1653,22 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     var raw = (location.hash || '').replace(/^#/, '');
     if (!raw)                 { renderHome(); return; }
     if (raw === 'menu/login') { renderLogin(); return; }
+    if (raw === 'menu/friends'){ renderFriends(); return; }
+
+    // Freund: friend/<id>  oder  friend/<id>/<runde>
+    var fm = /^friend\/([0-9a-f-]{36})(?:\/(.+))?$/.exec(raw);
+    if (fm) {
+      if (!fm[2]) { renderFriendRounds(fm[1]); return; }
+      var fr = parseCode(fm[2]);
+      if (!fr.holes.length) { location.hash = 'friend/' + fm[1]; route(); return; }
+      Friends.list().then(function (d) {
+        var f = null;
+        d.friends.forEach(function (x) { if (x.userId === fm[1]) f = x; });
+        if (!f) { location.hash = 'menu/friends'; route(); return; }
+        renderRound(fr, { owner: nameOf(f), back: 'friend/' + fm[1] });
+      });
+      return;
+    }
     if (raw === 'menu/backup'){ renderBackup(); return; }
     if (raw === 'menu/about') { renderAbout(); return; }
     if (PAGES[raw])           { renderPlaceholder(raw); return; }
