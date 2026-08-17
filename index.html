@@ -60,6 +60,30 @@
   .iconbtn:active{background:#ffffff12}
   .iconbtn svg{width:22px;height:22px;fill:none;stroke:currentColor;
                stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .topbtns{display:flex;gap:4px}
+
+  /* Scanner */
+  .scanview{position:fixed;inset:0;background:#000;z-index:40;
+            display:flex;flex-direction:column;
+            opacity:0;pointer-events:none;transition:opacity .2s}
+  .scanview.on{opacity:1;pointer-events:auto}
+  .scanview video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .scantop{position:relative;z-index:2;display:flex;justify-content:space-between;
+           align-items:center;padding:calc(14px + env(safe-area-inset-top)) 16px 14px}
+  .scantop .close{background:#00000080;border:0;color:#fff;width:40px;height:40px;
+                  border-radius:999px;display:flex;align-items:center;justify-content:center}
+  .scantop .close svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;
+                      stroke-linecap:round;stroke-linejoin:round}
+  .scanframe{position:relative;z-index:2;margin:auto;width:min(72vw,300px);
+             aspect-ratio:1;border-radius:20px;
+             box-shadow:0 0 0 2000px rgba(0,0,0,.55);}
+  .scanframe::before{content:"";position:absolute;inset:0;border-radius:20px;
+                     border:2.5px solid var(--lime)}
+  .scanmsg{position:relative;z-index:2;text-align:center;color:#fff;
+           font-size:14.5px;padding:22px 30px calc(30px + env(safe-area-inset-bottom));
+           line-height:1.6}
+  .scanmsg b{display:block;margin-bottom:6px;font-size:16px}
+  .scanmsg .err{color:#ff8a8a}
 
   .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:22px}
   .stat{background:var(--card);border-radius:14px;padding:14px 10px;text-align:center}
@@ -241,9 +265,18 @@
 
 <div class="topbar">
   <span class="brand" id="brand">Pocket Caddy</span>
+  <span class="topbtns">
+  <button class="iconbtn" id="btnScan" aria-label="QR-Code scannen">
+    <svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+    <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+    <rect x="7" y="7" width="4" height="4"/><rect x="13" y="7" width="4" height="4"/>
+    <rect x="7" y="13" width="4" height="4"/><path d="M13 13h2"/><path d="M17 13v4"/>
+    <path d="M13 17h4"/></svg>
+  </button>
   <button class="iconbtn" id="btnMenu" aria-label="Men\u00fc">
     <svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
   </button>
+  </span>
 </div>
 
 <div class="wrap"><div id="content"></div></div>
@@ -251,6 +284,18 @@
 <div class="sheetbg" id="sheetbg"></div>
 <div class="sheet" id="sheet"><div class="grip"></div><div id="menuItems"></div></div>
 <div class="toast" id="toast"></div>
+
+<div class="scanview" id="scanview">
+  <video id="scanVideo" playsinline muted autoplay></video>
+  <div class="scantop"><span></span>
+    <button class="close" id="btnScanClose" aria-label="Schlie\u00dfen">
+      <svg viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="scanframe"></div>
+  <div class="scanmsg" id="scanMsg"><b>QR-Code des Pocket Caddy einrahmen</b>
+    Erkennt automatisch, sobald er scharf im Bild ist.</div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
@@ -814,6 +859,146 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
   function closeMenu(){ sheet.classList.remove('on'); sheetbg.classList.remove('on'); }
   document.getElementById('btnMenu').addEventListener('click', openMenu);
   sheetbg.addEventListener('click', closeMenu);
+
+  /* ==========================================================
+     Scanner
+     Nutzt die eingebaute Texterkennung des Browsers (BarcodeDetector),
+     die es in Chrome/Android gibt. Faehrt Safari/iOS die nicht mit,
+     wird jsQR nachgeladen, eine kleine Bibliothek, die dasselbe im
+     Browser selbst berechnet. Erkennt einen QR-Code des Pocket Caddy
+     direkt an seinem Aufbau (Ziffernpaare hinter #) und springt ohne
+     Umweg ueber eine fremde Kamera-App direkt zur Scorecard.
+     ========================================================== */
+  var Scanner = (function () {
+    var view = document.getElementById('scanview');
+    var video = document.getElementById('scanVideo');
+    var msg = document.getElementById('scanMsg');
+    var stream = null, raf = null, jsQRready = null, stopping = false;
+
+    function loadJsQR() {
+      if (window.jsQR) return Promise.resolve();
+      if (jsQRready) return jsQRready;
+      jsQRready = new Promise(function (resolve, reject) {
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+      return jsQRready;
+    }
+
+    function setMsg(html) { msg.innerHTML = html; }
+
+    function handleText(text) {
+      // Ein QR des Pocket Caddy hat die Form ".../pocketcaddy/#<Ziffern>".
+      // Statt die Adresse selbst zu pruefen (koennte sich mal aendern),
+      // wird direkt geprueft, ob der Teil hinter dem letzten # wie eine
+      // gueltige Runde aussieht.
+      var hashPart = text.indexOf('#') >= 0 ? text.split('#').pop() : text;
+      var parsed = parseCode(hashPart);
+
+      if (!parsed.holes.length) {
+        setMsg('<b class="err">Kein Pocket-Caddy-Code</b>' +
+               'Das sieht nicht nach einer Runde aus. Weiter versuchen oder ' +
+               '<button class="linkbtn" id="scanRaw" style="color:#fff">Text anzeigen</button>.');
+        var rawBtn = document.getElementById('scanRaw');
+        if (rawBtn) rawBtn.addEventListener('click', function () {
+          setMsg('<b>Gescannter Inhalt</b>' + esc(text));
+        });
+        return false;   // weiterscannen
+      }
+
+      stop();
+      if (navigator.vibrate) navigator.vibrate(60);
+      location.hash = hashPart;
+      route();
+      return true;
+    }
+
+    function tick() {
+      if (stopping || video.readyState < 2) { raf = requestAnimationFrame(tick); return; }
+
+      var w = video.videoWidth, h = video.videoHeight;
+      if (!w || !h) { raf = requestAnimationFrame(tick); return; }
+      var cv = tick._cv || (tick._cv = document.createElement('canvas'));
+      cv.width = w; cv.height = h;
+      var ctx = cv.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(video, 0, 0, w, h);
+      var img = ctx.getImageData(0, 0, w, h);
+      var res = window.jsQR ? window.jsQR(img.data, w, h) : null;
+      if (res && res.data) { if (handleText(res.data)) return; }
+      raf = requestAnimationFrame(tick);
+    }
+
+    function nativeLoop(detector) {
+      if (stopping) return;
+      detector.detect(video).then(function (codes) {
+        if (stopping) return;
+        if (codes && codes.length && handleText(codes[0].rawValue)) return;
+        raf = requestAnimationFrame(function () { nativeLoop(detector); });
+      }).catch(function () {
+        raf = requestAnimationFrame(function () { nativeLoop(detector); });
+      });
+    }
+
+    function start() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast('Dieser Browser unterstuetzt keinen Kamerazugriff.', true);
+        return;
+      }
+      stopping = false;
+      view.classList.add('on');
+      setMsg('<b>QR-Code des Pocket Caddy einrahmen</b>Erkennt automatisch, sobald er scharf im Bild ist.');
+
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } }, audio: false
+      }).then(function (s) {
+        stream = s;
+        video.srcObject = s;
+        return video.play();
+      }).then(function () {
+        if (window.BarcodeDetector) {
+          BarcodeDetector.getSupportedFormats().then(function (fmts) {
+            if (fmts.indexOf('qr_code') >= 0) {
+              nativeLoop(new BarcodeDetector({ formats: ['qr_code'] }));
+            } else {
+              loadJsQR().then(function () { raf = requestAnimationFrame(tick); });
+            }
+          }).catch(function () {
+            loadJsQR().then(function () { raf = requestAnimationFrame(tick); });
+          });
+        } else {
+          loadJsQR().then(function () { raf = requestAnimationFrame(tick); })
+                    .catch(function () { setMsg('<b class="err">Erkennung konnte nicht geladen werden</b>Bitte Internetverbindung pr\u00fcfen.'); });
+        }
+      }).catch(function (e) {
+        var m = (e && e.name) || '';
+        var text = m === 'NotAllowedError'
+          ? 'Kamerazugriff wurde nicht erlaubt. In den Einstellungen des Browsers f\u00fcr diese Seite freigeben.'
+          : m === 'NotFoundError'
+          ? 'Keine Kamera gefunden.'
+          : 'Kamera konnte nicht gestartet werden.';
+        setMsg('<b class="err">Kein Zugriff</b>' + text);
+      });
+    }
+
+    function stop() {
+      stopping = true;
+      if (raf) cancelAnimationFrame(raf);
+      if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+      video.srcObject = null;
+      view.classList.remove('on');
+    }
+
+    return { start: start, stop: stop };
+  })();
+
+  document.getElementById('btnScan').addEventListener('click', function () {
+    closeMenu(); Scanner.start();
+  });
+  document.getElementById('btnScanClose').addEventListener('click', Scanner.stop);
+
 
   function backButton(id) {
     return '<div class="actions"><button class="btn ghost" id="' + id + '">' +
