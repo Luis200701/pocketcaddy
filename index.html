@@ -403,17 +403,26 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       },
       // OAuth-Anmeldung (z.B. Google). Leitet auf Google weiter und
       // zurueck, danach ist man angemeldet, wie bei E-Mail/Passwort.
+      // WICHTIG: redirectTo darf keine # enthalten. Die Seite nutzt die
+      // Raute selbst fuer die eigene Navigation, und Supabase haengt bei
+      // der Rueckkehr eigene Anmeldedaten an dieselbe Stelle an. Beides
+      // gleichzeitig fuehrt dazu, dass keins von beidem sauber ankommt,
+      // die Anmeldung sah dann erfolgreich aus, blieb aber nicht haengen.
       signInWithProvider: function (provider) {
         return client.auth.signInWithOAuth({
           provider: provider,
-          options: { redirectTo: location.origin + location.pathname + '#menu/login' }
+          options: { redirectTo: location.origin + location.pathname }
         });
       },
       // Schickt eine Mail mit Link zurueck auf diese Seite. Der Anker
       // #menu/login sorgt dafuer, dass man direkt im Kontobereich landet.
+      // Schickt eine Mail mit Link zurueck auf diese Seite. Auch hier
+      // bewusst ohne # in der Adresse, aus demselben Grund wie oben bei
+      // signInWithProvider. Die Weiterleitung auf die Passwort-Maske
+      // passiert stattdessen im PASSWORD_RECOVERY-Ereignis unten.
       resetPassword: function (email) {
         return client.auth.resetPasswordForEmail(email, {
-          redirectTo: location.origin + location.pathname + '#menu/login'
+          redirectTo: location.origin + location.pathname
         });
       },
       updatePassword: function (pw) {
