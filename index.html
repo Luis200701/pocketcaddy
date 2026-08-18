@@ -2,16 +2,21 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#101217">
 <title>Pocket Caddy</title>
-<!-- Icon direkt eingebettet (SVG als Adresse), kein zusaetzliches Bild noetig. -->
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%231a1d24%22/%3E%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230b0c10%22/%3E%20%3C/linearGradient%3E%20%3C/defs%3E%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2215%22%20fill%3D%22url%28%23bg%29%22/%3E%20%3Crect%20x%3D%2227%22%20y%3D%2214%22%20width%3D%224%22%20height%3D%2234%22%20rx%3D%222%22%20fill%3D%22%23a3e635%22/%3E%20%3Cpath%20d%3D%22M31%2014%20L48%2021%20L31%2028%20Z%22%20fill%3D%22%23a3e635%22/%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2249%22%20rx%3D%2213%22%20ry%3D%223.4%22%20fill%3D%22%23a3e635%22%20opacity%3D%22.28%22/%3E%20%3C/svg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20180%20180%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%231a1d24%22/%3E%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230b0c10%22/%3E%20%3C/linearGradient%3E%20%3C/defs%3E%20%3Crect%20width%3D%22180%22%20height%3D%22180%22%20fill%3D%22url%28%23bg%29%22/%3E%20%3Crect%20x%3D%2276%22%20y%3D%2238%22%20width%3D%2211%22%20height%3D%2296%22%20rx%3D%225.5%22%20fill%3D%22%23a3e635%22/%3E%20%3Cpath%20d%3D%22M87%2038%20L135%2060%20L87%2080%20Z%22%20fill%3D%22%23a3e635%22/%3E%20%3Cellipse%20cx%3D%2290%22%20cy%3D%22138%22%20rx%3D%2237%22%20ry%3D%229.5%22%20fill%3D%22%23a3e635%22%20opacity%3D%22.28%22/%3E%20%3C/svg%3E">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23101217%22/%3E%20%3Ctext%20x%3D%2232%22%20y%3D%2243%22%20font-family%3D%22system-ui%2C-apple-system%2CSegoe%20UI%2CRoboto%2Csans-serif%22%20font-weight%3D%22800%22%20font-size%3D%2227%22%20letter-spacing%3D%22-1%22%20fill%3D%22%23a3e635%22%20text-anchor%3D%22middle%22%3EPC%3C/text%3E%20%3C/svg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20180%20180%22%3E%20%3Crect%20width%3D%22180%22%20height%3D%22180%22%20fill%3D%22%23101217%22/%3E%20%3Ctext%20x%3D%2290%22%20y%3D%22120%22%20font-family%3D%22system-ui%2C-apple-system%2CSegoe%20UI%2CRoboto%2Csans-serif%22%20font-weight%3D%22800%22%20font-size%3D%2276%22%20letter-spacing%3D%22-3%22%20fill%3D%22%23a3e635%22%20text-anchor%3D%22middle%22%3EPC%3C/text%3E%20%3C/svg%3E">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23101217%22%2F%3E%3Ctext%20x%3D%2232%22%20y%3D%2243%22%20font-family%3D%22system-ui%2C-apple-system%2CSegoe%20UI%2CRoboto%2Csans-serif%22%20font-weight%3D%22800%22%20font-size%3D%2227%22%20letter-spacing%3D%22-1%22%20fill%3D%22%23a3e635%22%20text-anchor%3D%22middle%22%3EPC%3C%2Ftext%3E%3C%2Fsvg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20180%20180%22%3E%3Crect%20width%3D%22180%22%20height%3D%22180%22%20fill%3D%22%23101217%22%2F%3E%3Ctext%20x%3D%2290%22%20y%3D%22120%22%20font-family%3D%22system-ui%2C-apple-system%2CSegoe%20UI%2CRoboto%2Csans-serif%22%20font-weight%3D%22800%22%20font-size%3D%2276%22%20letter-spacing%3D%22-3%22%20fill%3D%22%23a3e635%22%20text-anchor%3D%22middle%22%3EPC%3C%2Ftext%3E%3C%2Fsvg%3E">
+
+<!-- Installierbar als App (PWA). Icons als echte PNG-Dateien statt
+     eingebettetem SVG, weil iOS die Home-Bildschirm-Icons darüber
+     zuverlässiger anzeigt. -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+
+<!-- iOS-spezifisch: im Vollbild öffnen statt im Safari-Rahmen -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pocket Caddy">
 <!--
   Pocket Caddy
   ------------
@@ -51,8 +56,11 @@
     --line:#ffffff14;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{overscroll-behavior-y:none}
   body{
     margin:0;background:var(--bg);color:var(--txt);
+    overscroll-behavior-y:none;
+    -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;
     font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     padding:0 0 calc(28px + env(safe-area-inset-bottom));
   }
@@ -263,6 +271,7 @@
 
   .form{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
   .form input{background:var(--bg);border:1px solid var(--line);border-radius:12px;
+              -webkit-user-select:text;user-select:text;
               color:var(--txt);font:inherit;font-size:16px;padding:13px 14px;width:100%}
   .form input:focus{outline:none;border-color:#ffffff33}
   .form input::placeholder{color:var(--mut)}
@@ -2602,6 +2611,16 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
 
   window.addEventListener('hashchange', route);
 })();
+</script>
+<script>
+  // Meldet den Service Worker an, damit die App auch bei schlechter oder
+  // fehlender Verbindung sofort aufgeht. Schlaegt das fehl (z.B. sehr alter
+  // Browser), laeuft die Seite trotzdem ganz normal weiter.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('service-worker.js').catch(function () {});
+    });
+  }
 </script>
 </body>
 </html>
