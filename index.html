@@ -60,13 +60,26 @@
 
   .topbar{display:flex;align-items:center;justify-content:space-between;
     padding:calc(14px + env(safe-area-inset-top)) 16px 14px;max-width:520px;margin:0 auto}
+  .topleft{display:flex;align-items:center;gap:2px;min-width:0}
+  .brandflag{display:none;flex:none;margin-right:6px}
+  .brandflag.on{display:flex}
+  .brandflag svg{width:19px;height:19px}
   .topbar .brand{font-size:14px;letter-spacing:.16em;text-transform:uppercase;
-                 color:var(--mut);font-weight:600}
+                 color:var(--mut);font-weight:600;white-space:nowrap;
+                 overflow:hidden;text-overflow:ellipsis}
   .iconbtn{background:#ffffff10;border:0;color:var(--txt);padding:12px;
-           cursor:pointer;display:flex;border-radius:999px}
+           cursor:pointer;display:flex;border-radius:999px;flex:none}
   .iconbtn:active{background:#ffffff1e}
   .iconbtn svg{width:23px;height:23px;fill:none;stroke:currentColor;
                stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  /* Zurueck-Pfeil: nur sichtbar, wenn nicht auf der Startseite (siehe route()) */
+  .iconbtn.back{background:transparent;padding:10px;margin-left:-10px;
+                width:0;padding-left:0;padding-right:0;overflow:hidden;
+                opacity:0;pointer-events:none;
+                transition:opacity .18s ease, width .18s ease, margin .18s ease,
+                           padding .18s ease, background-color .12s ease;}
+  .iconbtn.back svg{flex:none}
+  .iconbtn.back.on{width:44px;padding:10px;margin-left:0;opacity:1;pointer-events:auto}
 
   /* Schwebender Scan-Knopf, nur auf der Startseite sichtbar */
   .fab{position:fixed;right:20px;bottom:calc(22px + env(safe-area-inset-bottom));
@@ -370,7 +383,16 @@
 <body>
 
 <div class="topbar">
-  <span class="brand" id="brand">Pocket Caddy</span>
+  <span class="topleft">
+    <button class="iconbtn back" id="btnTopBack" aria-label="Zur\u00fcck zur Startseite">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+    </button>
+    <span class="brandflag" id="brandFlag">
+      <svg viewBox="0 0 24 24"><path d="M6 3v18" stroke="var(--mut)" stroke-width="2"
+        stroke-linecap="round" fill="none"/><path d="M6 4l13 5-13 5z" fill="var(--lime)"/></svg>
+    </span>
+    <span class="brand" id="brand">Pocket Caddy</span>
+  </span>
   <button class="iconbtn" id="btnMenu" aria-label="Men\u00fc">
     <svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
   </button>
@@ -991,6 +1013,9 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
   function openMenu(){ sheet.classList.add('on'); sheetbg.classList.add('on'); }
   function closeMenu(){ sheet.classList.remove('on'); sheetbg.classList.remove('on'); }
   document.getElementById('btnMenu').addEventListener('click', openMenu);
+  document.getElementById('btnTopBack').addEventListener('click', function () {
+    location.hash = ''; route();
+  });
   sheetbg.addEventListener('click', closeMenu);
 
   /* ==========================================================
@@ -1165,8 +1190,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       profileHtml =
         '<div class="profilehead" id="profileHead">' +
         '<span class="ava">' + esc((Auth.email() || '?').charAt(0).toUpperCase()) + '</span>' +
-        '<div><div class="pname pulse-load">\u2026</div>' +
-        '<div class="psub">' + arr.length + (arr.length === 1 ? ' Runde' : ' Runden') + ' gespeichert</div></div>' +
+        '<div class="pname pulse-load">\u2026</div>' +
         '</div>';
     }
 
@@ -1312,14 +1336,13 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     content.innerHTML =
       '<div class="sectionhead"><span class="t">Verlauf</span><span class="c">' +
       arr.length + (arr.length === 1 ? ' Runde' : ' Runden') + '</span></div>' +
-      '<div class="list">' + items + '</div>' + backButton('btnHome');
+      '<div class="list">' + items + '</div>';
 
     Array.prototype.forEach.call(content.querySelectorAll('.item'), function (el) {
       el.addEventListener('click', function () {
         location.hash = el.getAttribute('data-code'); route();
       });
     });
-    wireBack('btnHome');
   }
 
   /* ---------- Statistik ---------- */
@@ -1403,9 +1426,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     if (arrAsc.length < 2) {
       content.innerHTML =
         '<div class="empty"><b>Noch nicht genug Runden</b>' +
-        'Sobald du mindestens zwei Runden gespeichert hast, siehst du hier deine Entwicklung.</div>' +
-        backButton('btnHome');
-      wireBack('btnHome');
+        'Sobald du mindestens zwei Runden gespeichert hast, siehst du hier deine Entwicklung.</div>';
       return;
     }
 
@@ -1429,9 +1450,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
           (overallAvg > 0 ? '+' : '') + overallAvg.toFixed(1) + '</div><div class="k">Gesamtschnitt</div></div>' +
       '</div>' +
 
-      '<div class="panel"><h3>Ergebnisse pro Loch</h3>' + buildDistribution(arrAsc) + '</div>' +
-
-      backButton('btnHome');
+      '<div class="panel"><h3>Ergebnisse pro Loch</h3>' + buildDistribution(arrAsc) + '</div>';
 
     // Balken erst nach dem Einfuegen auf ihre Zielbreite animieren, sonst
     // gibt es nichts zu animieren (Start- und Endzustand waeren gleich).
@@ -1443,7 +1462,6 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       });
     });
 
-    wireBack('btnHome');
   }
 
   /* ---------- Eine Runde ---------- */
@@ -1514,7 +1532,6 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       '<p class="hint">' + (Store.available()
         ? 'Gespeicherte Runden bleiben auf diesem Ger\u00e4t.'
         : 'Dieser Browser erlaubt kein Speichern (privater Modus?).') + '</p>' +
-      backButton('btnHome') +
       '<div class="print-foot"><span>Pocket Caddy</span><span id="pfDate">' +
         fmtDate(curDate) + '</span></div>';
 
@@ -1555,7 +1572,6 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     });
 
     document.getElementById('btnPdf').addEventListener('click', function(){ window.print(); });
-    wireBack('btnHome');
 
     var sh = document.getElementById('btnShare');
     if (navigator.share) {
@@ -1594,8 +1610,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       '<p>Entfernt alle Runden von diesem Ger\u00e4t. L\u00e4sst sich nur \u00fcber eine ' +
       'zuvor exportierte Datei wiederherstellen.</p>' +
       '<div class="del" style="margin-top:0;text-align:left">' +
-      '<button id="btnClear">Alle Runden l\u00f6schen</button></div></div>' +
-      backButton('btnHome');
+      '<button id="btnClear">Alle Runden l\u00f6schen</button></div></div>';
 
     document.getElementById('btnExport').addEventListener('click', function () {
       var data = Store.exportData();
@@ -1645,7 +1660,6 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       }
     });
 
-    wireBack('btnHome');
   }
 
   /* ==========================================================
@@ -1932,12 +1946,10 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         '<b>Anmeldung n\u00f6tig</b>' +
         'Freunde funktionieren nur mit Konto, weil eure Runden dabei \u00fcber ' +
         'den Server ausgetauscht werden.</div>' +
-        '<div class="actions"><button class="btn" id="btnToLogin">Zur Anmeldung</button></div>' +
-        backButton('btnHome');
+        '<div class="actions"><button class="btn" id="btnToLogin">Zur Anmeldung</button></div>';
       document.getElementById('btnToLogin').addEventListener('click', function () {
         location.hash = 'menu/login'; route();
       });
-      wireBack('btnHome');
       return;
     }
 
@@ -2008,7 +2020,6 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
           }).join('') + '</div>';
       }
 
-      html += backButton('btnHome');
       content.innerHTML = html;
 
       document.getElementById('btnCopy').addEventListener('click', function () {
@@ -2053,7 +2064,6 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         });
       });
 
-      wireBack('btnHome');
     });
   }
 
@@ -2082,12 +2092,10 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         '<b>Anmeldung n\u00f6tig</b>' +
         'Die Planung funktioniert nur mit Konto, weil Termin und Einladungen ' +
         '\u00fcber den Server ausgetauscht werden.</div>' +
-        '<div class="actions"><button class="btn" id="btnToLogin">Zur Anmeldung</button></div>' +
-        backButton('btnHome');
+        '<div class="actions"><button class="btn" id="btnToLogin">Zur Anmeldung</button></div>';
       document.getElementById('btnToLogin').addEventListener('click', function () {
         location.hash = 'menu/login'; route();
       });
-      wireBack('btnHome');
       return;
     }
 
@@ -2169,7 +2177,6 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         html += '</div>';
       }
 
-      html += backButton('btnHome');
       content.innerHTML = html;
 
       document.getElementById('btnCreate').addEventListener('click', function () {
@@ -2221,7 +2228,6 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         });
       });
 
-      wireBack('btnHome');
     });
   }
 
@@ -2237,8 +2243,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       if (!f) {
         content.innerHTML =
           '<div class="empty"><b>Kein Zugriff</b>' +
-          'Diese Verbindung besteht nicht (mehr).</div>' + backButton('btnHome');
-        wireBack('btnHome');
+          'Diese Verbindung besteht nicht (mehr).</div>';
         return;
       }
 
@@ -2314,8 +2319,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         '<b>Keine Verbindung</b>' +
         'Die Anmeldung konnte nicht geladen werden. Pr\u00fcfe deine ' +
         'Internetverbindung und lade die Seite neu. Deine Runden auf diesem ' +
-        'Ger\u00e4t sind davon nicht betroffen.</div>' + backButton('btnHome');
-      wireBack('btnHome');
+        'Ger\u00e4t sind davon nicht betroffen.</div>';
       return;
     }
 
@@ -2370,8 +2374,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         'du dort nur als &bdquo;Spieler&ldquo;.</p>' +
         '<div class="form"><input type="text" id="fName" placeholder="Dein Name" ' +
         'maxlength="40" autocomplete="nickname"></div>' +
-        '<div class="actions"><button class="btn ghost" id="btnName">Namen speichern</button></div></div>' +
-        backButton('btnHome');
+        '<div class="actions"><button class="btn ghost" id="btnName">Namen speichern</button></div></div>';
 
       Friends.loadProfile().then(function (p) {
         var el = document.getElementById('fName');
@@ -2402,7 +2405,6 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
           location.hash = ''; route();
         });
       });
-      wireBack('btnHome');
       return;
     }
 
@@ -2430,7 +2432,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       'Passwort vergessen?</button></div>' +
       '<p class="warn">Die Mail kommt von Supabase und landet erfahrungs' +
       'gem\u00e4\u00df oft im Spam-Ordner. Schau dort nach, falls nichts ' +
-      'ankommt.</p></div>' + backButton('btnHome');
+      'ankommt.</p></div>';
 
     function creds() {
       var e = document.getElementById('fEmail').value.trim();
@@ -2498,7 +2500,6 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       });
     });
 
-    wireBack('btnHome');
   }
 
   function loginError(err) {
@@ -2523,8 +2524,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     brand.textContent = p.title;
     content.innerHTML =
       '<div class="ph"><div class="ic">' + p.icon + '</div><b>' + p.head + '</b>' +
-      p.text + '<div><span class="soon">in Arbeit</span></div></div>' + backButton('btnHome');
-    wireBack('btnHome');
+      p.text + '<div><span class="soon">in Arbeit</span></div></div>';
   }
 
   function renderAbout() {
@@ -2536,8 +2536,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       'Es werden keine Daten an einen Server \u00fcbertragen.<br><br>' +
       'Speicherformat: 2<br>Gespeicherte Runden: ' + Store.all().length + '<br>' +
       'Speicher verf\u00fcgbar: ' + (Store.available() ? 'ja' : 'nein') +
-      '</div>' + backButton('btnHome');
-    wireBack('btnHome');
+      '</div>';
   }
 
   /* ---------- Weiche ---------- */
@@ -2545,6 +2544,8 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     closeMenu(); window.scrollTo(0,0);
     var raw = (location.hash || '').replace(/^#/, '');
     document.getElementById('btnScanFab').classList.toggle('on', !raw);
+    document.getElementById('btnTopBack').classList.toggle('on', !!raw);
+    document.getElementById('brandFlag').classList.toggle('on', !raw);
 
     if (!raw)                 { renderHome(); return; }
     if (raw === 'menu/login') { renderLogin(); return; }
@@ -2581,9 +2582,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       brand.textContent = 'Pocket Caddy';
       content.innerHTML =
         '<div class="empty"><b>Daten nicht lesbar</b>' +
-        'Der Link scheint unvollst\u00e4ndig zu sein. Bitte den QR-Code neu scannen.</div>' +
-        backButton('btnHome');
-      wireBack('btnHome');
+        'Der Link scheint unvollst\u00e4ndig zu sein. Bitte den QR-Code neu scannen.</div>';
       return;
     }
     renderRound(r);
