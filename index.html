@@ -93,7 +93,8 @@
      Abstand zum Bildschirmrand und leichtem Milchglas-Effekt, statt
      randlos anliegender Leiste. */
   .bottomnav{position:fixed;left:14px;right:14px;
-    bottom:calc(14px + env(safe-area-inset-bottom));z-index:15;
+    bottom:calc(14px + env(safe-area-inset-bottom) + var(--vv-bottom-gap, 0px));
+    z-index:15;
     display:flex;align-items:center;justify-content:space-around;
     padding:12px 4px;border-radius:28px;
     background:#1a1d24c2;
@@ -2614,6 +2615,13 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       el.classList.toggle('active', el.getAttribute('data-tab') === tab);
     });
 
+    // Nochmal nachmessen: neuer Inhalt kann laenger/kuerzer als vorher
+    // sein, wodurch der Browser seine eigene Werkzeugleiste neu bewertet.
+    // Einmal sofort, einmal kurz verzoegert, falls der Browser dafuer
+    // selbst noch einen Moment braucht.
+    syncBottomNavPosition();
+    setTimeout(syncBottomNavPosition, 150);
+
     if (!raw)                 { renderHome(); return; }
     if (raw === 'menu/login') { renderLogin(); return; }
     if (raw === 'menu/friends'){ renderFriends(); return; }
@@ -2668,6 +2676,31 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
   });
 
   window.addEventListener('hashchange', route);
+
+  /* ==========================================================
+     Position der unteren Leiste an iOS/Android-Werkzeugleisten anpassen
+     Browser blenden ihre eigene Werkzeugleiste je nach Seite manchmal
+     ein-, manchmal aus (z.B. wenn eine Seite nicht scrollbar ist, bleibt
+     sie sichtbar). Reines CSS mit position:fixed bekommt das nicht
+     zuverlaessig mit, dadurch sass die Leiste je nach Reiter unterschiedlich
+     hoch. Die VisualViewport-API meldet die wirklich sichtbare Hoehe,
+     die Differenz zur normalen Fensterhoehe wird als zusaetzlicher
+     Abstand nach unten mitgegeben.
+     ========================================================== */
+  function syncBottomNavPosition() {
+    var vv = window.visualViewport;
+    if (!vv) return;
+    var gap = window.innerHeight - vv.height - vv.offsetTop;
+    document.documentElement.style.setProperty(
+      '--vv-bottom-gap', Math.max(0, Math.round(gap)) + 'px');
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncBottomNavPosition);
+    window.visualViewport.addEventListener('scroll', syncBottomNavPosition);
+  }
+  window.addEventListener('load', syncBottomNavPosition);
+  syncBottomNavPosition();
+
 })();
 </script>
 <script>
