@@ -62,7 +62,7 @@
     overscroll-behavior-y:none;
     -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;
     font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    padding:0 0 calc(28px + env(safe-area-inset-bottom));
+    padding:0 0 calc(68px + env(safe-area-inset-bottom));
   }
   .wrap{max-width:520px;margin:0 auto;padding:0 16px}
 
@@ -89,18 +89,33 @@
   .iconbtn.back svg{flex:none}
   .iconbtn.back.on{width:44px;padding:10px;margin-left:0;opacity:1;pointer-events:auto}
 
-  /* Schwebender Scan-Knopf, nur auf der Startseite sichtbar */
-  .fab{position:fixed;right:20px;bottom:calc(22px + env(safe-area-inset-bottom));
-       z-index:15;width:60px;height:60px;border-radius:999px;border:0;
-       background:var(--lime);color:#0d1117;cursor:pointer;
-       display:flex;align-items:center;justify-content:center;
-       box-shadow:0 6px 20px #000a;
-       opacity:0;transform:scale(.7) translateY(10px);pointer-events:none;
-       transition:opacity .22s ease, transform .22s cubic-bezier(.2,.8,.25,1);}
-  .fab.on{opacity:1;transform:scale(1) translateY(0);pointer-events:auto}
-  .fab:active{transform:scale(.94)}
-  .fab svg{width:27px;height:27px;fill:none;stroke:currentColor;
-           stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  /* Untere Navigationsleiste: freistehende, abgerundete Kapsel mit
+     Abstand zum Bildschirmrand und leichtem Milchglas-Effekt, statt
+     randlos anliegender Leiste. */
+  .bottomnav{position:fixed;left:14px;right:14px;
+    bottom:calc(14px + env(safe-area-inset-bottom));z-index:15;
+    display:flex;align-items:center;justify-content:space-around;
+    padding:12px 4px;border-radius:28px;
+    background:#1a1d24c2;
+    -webkit-backdrop-filter:blur(22px) saturate(1.6);
+    backdrop-filter:blur(22px) saturate(1.6);
+    border:1px solid #ffffff1a;
+    box-shadow:0 10px 30px #000a, 0 1px 0 #ffffff0d inset;}
+  .navitem{background:none;border:0;color:var(--mut);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    padding:8px;flex:1;min-width:0;}
+  .navitem svg{width:25px;height:25px;fill:none;stroke:currentColor;
+    stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .navitem.active{color:var(--lime)}
+  .navitem.disabled{opacity:.4}
+  /* Scan-Taste: mittig, angehoben, kreisrund, wie eine schwebende Taste
+     innerhalb der Leiste statt eines normalen Symbols */
+  .navitem.scan{margin-top:-26px}
+  .navitem.scan .navscanwrap{width:52px;height:52px;border-radius:999px;
+    background:var(--lime);display:flex;align-items:center;justify-content:center;
+    box-shadow:0 6px 16px #000a;transition:transform .15s ease}
+  .navitem.scan:active .navscanwrap{transform:scale(.92)}
+  .navitem.scan svg{width:24px;height:24px;color:#0d1117}
 
   /* Profilkopf auf der Startseite */
   .profilehead{display:flex;align-items:center;gap:14px;margin-bottom:22px}
@@ -407,13 +422,27 @@
   </button>
 </div>
 
-<button class="fab" id="btnScanFab" aria-label="QR-Code scannen">
-  <svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
-  <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
-  <rect x="7" y="7" width="4" height="4"/><rect x="13" y="7" width="4" height="4"/>
-  <rect x="7" y="13" width="4" height="4"/><path d="M13 13h2"/><path d="M17 13v4"/>
-  <path d="M13 17h4"/></svg>
-</button>
+<nav class="bottomnav" id="bottomNav">
+  <button class="navitem" data-tab="home" data-go="" aria-label="Start">
+    <svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 21v-7h6v7"/></svg>
+  </button>
+  <button class="navitem" data-tab="stats" data-go="menu/stats" aria-label="Statistik">
+    <svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>
+  </button>
+  <button class="navitem scan" id="btnScanNav" aria-label="QR-Code scannen">
+    <span class="navscanwrap"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+      <rect x="7" y="7" width="4" height="4"/><rect x="13" y="7" width="4" height="4"/>
+      <rect x="7" y="13" width="4" height="4"/><path d="M13 13h2"/><path d="M17 13v4"/>
+      <path d="M13 17h4"/></svg></span>
+  </button>
+  <button class="navitem" data-tab="friends" data-go="menu/friends" aria-label="Freunde">
+    <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6.5 6.5 0 0 1 13 0v1"/><path d="M17 5.2a3.5 3.5 0 0 1 0 6.6"/><path d="M19.5 21v-1a5.6 5.6 0 0 0-2.2-4.4"/></svg>
+  </button>
+  <button class="navitem disabled" id="btnCalNav" data-tab="cal" aria-label="Kalender, bald verf\u00fcgbar">
+    <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
+  </button>
+</nav>
 
 <div class="wrap"><div id="content"></div></div>
 
@@ -988,16 +1017,14 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
   /* ---------- Menue ---------- */
   function menuDef() {
     var loggedIn = !!Auth.id();
+    // Startseite, Statistik, Freunde und Kalender/Planen stecken jetzt in
+    // der unteren Leiste, hier bleiben nur die selteneren Einstellungs-
+    // Punkte, die dort keinen Platz gefunden haetten.
     return [
-      { id:'',            icon:I.home,  label:'Startseite', sub:'Deine Runden', ready:true },
-      { id:'menu/stats',  icon:I.chart, label:'Statistik',  sub:'Entwicklung und Schnitt', ready:true },
-      { sep:true },
       { id:'menu/login',  icon:loggedIn ? I.cloud : I.user,
         label:loggedIn ? 'Konto' : 'Anmelden',
         sub:loggedIn ? Auth.email() : 'Runden ger\u00e4te\u00fcbergreifend sichern',
         ready:true },
-      { id:'menu/friends',icon:I.users, label:'Freunde',    sub:'Runden vergleichen und teilen', ready:true },
-      { id:'menu/plan',   icon:I.cal,   label:'Planen',     sub:'N\u00e4chste Runde mit Freunden', ready:false },
       { sep:true },
       { id:'menu/backup', icon:I.box,   label:'Sicherung',  sub:'Runden exportieren und einlesen', ready:true },
       { id:'menu/about',  icon:I.info,  label:'\u00dcber',  sub:'Version und Hinweise', ready:true }
@@ -1161,10 +1188,19 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     return { start: start, stop: stop };
   })();
 
-  document.getElementById('btnScanFab').addEventListener('click', function () {
+  document.getElementById('btnScanNav').addEventListener('click', function () {
     closeMenu(); Scanner.start();
   });
   document.getElementById('btnScanClose').addEventListener('click', Scanner.stop);
+
+  Array.prototype.forEach.call(document.querySelectorAll('.navitem[data-go]'), function (el) {
+    el.addEventListener('click', function () {
+      location.hash = el.getAttribute('data-go'); route();
+    });
+  });
+  document.getElementById('btnCalNav').addEventListener('click', function () {
+    toast('Kalender kommt bald.');
+  });
 
 
   function backButton(id) {
@@ -2549,12 +2585,34 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
   }
 
   /* ---------- Weiche ---------- */
+  // Ordnet einer Adresse (hinter dem #) den passenden Reiter der unteren
+  // Leiste zu, oder null, wenn keiner passt (Kontobereich, Sicherung,
+  // Ueber, alles was jetzt im schlanken Menue oben rechts steckt).
+  function activeTabFor(raw) {
+    if (!raw) return 'home';
+    if (raw === 'menu/stats')  return 'stats';
+    if (raw === 'menu/friends')return 'friends';
+    if (raw === 'menu/plan')   return 'cal';
+    if (/^friend\//.test(raw)) return 'friends';
+    if (raw === 'rounds')      return 'home';
+    if (parseCode(raw).holes.length) return 'home';   // eigene Runde direkt per Link
+    return null;
+  }
+
   function route() {
     closeMenu(); window.scrollTo(0,0);
     var raw = (location.hash || '').replace(/^#/, '');
-    document.getElementById('btnScanFab').classList.toggle('on', !raw);
-    document.getElementById('btnTopBack').classList.toggle('on', !!raw);
+
+    // Zurueck-Pfeil nur auf tieferen Seiten, nicht auf den drei direkt in
+    // der unteren Leiste erreichbaren Hauptbereichen.
+    var topLevel = (raw === '' || raw === 'menu/stats' || raw === 'menu/friends');
+    document.getElementById('btnTopBack').classList.toggle('on', !topLevel);
     document.getElementById('brandFlag').classList.toggle('on', !raw);
+
+    var tab = activeTabFor(raw);
+    Array.prototype.forEach.call(document.querySelectorAll('.navitem[data-tab]'), function (el) {
+      el.classList.toggle('active', el.getAttribute('data-tab') === tab);
+    });
 
     if (!raw)                 { renderHome(); return; }
     if (raw === 'menu/login') { renderLogin(); return; }
