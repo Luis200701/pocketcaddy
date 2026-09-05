@@ -300,11 +300,16 @@
   .switchrow{display:flex;align-items:center;gap:10px;font-size:14px;
        margin:4px 0 14px;cursor:pointer}
   .switchrow input{width:18px;height:18px;flex:none}
-  .detailgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:4px 0 4px}
-  .detailgrid .dh{display:flex;flex-direction:column;gap:5px}
-  .detailgrid .dh label{font-size:11px;color:var(--mut)}
-  .detailgrid .dh .pair{display:flex;gap:4px}
-  .detailgrid .dh select{padding:9px 4px;font-size:13px}
+  .stepperrow{display:flex;align-items:center;justify-content:space-between;
+       padding:16px 4px;border-top:1px solid var(--line)}
+  .stepperrow:first-of-type{border-top:0}
+  .steppertitle{font-size:15px;font-weight:600}
+  .stepper{display:flex;align-items:center;gap:16px}
+  .stepper button{width:38px;height:38px;border-radius:999px;border:1px solid var(--line);
+       background:var(--bg);color:var(--txt);font:600 20px inherit;cursor:pointer;
+       display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
+  .stepper span{min-width:30px;text-align:center;font-size:20px;font-weight:700;color:var(--lime)}
+  .holeprogress{font-size:12.5px;color:var(--mut);text-align:center;margin:-6px 0 16px}
   .warn{margin:14px 0 0;font-size:12.5px;color:var(--mut);line-height:1.7}
   button.btn.google{width:100%;background:#fff;color:#1f1f1f;justify-content:center;
                     margin-bottom:16px;box-shadow:0 1px 2px #0000004d}
@@ -2388,95 +2393,124 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     }).join('');
   }
 
-  function buildDetailGridHtml(n) {
-    var html = '';
-    for (var i = 1; i <= n; i++) {
-      html += '<div class="dh"><label>Loch ' + i + '</label><div class="pair">' +
-              '<select data-par="' + i + '">' +
-              [3,4,5,6].map(function (p) {
-                return '<option value="' + p + '"' + (p === 4 ? ' selected' : '') + '>' + p + '</option>';
-              }).join('') +
-              '</select>' +
-              '<select data-sc="' + i + '">' +
-              [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15].map(function (s) {
-                return '<option value="' + s + '"' + (s === 4 ? ' selected' : '') + '>' + s + '</option>';
-              }).join('') +
-              '</select></div></div>';
-    }
-    return html;
-  }
-
   function renderManualEntry() {
     brand.textContent = 'Manuell eintragen';
     var todayInput = codeToInput(todayCode());
-
-    content.innerHTML =
-      '<div class="panel"><h3>Runde eintragen</h3>' +
-      '<div class="form">' +
-      '<input type="date" id="mDate" value="' + todayInput + '">' +
-      '</div>' +
-      '<div class="seg" id="mHolesSeg">' +
-      '<button type="button" class="on" data-holes="9">9 L\u00f6cher</button>' +
-      '<button type="button" data-holes="18">18 L\u00f6cher</button>' +
-      '</div>' +
-      '<label class="switchrow"><input type="checkbox" id="mDetailed">' +
-      '<span>Jedes Loch einzeln eintragen (Par + Schl\u00e4ge)</span></label>' +
-      '<div class="form" id="mSimple">' +
-      '<input type="number" id="mTotal" min="1" max="270" placeholder="Schl\u00e4ge gesamt">' +
-      '<p class="hint" style="margin:0">Par wird dabei mit 4 pro Loch angenommen.</p>' +
-      '</div>' +
-      '<div class="detailgrid" id="mDetail" style="display:none"></div>' +
-      '<div class="actions"><button class="btn" id="mSave">Speichern</button></div>' +
-      '</div>';
-
     var holes = 9;
-    Array.prototype.forEach.call(document.querySelectorAll('#mHolesSeg button'), function (b) {
-      b.addEventListener('click', function () {
-        holes = parseInt(b.getAttribute('data-holes'), 10);
-        Array.prototype.forEach.call(document.querySelectorAll('#mHolesSeg button'), function (x) {
-          x.classList.toggle('on', x === b);
+    var mode = 'simple';
+
+    function renderSetup() {
+      content.innerHTML =
+        '<div class="panel"><h3>Runde eintragen</h3>' +
+        '<div class="form"><input type="date" id="mDate" value="' + todayInput + '"></div>' +
+        '<div class="seg" id="mHolesSeg">' +
+        '<button type="button" class="on" data-holes="9">9 L\u00f6cher</button>' +
+        '<button type="button" data-holes="18">18 L\u00f6cher</button></div>' +
+        '<div class="seg" id="mModeSeg" style="margin-top:10px">' +
+        '<button type="button" class="on" data-mode="simple">Nur Gesamt</button>' +
+        '<button type="button" data-mode="detail">Loch f\u00fcr Loch</button></div>' +
+        '<div class="form" id="mSimple">' +
+        '<input type="number" id="mTotal" min="1" max="270" placeholder="Schl\u00e4ge gesamt">' +
+        '<p class="hint" style="margin:0">Par wird dabei mit 4 pro Loch angenommen.</p>' +
+        '</div>' +
+        '<div class="actions"><button class="btn" id="mNext">Weiter</button></div>' +
+        '</div>';
+
+      Array.prototype.forEach.call(document.querySelectorAll('#mHolesSeg button'), function (b) {
+        b.addEventListener('click', function () {
+          holes = parseInt(b.getAttribute('data-holes'), 10);
+          Array.prototype.forEach.call(document.querySelectorAll('#mHolesSeg button'), function (x) {
+            x.classList.toggle('on', x === b);
+          });
         });
-        document.getElementById('mDetail').innerHTML = buildDetailGridHtml(holes);
       });
-    });
-    document.getElementById('mDetail').innerHTML = buildDetailGridHtml(holes);
+      Array.prototype.forEach.call(document.querySelectorAll('#mModeSeg button'), function (b) {
+        b.addEventListener('click', function () {
+          mode = b.getAttribute('data-mode');
+          Array.prototype.forEach.call(document.querySelectorAll('#mModeSeg button'), function (x) {
+            x.classList.toggle('on', x === b);
+          });
+          document.getElementById('mSimple').style.display = (mode === 'simple') ? 'flex' : 'none';
+        });
+      });
 
-    document.getElementById('mDetailed').addEventListener('change', function (e) {
-      var on = e.target.checked;
-      document.getElementById('mSimple').style.display = on ? 'none' : 'flex';
-      document.getElementById('mDetail').style.display = on ? 'grid' : 'none';
-    });
+      document.getElementById('mNext').addEventListener('click', function () {
+        var dateCode = inputToCode(document.getElementById('mDate').value) || todayCode();
 
-    document.getElementById('mSave').addEventListener('click', function () {
-      var dateCode = inputToCode(document.getElementById('mDate').value) || todayCode();
-      var detailed = document.getElementById('mDetailed').checked;
-      var holesArr = [];
+        if (mode === 'simple') {
+          var total = parseInt(document.getElementById('mTotal').value, 10);
+          if (isNaN(total) || total < holes || total > holes * 15) {
+            toast('Bitte eine plausible Gesamtschlagzahl eingeben.', true);
+            return;
+          }
+          var base = Math.floor(total / holes), rest = total % holes, holesArr = [];
+          for (var j = 0; j < holes; j++) holesArr.push({ par:4, sc: base + (j < rest ? 1 : 0) });
+          finishManual(dateCode, holesArr);
+        } else {
+          startHoleWizard(dateCode, holes);
+        }
+      });
+    }
 
-      if (detailed) {
-        for (var i = 1; i <= holes; i++) {
-          var par = parseInt(document.querySelector('[data-par="' + i + '"]').value, 10);
-          var sc  = parseInt(document.querySelector('[data-sc="' + i + '"]').value, 10);
-          holesArr.push({ par:par, sc:sc });
-        }
-      } else {
-        var total = parseInt(document.getElementById('mTotal').value, 10);
-        if (isNaN(total) || total < holes || total > holes * 15) {
-          toast('Bitte eine plausible Gesamtschlagzahl eingeben.', true);
-          return;
-        }
-        var base = Math.floor(total / holes);
-        var rest = total % holes;
-        for (var j = 0; j < holes; j++) {
-          holesArr.push({ par:4, sc: base + (j < rest ? 1 : 0) });
-        }
+    // Loch fuer Loch, wie am Geraet selbst: ein Loch pro Bildschirm,
+    // Par und Schlaege je mit Plus/Minus einstellen, statt einem
+    // unuebersichtlichen Raster mit allen Loechern auf einmal.
+    function startHoleWizard(dateCode, totalHoles) {
+      var idx = 0;
+      var acc = [];
+      var par = 4, sc = 4;
+
+      function renderStep() {
+        content.innerHTML =
+          '<div class="panel">' +
+          '<div class="holeprogress">Loch ' + (idx + 1) + ' von ' + totalHoles + '</div>' +
+          '<div class="stepperrow"><span class="steppertitle">Par</span>' +
+          '<div class="stepper"><button type="button" id="mParMinus">\u2212</button>' +
+          '<span id="mParVal">' + par + '</span>' +
+          '<button type="button" id="mParPlus">+</button></div></div>' +
+          '<div class="stepperrow"><span class="steppertitle">Schl\u00e4ge</span>' +
+          '<div class="stepper"><button type="button" id="mScMinus">\u2212</button>' +
+          '<span id="mScVal">' + sc + '</span>' +
+          '<button type="button" id="mScPlus">+</button></div></div>' +
+          '<div class="actions"><button class="btn" id="mHoleNext">' +
+          (idx === totalHoles - 1 ? 'Speichern' : 'N\u00e4chstes Loch') + '</button></div>' +
+          '</div>';
+
+        document.getElementById('mParMinus').addEventListener('click', function () {
+          par = Math.max(3, par - 1); document.getElementById('mParVal').textContent = par;
+        });
+        document.getElementById('mParPlus').addEventListener('click', function () {
+          par = Math.min(6, par + 1); document.getElementById('mParVal').textContent = par;
+        });
+        document.getElementById('mScMinus').addEventListener('click', function () {
+          sc = Math.max(1, sc - 1); document.getElementById('mScVal').textContent = sc;
+        });
+        document.getElementById('mScPlus').addEventListener('click', function () {
+          sc = Math.min(15, sc + 1); document.getElementById('mScVal').textContent = sc;
+        });
+        document.getElementById('mHoleNext').addEventListener('click', function () {
+          acc.push({ par:par, sc:sc });
+          idx++;
+          if (idx >= totalHoles) {
+            finishManual(dateCode, acc);
+          } else {
+            par = 4; sc = 4;
+            renderStep();
+          }
+        });
       }
+      renderStep();
+    }
 
+    function finishManual(dateCode, holesArr) {
       var code = holesToCode(holesArr);
       Store.add(code, dateCode);
       location.hash = dateCode + '-' + code;
       route();
       toast('Runde gespeichert.');
-    });
+    }
+
+    renderSetup();
   }
 
   function renderLogin() {
