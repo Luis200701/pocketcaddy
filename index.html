@@ -449,12 +449,10 @@
   <button class="navitem" data-tab="stats" data-go="menu/stats" aria-label="Statistik">
     <svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>
   </button>
-  <button class="navitem scan" id="btnScanNav" aria-label="QR-Code scannen">
-    <span class="navscanwrap"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
-      <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
-      <rect x="7" y="7" width="4" height="4"/><rect x="13" y="7" width="4" height="4"/>
-      <rect x="7" y="13" width="4" height="4"/><path d="M13 13h2"/><path d="M17 13v4"/>
-      <path d="M13 17h4"/></svg></span>
+  <button class="navitem scan" id="btnScanNav" aria-label="Runde hinzuf\u00fcgen">
+    <span class="navscanwrap"><svg viewBox="0 0 24 24">
+      <path d="M6 21V10"/><path d="M6 4l9 3-9 3"/>
+      <path d="M18 15v6"/><path d="M15 18h6"/></svg></span>
   </button>
   <button class="navitem" data-tab="friends" data-go="menu/friends" aria-label="Freunde">
     <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6.5 6.5 0 0 1 13 0v1"/><path d="M17 5.2a3.5 3.5 0 0 1 0 6.6"/><path d="M19.5 21v-1a5.6 5.6 0 0 0-2.2-4.4"/></svg>
@@ -468,6 +466,20 @@
 
 <div class="sheetbg" id="sheetbg"></div>
 <div class="sheet" id="sheet"><div class="grip"></div><div id="menuItems"></div></div>
+
+<div class="sheetbg" id="scanChoiceBg"></div>
+<div class="sheet" id="scanChoiceSheet"><div class="grip"></div>
+  <div style="display:flex;flex-direction:column;gap:12px;padding:4px 8px 6px">
+    <button class="btn" id="btnChoiceScan" style="width:100%;justify-content:center">
+      <svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+      <rect x="7" y="7" width="4" height="4"/><rect x="13" y="7" width="4" height="4"/>
+      <rect x="7" y="13" width="4" height="4"/><path d="M13 13h2"/><path d="M17 13v4"/>
+      <path d="M13 17h4"/></svg>QR-Code scannen</button>
+    <button class="btn" id="btnChoiceManual" style="width:100%;justify-content:center">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Manuell eingeben</button>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <div class="scanview" id="scanview">
@@ -1209,9 +1221,21 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     return { start: start, stop: stop };
   })();
 
-  document.getElementById('btnScanNav').addEventListener('click', function () {
-    closeMenu(); Scanner.start();
+  var scanChoiceSheet = document.getElementById('scanChoiceSheet');
+  var scanChoiceBg    = document.getElementById('scanChoiceBg');
+  function openScanChoice()  { closeMenu(); scanChoiceSheet.classList.add('on'); scanChoiceBg.classList.add('on'); }
+  function closeScanChoice() { scanChoiceSheet.classList.remove('on'); scanChoiceBg.classList.remove('on'); }
+
+  document.getElementById('btnScanNav').addEventListener('click', openScanChoice);
+  scanChoiceBg.addEventListener('click', closeScanChoice);
+  document.getElementById('btnChoiceScan').addEventListener('click', function () {
+    closeScanChoice(); Scanner.start();
   });
+  document.getElementById('btnChoiceManual').addEventListener('click', function () {
+    closeScanChoice();
+    location.hash = 'manual'; route();
+  });
+
   document.getElementById('btnScanClose').addEventListener('click', Scanner.stop);
   document.getElementById('btnManualEntry').addEventListener('click', function () {
     Scanner.stop();
@@ -2759,7 +2783,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
   }
 
   function route() {
-    closeMenu(); window.scrollTo(0,0);
+    closeMenu(); closeScanChoice(); window.scrollTo(0,0);
     var raw = (location.hash || '').replace(/^#/, '');
 
     // Zurueck-Pfeil nur auf tieferen Seiten, nicht auf den drei direkt in
