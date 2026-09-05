@@ -291,6 +291,20 @@
               color:var(--txt);font:inherit;font-size:16px;padding:13px 14px;width:100%}
   .form input:focus{outline:none;border-color:#ffffff33}
   .form input::placeholder{color:var(--mut)}
+  .form select{background:var(--bg);border:1px solid var(--line);border-radius:12px;
+       color:var(--txt);font:inherit;padding:12px}
+  .seg{display:flex;gap:8px;margin-bottom:2px}
+  .seg button{flex:1;padding:11px;border-radius:12px;border:1px solid var(--line);
+       background:var(--bg);color:var(--txt);font:600 15px inherit;cursor:pointer}
+  .seg button.on{background:var(--lime);color:#0d1117;border-color:var(--lime)}
+  .switchrow{display:flex;align-items:center;gap:10px;font-size:14px;
+       margin:4px 0 14px;cursor:pointer}
+  .switchrow input{width:18px;height:18px;flex:none}
+  .detailgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:4px 0 4px}
+  .detailgrid .dh{display:flex;flex-direction:column;gap:5px}
+  .detailgrid .dh label{font-size:11px;color:var(--mut)}
+  .detailgrid .dh .pair{display:flex;gap:4px}
+  .detailgrid .dh select{padding:9px 4px;font-size:13px}
   .warn{margin:14px 0 0;font-size:12.5px;color:var(--mut);line-height:1.7}
   button.btn.google{width:100%;background:#fff;color:#1f1f1f;justify-content:center;
                     margin-bottom:16px;box-shadow:0 1px 2px #0000004d}
@@ -461,6 +475,7 @@
   <div class="scanframe"></div>
   <div class="scanmsg" id="scanMsg"><b>QR-Code des Pocket Caddy einrahmen</b>
     Erkennt automatisch, sobald er scharf im Bild ist.</div>
+  <button class="linkbtn" id="btnManualEntry" style="color:#fff;position:relative;z-index:2">Oder manuell eingeben</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -1193,6 +1208,10 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     closeMenu(); Scanner.start();
   });
   document.getElementById('btnScanClose').addEventListener('click', Scanner.stop);
+  document.getElementById('btnManualEntry').addEventListener('click', function () {
+    Scanner.stop();
+    location.hash = 'manual'; route();
+  });
 
   Array.prototype.forEach.call(document.querySelectorAll('.navitem[data-go]'), function (el) {
     el.addEventListener('click', function () {
@@ -2356,6 +2375,110 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
   }
 
   /* ---------- Anmelden / Konto ---------- */
+  /* ==========================================================
+     Manuelle Runden-Eingabe
+     Baut aus den Eingaben denselben Code-Aufbau wie ein gescannter
+     QR-Code (Ziffernpaare: Par als Dezimalziffer, Schl\u00e4ge als Hex-
+     Ziffer), dadurch laeuft alles Weitere (Speichern, Anzeigen,
+     Statistik) genau wie bei einer gescannten Runde, ohne eigenen Weg.
+     ========================================================== */
+  function holesToCode(holesArr) {
+    return holesArr.map(function (h) {
+      return h.par.toString(10) + h.sc.toString(16);
+    }).join('');
+  }
+
+  function buildDetailGridHtml(n) {
+    var html = '';
+    for (var i = 1; i <= n; i++) {
+      html += '<div class="dh"><label>Loch ' + i + '</label><div class="pair">' +
+              '<select data-par="' + i + '">' +
+              [3,4,5,6].map(function (p) {
+                return '<option value="' + p + '"' + (p === 4 ? ' selected' : '') + '>' + p + '</option>';
+              }).join('') +
+              '</select>' +
+              '<select data-sc="' + i + '">' +
+              [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15].map(function (s) {
+                return '<option value="' + s + '"' + (s === 4 ? ' selected' : '') + '>' + s + '</option>';
+              }).join('') +
+              '</select></div></div>';
+    }
+    return html;
+  }
+
+  function renderManualEntry() {
+    brand.textContent = 'Manuell eintragen';
+    var todayInput = codeToInput(todayCode());
+
+    content.innerHTML =
+      '<div class="panel"><h3>Runde eintragen</h3>' +
+      '<div class="form">' +
+      '<input type="date" id="mDate" value="' + todayInput + '">' +
+      '</div>' +
+      '<div class="seg" id="mHolesSeg">' +
+      '<button type="button" class="on" data-holes="9">9 L\u00f6cher</button>' +
+      '<button type="button" data-holes="18">18 L\u00f6cher</button>' +
+      '</div>' +
+      '<label class="switchrow"><input type="checkbox" id="mDetailed">' +
+      '<span>Jedes Loch einzeln eintragen (Par + Schl\u00e4ge)</span></label>' +
+      '<div class="form" id="mSimple">' +
+      '<input type="number" id="mTotal" min="1" max="270" placeholder="Schl\u00e4ge gesamt">' +
+      '<p class="hint" style="margin:0">Par wird dabei mit 4 pro Loch angenommen.</p>' +
+      '</div>' +
+      '<div class="detailgrid" id="mDetail" style="display:none"></div>' +
+      '<div class="actions"><button class="btn" id="mSave">Speichern</button></div>' +
+      '</div>';
+
+    var holes = 9;
+    Array.prototype.forEach.call(document.querySelectorAll('#mHolesSeg button'), function (b) {
+      b.addEventListener('click', function () {
+        holes = parseInt(b.getAttribute('data-holes'), 10);
+        Array.prototype.forEach.call(document.querySelectorAll('#mHolesSeg button'), function (x) {
+          x.classList.toggle('on', x === b);
+        });
+        document.getElementById('mDetail').innerHTML = buildDetailGridHtml(holes);
+      });
+    });
+    document.getElementById('mDetail').innerHTML = buildDetailGridHtml(holes);
+
+    document.getElementById('mDetailed').addEventListener('change', function (e) {
+      var on = e.target.checked;
+      document.getElementById('mSimple').style.display = on ? 'none' : 'flex';
+      document.getElementById('mDetail').style.display = on ? 'grid' : 'none';
+    });
+
+    document.getElementById('mSave').addEventListener('click', function () {
+      var dateCode = inputToCode(document.getElementById('mDate').value) || todayCode();
+      var detailed = document.getElementById('mDetailed').checked;
+      var holesArr = [];
+
+      if (detailed) {
+        for (var i = 1; i <= holes; i++) {
+          var par = parseInt(document.querySelector('[data-par="' + i + '"]').value, 10);
+          var sc  = parseInt(document.querySelector('[data-sc="' + i + '"]').value, 10);
+          holesArr.push({ par:par, sc:sc });
+        }
+      } else {
+        var total = parseInt(document.getElementById('mTotal').value, 10);
+        if (isNaN(total) || total < holes || total > holes * 15) {
+          toast('Bitte eine plausible Gesamtschlagzahl eingeben.', true);
+          return;
+        }
+        var base = Math.floor(total / holes);
+        var rest = total % holes;
+        for (var j = 0; j < holes; j++) {
+          holesArr.push({ par:4, sc: base + (j < rest ? 1 : 0) });
+        }
+      }
+
+      var code = holesToCode(holesArr);
+      Store.add(code, dateCode);
+      location.hash = dateCode + '-' + code;
+      route();
+      toast('Runde gespeichert.');
+    });
+  }
+
   function renderLogin() {
     brand.textContent = Auth.id() ? 'Konto' : 'Anmelden';
 
@@ -2596,6 +2719,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     if (raw === 'menu/plan')   return 'cal';
     if (/^friend\//.test(raw)) return 'friends';
     if (raw === 'rounds')      return 'home';
+    if (raw === 'manual')      return 'home';
     if (parseCode(raw).holes.length) return 'home';   // eigene Runde direkt per Link
     return null;
   }
@@ -2627,6 +2751,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     if (raw === 'menu/friends'){ renderFriends(); return; }
     if (raw === 'menu/stats')  { renderStats(); return; }
     if (raw === 'rounds')      { renderAllRounds(); return; }
+    if (raw === 'manual')      { renderManualEntry(); return; }
     // renderPlan() ist fertig gebaut, aber wegen eines ungeklaerten Supabase-
     // Problems (Termine anlegen scheitert an der Datenbank) vorerst nicht
     // verlinkt. Sobald das geklaert ist: naechste Zeile durch
