@@ -238,6 +238,11 @@
   button.btn svg{width:17px;height:17px;fill:none;stroke:currentColor;
                  stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .hint{margin-top:14px;font-size:12.5px;color:var(--mut);text-align:center;line-height:1.7}
+  .confirmbox{background:var(--card);border-radius:14px;padding:14px 16px;margin:14px 0;
+       font-size:13.5px;color:var(--mut);display:flex;flex-direction:column;gap:10px}
+  .confirmbox.ok{flex-direction:row;align-items:center;gap:8px;color:var(--good)}
+  .confirmbox svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;
+       stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
   .sheetbg{position:fixed;inset:0;background:#000a;opacity:0;pointer-events:none;
            transition:opacity .18s;z-index:20}
@@ -739,7 +744,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       var arr = allIncludingDeleted();
       var now = Date.now();
       var rec = { id:newId(), code:code, date:date || '',
-                  createdAt:now, updatedAt:now, deleted:false };
+                  createdAt:now, updatedAt:now, deleted:false, confirmed:false };
       arr.push(rec);
       if (!writeRaw(arr)) return null;
       pushSoon();
@@ -855,13 +860,13 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       return { id:r.id, user_id:uid, code:r.code, date:r.date || null,
                created_at:new Date(r.createdAt || Date.now()).toISOString(),
                updated_at:new Date(r.updatedAt || Date.now()).toISOString(),
-               deleted:!!r.deleted };
+               deleted:!!r.deleted, confirmed:!!r.confirmed };
     }
     function fromRow(row) {
       return { id:row.id, code:row.code, date:row.date || '',
                createdAt:Date.parse(row.created_at) || Date.now(),
                updatedAt:Date.parse(row.updated_at) || Date.now(),
-               deleted:!!row.deleted };
+               deleted:!!row.deleted, confirmed:!!row.confirmed };
     }
 
     var syncing = false;
@@ -901,7 +906,8 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
             if (!cur) { local.push(remote); byId[remote.id] = remote; }
             else if (remote.updatedAt > cur.updatedAt) {
               cur.code = remote.code; cur.date = remote.date;
-              cur.deleted = remote.deleted; cur.updatedAt = remote.updatedAt;
+              cur.deleted = remote.deleted; cur.confirmed = remote.confirmed;
+              cur.updatedAt = remote.updatedAt;
             } else if (cur.updatedAt > remote.updatedAt) {
               pushUp.push(cur);
             }
@@ -1058,6 +1064,8 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         label:loggedIn ? 'Konto' : 'Anmelden',
         sub:loggedIn ? Auth.email() : 'Runden ger\u00e4te\u00fcbergreifend sichern',
         ready:true },
+      { id:'menu/addfriend', icon:I.share, label:'Freund hinzuf\u00fcgen',
+        sub:'Eigenen Code teilen oder per Code anfragen', ready:true },
       { sep:true },
       { id:'menu/backup', icon:I.box,   label:'Sicherung',  sub:'Runden exportieren und einlesen', ready:true },
       { id:'menu/about',  icon:I.info,  label:'\u00dcber',  sub:'Version und Hinweise', ready:true }
@@ -1510,7 +1518,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
 
   function renderStats() {
     brand.textContent = 'Statistik';
-    var arrAsc = Store.all().map(function (x) {
+    var arrAsc = Store.all().filter(function (x) { return x.confirmed; }).map(function (x) {
       var p = parseCode(x.code);
       p.date = x.date || p.date;
       p.createdAt = x.createdAt;
@@ -1519,8 +1527,9 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
 
     if (arrAsc.length < 2) {
       content.innerHTML =
-        '<div class="empty"><b>Noch nicht genug Runden</b>' +
-        'Sobald du mindestens zwei Runden gespeichert hast, siehst du hier deine Entwicklung.</div>';
+        '<div class="empty"><b>Noch nicht genug best\u00e4tigte Runden</b>' +
+        'Sobald mindestens zwei deiner Runden von einem Freund best\u00e4tigt wurden, ' +
+        'siehst du hier deine Entwicklung.</div>';
       return;
     }
 
@@ -1572,6 +1581,20 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     }).join('');
 
     if (readOnly) {
+      var confirmBlock;
+      if (opts.confirmed) {
+        confirmBlock = '<div class="confirmbox ok">' + I.check +
+          '<span>Von einem Freund best\u00e4tigt</span></div>';
+      } else if (opts.eligible && opts.roundId) {
+        confirmBlock = '<div class="confirmbox">' +
+          '<span>Noch nicht best\u00e4tigt, z\u00e4hlt deshalb noch nicht in der Statistik.</span>' +
+          '<button class="btn" id="btnConfirmRound">' + I.check + 'Ich war dabei, best\u00e4tigen</button></div>';
+      } else {
+        confirmBlock = '<div class="confirmbox">' +
+          '<span>Noch nicht best\u00e4tigt. Best\u00e4tigen kannst du nur, wenn du selbst ' +
+          'eine Runde vom gleichen Tag gespeichert hast.</span></div>';
+      }
+
       content.innerHTML =
         '<div class="datewrap"><span class="datebtn plain">' + I.cal +
         '<span>' + (fmtDate(r.date) || '') + '</span></span></div>' +
@@ -1579,6 +1602,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
           sign(r.diff) + '</div><div class="sub">' + r.holes.length +
           ' L\u00f6cher &middot; Par ' + r.par + ' &middot; ' + r.strokes +
           ' Schl\u00e4ge</div></div>' +
+        confirmBlock +
         '<table><thead><tr><th>Loch</th><th>Par</th><th>Schl\u00e4ge</th><th>Diff</th></tr></thead>' +
           '<tbody>' + rows + '</tbody>' +
           '<tfoot><tr><td>Gesamt</td><td>' + r.par + '</td><td>' + r.strokes +
@@ -1588,6 +1612,17 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         '<button class="btn ghost" id="btnBackF">' + I.back + 'Zur\u00fcck</button></div>' +
         '<div class="print-foot"><span>Pocket Caddy &middot; ' + esc(opts.owner) +
         '</span><span>' + fmtDate(r.date) + '</span></div>';
+
+      var cbtn = document.getElementById('btnConfirmRound');
+      if (cbtn) {
+        cbtn.addEventListener('click', function () {
+          cbtn.disabled = true;
+          Friends.confirmRound(opts.roundId).then(function (ok) {
+            if (ok) { toast('Best\u00e4tigt.'); route(); }
+            else { toast('Best\u00e4tigen hat nicht geklappt.', true); cbtn.disabled = false; }
+          });
+        });
+      }
 
       document.getElementById('btnPdf').addEventListener('click', function(){ window.print(); });
       document.getElementById('btnBackF').addEventListener('click', function () {
@@ -1614,6 +1649,11 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         sign(r.diff) + '</div><div class="sub"><span id="subDate">' +
         fmtDate(curDate) + ' &middot; </span>' + r.holes.length + ' L\u00f6cher &middot; Par ' +
         r.par + ' &middot; ' + r.strokes + ' Schl\u00e4ge</div></div>' +
+      (savedRec ? (savedRec.confirmed
+        ? '<div class="confirmbox ok">' + I.check + '<span>Von einem Freund best\u00e4tigt, z\u00e4hlt in der Statistik</span></div>'
+        : '<div class="confirmbox"><span>Noch nicht best\u00e4tigt. Ein Freund, der selbst eine Runde ' +
+          'vom gleichen Tag gespeichert hat, kann das bei sich in der App best\u00e4tigen.</span></div>')
+        : '') +
       '<table><thead><tr><th>Loch</th><th>Par</th><th>Schl\u00e4ge</th><th>Diff</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
         '<tfoot><tr><td>Gesamt</td><td>' + r.par + '</td><td>' + r.strokes +
@@ -1889,9 +1929,33 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         .catch(function () { return {}; });
     }
 
+    // Hat der aktuelle Nutzer selbst eine (nicht geloeschte) Runde vom
+    // angegebenen Datum? Nur dann darf er die Runde eines Freundes
+    // bestaetigen, egal ob die eigene selbst schon bestaetigt ist.
+    function hasRoundOnDate(date) {
+      var me = Auth.id();
+      if (!me || !date) return Promise.resolve(false);
+      return db().from('rounds').select('id', { count:'exact', head:true })
+        .eq('user_id', me).eq('date', date).eq('deleted', false)
+        .then(function (r) { return !r.error && (r.count || 0) > 0; })
+        .catch(function () { return false; });
+    }
+
+    // Bestaetigt die Runde eines Freundes. updated_at wird bewusst mit
+    // hochgesetzt, damit der normale Abgleich (sync()) das auf dem
+    // Geraet des Erstellers beim naechsten Mal von selbst mitbekommt.
+    function confirmRound(roundId) {
+      return db().from('rounds')
+        .update({ confirmed:true, updated_at:new Date().toISOString() })
+        .eq('id', roundId)
+        .then(function (r) { return !r.error; })
+        .catch(function () { return false; });
+    }
+
     return { loadProfile:loadProfile, setName:setName, list:list,
              requestByCode:requestByCode, accept:accept, remove:remove,
              roundsOf:roundsOf, latestActivity:latestActivity,
+             hasRoundOnDate:hasRoundOnDate, confirmRound:confirmRound,
              reset:function () { myProfile = null; } };
   })();
 
@@ -2050,25 +2114,9 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
 
     Promise.all([Friends.loadProfile(), Friends.list()]).then(function (res) {
-      var prof = res[0], data = res[1];
-      var code = prof && prof.friend_code ? prof.friend_code : '\u2013';
-      var pretty = code.length === 8 ? code.slice(0,4) + ' ' + code.slice(4) : code;
+      var data = res[1];
 
-      var html =
-        '<div class="panel"><h3>Dein Code</h3>' +
-        '<p>Gib deinen Freunden diesen Code, damit sie dich hinzuf\u00fcgen ' +
-        'k\u00f6nnen. Erst wenn du eine Anfrage best\u00e4tigst, sieht jemand ' +
-        'deine Runden.</p>' +
-        '<div class="codebox" id="codeBox">' + pretty + '</div>' +
-        '<div class="actions"><button class="btn ghost" id="btnCopy">' +
-        I.share + 'Code teilen</button></div></div>' +
-
-        '<div class="panel"><h3>Freund hinzuf\u00fcgen</h3>' +
-        '<p>Code deines Freundes eintippen. Er bekommt dann eine Anfrage, ' +
-        'die er best\u00e4tigen muss.</p>' +
-        '<div class="form"><input type="text" id="fCode" placeholder="8-stelliger Code" ' +
-        'inputmode="numeric" maxlength="9" autocomplete="off"></div>' +
-        '<div class="actions"><button class="btn" id="btnAdd">Anfrage senden</button></div></div>';
+      var html = '';
 
       if (data.incoming.length) {
         html += '<div class="sectionhead"><span class="t">Offene Anfragen</span>' +
@@ -2114,27 +2162,13 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
           }).join('') + '</div>';
       }
 
+      html += '<div class="actions"><button class="btn ghost" id="btnGoAdd">' +
+              I.share + 'Freund hinzuf\u00fcgen</button></div>';
+
       content.innerHTML = html;
 
-      document.getElementById('btnCopy').addEventListener('click', function () {
-        var txt = 'Mein Pocket-Caddy-Code: ' + code;
-        if (navigator.share) {
-          navigator.share({ text: txt }).catch(function(){});
-        } else if (navigator.clipboard) {
-          navigator.clipboard.writeText(code).then(function () { toast('Code kopiert.'); });
-        } else { toast(code); }
-      });
-
-      document.getElementById('btnAdd').addEventListener('click', function () {
-        var c = document.getElementById('fCode').value.replace(/\D/g, '');
-        if (c.length !== 8) { toast('Der Code besteht aus 8 Ziffern.', true); return; }
-        toast('Sende Anfrage \u2026');
-        Friends.requestByCode(c).then(function (r) {
-          if (r.ok) { toast('Anfrage gesendet.'); renderFriends(); return; }
-          if (r.reason === 'notfound') toast('Zu diesem Code gibt es niemanden.', true);
-          else if (r.reason === 'exists') toast('Mit dieser Person besteht schon eine Verbindung.', true);
-          else toast('Hat nicht geklappt: ' + (r.message || 'unbekannt'), true);
-        });
+      document.getElementById('btnGoAdd').addEventListener('click', function () {
+        location.hash = 'menu/addfriend'; route();
       });
 
       Array.prototype.forEach.call(content.querySelectorAll('[data-accept]'), function (el) {
@@ -2158,6 +2192,61 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
         });
       });
 
+    });
+  }
+
+  /* ---------- Freund hinzufügen ---------- */
+  function renderAddFriend() {
+    brand.textContent = 'Freund hinzuf\u00fcgen';
+    content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
+
+    Friends.loadProfile().then(function (prof) {
+      var code = prof && prof.friend_code ? prof.friend_code : '\u2013';
+      var pretty = code.length === 8 ? code.slice(0,4) + ' ' + code.slice(4) : code;
+
+      content.innerHTML =
+        '<div class="panel"><h3>Dein Code</h3>' +
+        '<p>Gib deinen Freunden diesen Code, damit sie dich hinzuf\u00fcgen ' +
+        'k\u00f6nnen. Erst wenn du eine Anfrage best\u00e4tigst, sieht jemand ' +
+        'deine Runden.</p>' +
+        '<div class="codebox" id="codeBox">' + pretty + '</div>' +
+        '<div class="actions"><button class="btn ghost" id="btnCopy">' +
+        I.share + 'Code teilen</button></div></div>' +
+
+        '<div class="panel"><h3>Freund per Code hinzuf\u00fcgen</h3>' +
+        '<p>Code deines Freundes eintippen. Er bekommt dann eine Anfrage, ' +
+        'die er best\u00e4tigen muss.</p>' +
+        '<div class="form"><input type="text" id="fCode" placeholder="8-stelliger Code" ' +
+        'inputmode="numeric" maxlength="9" autocomplete="off"></div>' +
+        '<div class="actions"><button class="btn" id="btnAdd">Anfrage senden</button></div></div>' +
+
+        '<div class="actions"><button class="btn ghost" id="btnBackFriends">' +
+        I.back + 'Zu den Freunden</button></div>';
+
+      document.getElementById('btnCopy').addEventListener('click', function () {
+        var txt = 'Mein Pocket-Caddy-Code: ' + code;
+        if (navigator.share) {
+          navigator.share({ text: txt }).catch(function(){});
+        } else if (navigator.clipboard) {
+          navigator.clipboard.writeText(code).then(function () { toast('Code kopiert.'); });
+        } else { toast(code); }
+      });
+
+      document.getElementById('btnAdd').addEventListener('click', function () {
+        var c = document.getElementById('fCode').value.replace(/\D/g, '');
+        if (c.length !== 8) { toast('Der Code besteht aus 8 Ziffern.', true); return; }
+        toast('Sende Anfrage \u2026');
+        Friends.requestByCode(c).then(function (r) {
+          if (r.ok) { toast('Anfrage gesendet.'); location.hash = 'menu/friends'; route(); return; }
+          if (r.reason === 'notfound') toast('Zu diesem Code gibt es niemanden.', true);
+          else if (r.reason === 'exists') toast('Mit dieser Person besteht schon eine Verbindung.', true);
+          else toast('Hat nicht geklappt: ' + (r.message || 'unbekannt'), true);
+        });
+      });
+
+      document.getElementById('btnBackFriends').addEventListener('click', function () {
+        location.hash = 'menu/friends'; route();
+      });
     });
   }
 
@@ -2774,6 +2863,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     if (!raw) return 'home';
     if (raw === 'menu/stats')  return 'stats';
     if (raw === 'menu/friends')return 'friends';
+    if (raw === 'menu/addfriend') return 'friends';
     if (raw === 'menu/plan')   return 'cal';
     if (/^friend\//.test(raw)) return 'friends';
     if (raw === 'rounds')      return 'home';
@@ -2807,6 +2897,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
     if (!raw)                 { renderHome(); return; }
     if (raw === 'menu/login') { renderLogin(); return; }
     if (raw === 'menu/friends'){ renderFriends(); return; }
+    if (raw === 'menu/addfriend'){ renderAddFriend(); return; }
     if (raw === 'menu/stats')  { renderStats(); return; }
     if (raw === 'rounds')      { renderAllRounds(); return; }
     if (raw === 'manual')      { renderManualEntry(); return; }
@@ -2823,11 +2914,32 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       if (!fm[2]) { renderFriendRounds(fm[1]); return; }
       var fr = parseCode(fm[2]);
       if (!fr.holes.length) { location.hash = 'friend/' + fm[1]; route(); return; }
-      Friends.list().then(function (d) {
+      Promise.all([Friends.list(), Friends.roundsOf(fm[1])]).then(function (res) {
+        var d = res[0], rows = res[1];
         var f = null;
         d.friends.forEach(function (x) { if (x.userId === fm[1]) f = x; });
         if (!f) { location.hash = 'menu/friends'; route(); return; }
-        renderRound(fr, { owner: nameOf(f), back: 'friend/' + fm[1] });
+
+        // Die passende Datenbank-Zeile suchen, fuer id/confirmed (aus der
+        // URL allein liesse sich das nicht rekonstruieren).
+        var row = null;
+        rows.forEach(function (x) {
+          if (x.code === fr.data && (x.date || '') === (fr.date || '')) row = x;
+        });
+
+        var afterEligibility = function (eligible) {
+          renderRound(fr, {
+            owner: nameOf(f), back: 'friend/' + fm[1],
+            roundId: row ? row.id : null,
+            confirmed: row ? !!row.confirmed : false,
+            eligible: eligible
+          });
+        };
+        if (row && !row.confirmed) {
+          Friends.hasRoundOnDate(fr.date).then(afterEligibility);
+        } else {
+          afterEligibility(false);
+        }
       });
       return;
     }
