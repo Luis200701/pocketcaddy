@@ -513,6 +513,14 @@
    ========================================================== */
 var SUPABASE_URL = 'https://hieaduzvsqkwvdxfscoo.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
+
+/* Gemeinsamer Projekt-Versionsstand (Geraet + Web-App), solange das
+   Projekt noch vor 1.0 ist: von Hand hochzaehlen, wenn ein
+   zusammenhaengender Fortschritt erreicht ist, nicht bei jeder
+   Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
+   das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
+   Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
+var APP_VERSION = '0.1';
 </script>
 
 <script>
@@ -2852,6 +2860,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
       'Scorecard-Ansicht f\u00fcr den selbstgebauten Golf-Schlagz\u00e4hler.<br><br>' +
       'Alle Runden werden ausschlie\u00dflich lokal in diesem Browser gespeichert. ' +
       'Es werden keine Daten an einen Server \u00fcbertragen.<br><br>' +
+      'Version: ' + APP_VERSION + '<br>' +
       'Speicherformat: 2<br>Gespeicherte Runden: ' + Store.all().length + '<br>' +
       'Speicher verf\u00fcgbar: ' + (Store.available() ? 'ja' : 'nein') +
       '</div>';
