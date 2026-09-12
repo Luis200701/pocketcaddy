@@ -520,7 +520,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.1';
+var APP_VERSION = '0.2';
 </script>
 
 <script>
@@ -1077,8 +1077,9 @@ var APP_VERSION = '0.1';
       { id:'menu/addfriend', icon:I.share, label:'Freund hinzuf\u00fcgen',
         sub:'Eigenen Code teilen oder per Code anfragen', ready:true },
       { sep:true },
-      { id:'menu/backup', icon:I.box,   label:'Sicherung',  sub:'Runden exportieren und einlesen', ready:true },
-      { id:'menu/about',  icon:I.info,  label:'\u00dcber',  sub:'Version und Hinweise', ready:true }
+      { id:'menu/backup',  icon:I.box,   label:'Sicherung',    sub:'Runden exportieren und einlesen', ready:true },
+      { id:'menu/privacy', icon:I.info,  label:'Datenschutz',  sub:'Welche Daten wo landen', ready:true },
+      { id:'menu/about',   icon:I.info,  label:'\u00dcber',    sub:'Version und Hinweise', ready:true }
     ];
   }
 
@@ -2700,7 +2701,13 @@ var APP_VERSION = '0.1';
         'du dort nur als &bdquo;Spieler&ldquo;.</p>' +
         '<div class="form"><input type="text" id="fName" placeholder="Dein Name" ' +
         'maxlength="40" autocomplete="nickname"></div>' +
-        '<div class="actions"><button class="btn ghost" id="btnName">Namen speichern</button></div></div>';
+        '<div class="actions"><button class="btn ghost" id="btnName">Namen speichern</button></div></div>' +
+
+        '<div class="panel"><h3>Konto löschen</h3>' +
+        '<p>Entfernt dein Konto, alle deine Runden, Freundschaften und dein ' +
+        'Profil endgültig. Das lässt sich nicht rückgängig machen.</p>' +
+        '<div class="del" style="margin-top:0;text-align:left">' +
+        '<button id="btnDeleteAccount">Konto endgültig löschen</button></div></div>';
 
       Friends.loadProfile().then(function (p) {
         var el = document.getElementById('fName');
@@ -2729,6 +2736,18 @@ var APP_VERSION = '0.1';
         Auth.signOut().then(function () {
           toast('Abgemeldet.');
           location.hash = ''; route();
+        });
+      });
+      document.getElementById('btnDeleteAccount').addEventListener('click', function () {
+        if (!confirm('Konto und alle Runden wirklich unwiderruflich löschen?')) return;
+        toast('Lösche Konto …');
+        Auth.db().functions.invoke('delete-account').then(function (r) {
+          if (r.error) { toast('Löschen fehlgeschlagen: ' + r.error.message, true); return; }
+          Friends.reset();
+          Auth.signOut().then(function () {
+            toast('Konto gelöscht.');
+            location.hash = ''; route();
+          });
         });
       });
       return;
@@ -2853,6 +2872,52 @@ var APP_VERSION = '0.1';
       p.text + '<div><span class="soon">in Arbeit</span></div></div>';
   }
 
+  // Entwurf, keine Rechtsberatung. Fuer ein kostenloses Hobby-Projekt in
+  // der Regel ausreichend, im Zweifel kurz querlesen (z.B. mit einem der
+  // ueblichen kostenlosen DSGVO-Generatoren). PLATZHALTER unten unbedingt
+  // vor Veroeffentlichung mit echten Kontaktdaten ausfuellen.
+  function renderPrivacy() {
+    brand.textContent = 'Datenschutz';
+    content.innerHTML =
+      '<div class="panel"><h3>Verantwortlicher</h3><p>' +
+      '[DEIN NAME]<br>[DEINE ADRESSE]<br>[DEINE E-MAIL-ADRESSE]' +
+      '</p></div>' +
+
+      '<div class="panel"><h3>Welche Daten gespeichert werden</h3><p>' +
+      'Ohne Anmeldung bleibt alles ausschließlich lokal auf deinem Gerät ' +
+      '(Browser-Speicher), es geht nichts an einen Server.<br><br>' +
+      'Mit Anmeldung zusätzlich in der Datenbank: deine E-Mail-Adresse, ' +
+      'optional ein selbst gewählter Anzeigename, deine Golf-Runden ' +
+      '(Datum, Par und Schläge je Loch), sowie – falls genutzt – ' +
+      'Freundschaftsverbindungen zu anderen Konten.' +
+      '</p></div>' +
+
+      '<div class="panel"><h3>Google-Anmeldung</h3><p>' +
+      'Meldest du dich mit Google an, verarbeitet Google die dabei anfallenden ' +
+      'Daten nach eigener Datenschutzerklärung. An Pocket Caddy kommen dabei ' +
+      'nur E-Mail-Adresse und (falls vorhanden) Profilname.' +
+      '</p></div>' +
+
+      '<div class="panel"><h3>Wo die Daten liegen</h3><p>' +
+      'Anmeldung und Rundendaten liegen bei Supabase (Auftragsverarbeiter). ' +
+      'Rechtsgrundlage ist die Erfüllung des Nutzungsverhältnisses ' +
+      '(Art. 6 Abs. 1 lit. b DSGVO). Es findet keine Werbung, kein Tracking ' +
+      'und keine Weitergabe an Dritte außer den genannten statt.' +
+      '</p></div>' +
+
+      '<div class="panel"><h3>Speicherdauer</h3><p>' +
+      'Deine Daten bleiben gespeichert, bis du dein Konto löschst. ' +
+      'Danach werden Runden, Freundschaften und Profil unwiderruflich entfernt.' +
+      '</p></div>' +
+
+      '<div class="panel"><h3>Deine Rechte</h3><p>' +
+      'Auskunft, Berichtigung, Löschung und Datenübertragbarkeit ' +
+      '(Art. 15–20 DSGVO). Dein Konto samt aller Daten kannst du jederzeit ' +
+      'selbst löschen, unter Menü → Konto → "Konto endgültig ' +
+      'löschen". Für alles andere: [DEINE E-MAIL-ADRESSE].' +
+      '</p></div>';
+  }
+
   function renderAbout() {
     brand.textContent = '\u00dcber';
     content.innerHTML =
@@ -2954,8 +3019,9 @@ var APP_VERSION = '0.1';
       });
       return;
     }
-    if (raw === 'menu/backup'){ renderBackup(); return; }
-    if (raw === 'menu/about') { renderAbout(); return; }
+    if (raw === 'menu/backup') { renderBackup();  return; }
+    if (raw === 'menu/privacy'){ renderPrivacy(); return; }
+    if (raw === 'menu/about')  { renderAbout();   return; }
     if (PAGES[raw])           { renderPlaceholder(raw); return; }
 
     var r = parseCode(raw);
@@ -2968,6 +3034,25 @@ var APP_VERSION = '0.1';
     }
     renderRound(r);
   }
+
+  // Kommt man von einer fehlgeschlagenen Google-/Supabase-Anmeldung
+  // zurueck, haengt Supabase "error=...&error_description=..." sowohl an
+  // die Query ALS AUCH (identisch) an den #-Teil der Adresse. Ohne diese
+  // Pruefung faellt das unbemerkt durch bis zu parseCode() weiter oben und
+  // zeigt bestenfalls die irrefuehrende "Daten nicht lesbar"-Meldung, im
+  // schlimmsten Fall gar nichts. Muss VOR dem ersten route()-Aufruf laufen
+  // (siehe Auth.init() gleich danach), deshalb hier ganz oben im Boot-Ablauf.
+  function clearAuthErrorFromUrl() {
+    var fromQuery = new URLSearchParams(location.search);
+    var fromHash  = new URLSearchParams(location.hash.replace(/^#/, ''));
+    var err = fromQuery.get('error') || fromHash.get('error');
+    if (!err) return;
+    var desc = fromQuery.get('error_description') || fromHash.get('error_description') || err;
+    toast('Anmeldung fehlgeschlagen: ' + desc, true);
+    history.replaceState(null, '', location.pathname);
+    location.hash = '';
+  }
+  clearAuthErrorFromUrl();
 
   // Erst den Kontostand ermitteln, dann zeichnen. Sonst wuerde kurz die
   // Ablage ohne Anmeldung angezeigt und danach umspringen.
