@@ -527,7 +527,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.7';
+var APP_VERSION = '0.8';
 </script>
 
 <script>
@@ -1869,8 +1869,8 @@ var APP_VERSION = '0.7';
     // Fester Dateiname pro Nutzer, "upsert" ersetzt ein vorhandenes Bild.
     function setAvatar(file) {
       var uid = Auth.id();
+      var path = uid + '/avatar.jpg';   // fuer Diagnosemeldung im catch() unten sichtbar
       return resizeImageToJpeg(file, 400).then(function (blob) {
-        var path = uid + '/avatar.jpg';
         // Erst loeschen, dann neu hochladen, statt "upsert" zu benutzen:
         // ein Ersetzen ueber upsert verhaelt sich mit Supabase-Zugriffs-
         // regeln manchmal stoerrisch (INSERT- und UPDATE-Regel muessten
@@ -1892,7 +1892,9 @@ var APP_VERSION = '0.7';
             });
         });
       }).catch(function (e) {
-        return { ok:false, message:(e && e.message) || '' };
+        // TEMPORAER zum Eingrenzen des RLS-Fehlers beim Hochladen: zeigt
+        // Nutzer-ID und Pfad mit an. Wieder entfernen, sobald geklaert.
+        return { ok:false, message:((e && e.message) || '') + ' [uid=' + uid + ' path=' + path + ']' };
       });
     }
 
@@ -2368,10 +2370,14 @@ var APP_VERSION = '0.7';
     var html = '<div class="panel"><h3>Neuer Termin</h3>' +
       '<div class="form"><input type="text" id="fTitle" placeholder="Titel (z.B. Golfrunde)" ' +
       'maxlength="60" autocomplete="off"></div>' +
-      '<div class="datewrap" style="margin-bottom:14px">' +
-      '<button type="button" class="datebtn" id="fWhenBtn">' + I.cal +
-      '<span id="fWhenLabel">Datum &amp; Uhrzeit wählen</span></button>' +
-      '<input type="datetime-local" id="fWhen" class="hidden-date-input"></div>' +
+      '<div class="datewrap" style="margin-bottom:14px;flex-wrap:wrap">' +
+      '<button type="button" class="datebtn" id="fDateBtn">' + I.cal +
+      '<span id="fDateLabel">Datum wählen</span></button>' +
+      '<input type="date" id="fDate" class="hidden-date-input">' +
+      '<button type="button" class="datebtn" id="fTimeBtn">' +
+      '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>' +
+      '<span id="fTimeLabel">Uhrzeit wählen</span></button>' +
+      '<input type="time" id="fTime" class="hidden-date-input"></div>' +
       '<div class="form"><input type="text" id="fWhere" placeholder="Ort (optional)" autocomplete="off"></div>';
 
     if (!friends.length) {
@@ -2390,16 +2396,29 @@ var APP_VERSION = '0.7';
     return html;
   }
 
-  function wireEventForm(slot) {
-    var whenInput = slot.querySelector('#fWhen');
-    slot.querySelector('#fWhenBtn').addEventListener('click', function () {
-      if (whenInput.showPicker) { try { whenInput.showPicker(); return; } catch (e) {} }
-      whenInput.click();
+  // Datum und Uhrzeit bewusst als zwei getrennte native Felder (nicht
+  // "datetime-local" in einem): Safari auf iPhone/iPad unterstuetzt
+  // datetime-local gar nicht (zeigt kein Auswahlfenster), waehrend
+  // type="date" und type="time" einzeln dort ganz normal funktionieren.
+  function wirePillDate(slot, btnId, inputId, labelId, placeholder, formatFn) {
+    var input = slot.querySelector('#' + inputId);
+    slot.querySelector('#' + btnId).addEventListener('click', function () {
+      if (input.showPicker) { try { input.showPicker(); return; } catch (e) {} }
+      input.click();
     });
-    whenInput.addEventListener('change', function () {
-      var d = new Date(whenInput.value);
-      slot.querySelector('#fWhenLabel').textContent =
-        isNaN(d.getTime()) ? 'Datum & Uhrzeit wählen' : fmtDateTime(d.toISOString());
+    input.addEventListener('change', function () {
+      slot.querySelector('#' + labelId).textContent =
+        input.value ? formatFn(input.value) : placeholder;
+    });
+    return input;
+  }
+
+  function wireEventForm(slot) {
+    var dateInput = wirePillDate(slot, 'fDateBtn', 'fDate', 'fDateLabel', 'Datum wählen', function (v) {
+      return fmtDate(inputToCode(v)) || 'Datum wählen';
+    });
+    var timeInput = wirePillDate(slot, 'fTimeBtn', 'fTime', 'fTimeLabel', 'Uhrzeit wählen', function (v) {
+      return v + ' Uhr';
     });
 
     var selected = {};
@@ -2413,10 +2432,11 @@ var APP_VERSION = '0.7';
 
     slot.querySelector('#btnCreate').addEventListener('click', function () {
       var title = slot.querySelector('#fTitle').value.trim();
-      var when = whenInput.value;
       var where = slot.querySelector('#fWhere').value.trim();
-      if (!when) { toast('Bitte Datum und Uhrzeit wählen.', true); return; }
-      var d = new Date(when);
+      if (!dateInput.value || !timeInput.value) {
+        toast('Bitte Datum und Uhrzeit wählen.', true); return;
+      }
+      var d = new Date(dateInput.value + 'T' + timeInput.value);
       if (isNaN(d.getTime())) { toast('Datum konnte nicht gelesen werden.', true); return; }
 
       toast('Lege Termin an …');
