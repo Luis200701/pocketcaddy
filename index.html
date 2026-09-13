@@ -527,7 +527,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.8';
+var APP_VERSION = '0.9';
 </script>
 
 <script>
@@ -1871,13 +1871,8 @@ var APP_VERSION = '0.8';
       var uid = Auth.id();
       var path = uid + '/avatar.jpg';   // fuer Diagnosemeldung im catch() unten sichtbar
       return resizeImageToJpeg(file, 400).then(function (blob) {
-        // Erst loeschen, dann neu hochladen, statt "upsert" zu benutzen:
-        // ein Ersetzen ueber upsert verhaelt sich mit Supabase-Zugriffs-
-        // regeln manchmal stoerrisch (INSERT- und UPDATE-Regel muessten
-        // beide zum genau gleichen Zeitpunkt zutreffen). Fehlt die Datei
-        // noch gar nicht, schlaegt das Loeschen einfach folgenlos fehl.
-        return db().storage.from('avatars').remove([path]).catch(function () {}).then(function () {
-          return db().storage.from('avatars').upload(path, blob, { contentType: 'image/jpeg' });
+        return db().storage.from('avatars').upload(path, blob, {
+          upsert: true, contentType: 'image/jpeg'
         }).then(function (up) {
           if (up.error) throw up.error;
           var pub = db().storage.from('avatars').getPublicUrl(path);
