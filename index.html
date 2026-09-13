@@ -145,6 +145,15 @@
   @keyframes softPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.18);opacity:.75}}
   .friendrow .fname{font-size:11.5px;color:var(--mut);text-align:center;
                     max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* Freunde-Auswahl beim Termin anlegen: antippbare Avatare statt
+     Abhak-Kaestchen, ausgewaehlt = gruener Kranz um das Bild. */
+  .pickrow{display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 18px}
+  .pickava{background:none;border:0;padding:0;display:flex;flex-direction:column;
+           align-items:center;gap:6px;cursor:pointer;color:inherit;font:inherit;width:58px}
+  .pickava .ava{transition:box-shadow .15s ease}
+  .pickava.on .ava{box-shadow:0 0 0 3px var(--lime)}
+  .pickava .fname{font-size:11.5px;color:var(--mut);text-align:center;
+                  max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .linklike{color:var(--mut);font-size:13px;text-decoration:underline;
             text-underline-offset:3px;background:none;border:0;cursor:pointer;
             font-family:inherit;padding:0}
@@ -208,7 +217,7 @@
                stroke-linecap:round;stroke-linejoin:round;flex:none}
   .datebtn .tag{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
                 background:#ffffff14;border-radius:99px;padding:3px 7px}
-  #dateInput{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+  .hidden-date-input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
   /* Datum steht am Bildschirm im antippbaren Knopf, in der Unterzeile waere
      es doppelt. Im PDF ist der Knopf ausgeblendet, dort wird es gebraucht. */
   #subDate{display:none}
@@ -359,10 +368,6 @@
 
   /* Planung */
   .form input[type=datetime-local]{color-scheme:dark}
-  .invitelist{display:flex;flex-direction:column;gap:2px;margin-bottom:16px}
-  .invitecheck{display:flex;align-items:center;gap:12px;padding:9px 4px;cursor:pointer;font-size:15px}
-  .invitecheck input{width:18px;height:18px;accent-color:var(--lime);flex:none}
-  .ava.small{width:28px;height:28px;font-size:12px}
   .event{background:var(--card);border-radius:14px;padding:16px;margin-bottom:10px}
   .event.past{opacity:.55}
   .eventhead{display:flex;justify-content:space-between;align-items:center}
@@ -487,6 +492,9 @@
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Manuell eingeben</button>
   </div>
 </div>
+
+<div class="sheetbg" id="eventSheetBg"></div>
+<div class="sheet" id="eventSheet"><div class="grip"></div><div id="eventSheetContent"></div></div>
 <div class="toast" id="toast"></div>
 
 <div class="scanview" id="scanview">
@@ -520,7 +528,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.3';
+var APP_VERSION = '0.4';
 </script>
 
 <script>
@@ -1245,6 +1253,12 @@ var APP_VERSION = '0.3';
   function openScanChoice()  { closeMenu(); scanChoiceSheet.classList.add('on'); scanChoiceBg.classList.add('on'); }
   function closeScanChoice() { scanChoiceSheet.classList.remove('on'); scanChoiceBg.classList.remove('on'); }
 
+  var eventSheet   = document.getElementById('eventSheet');
+  var eventSheetBg = document.getElementById('eventSheetBg');
+  function openEventSheet()  { eventSheet.classList.add('on'); eventSheetBg.classList.add('on'); }
+  function closeEventSheet() { eventSheet.classList.remove('on'); eventSheetBg.classList.remove('on'); }
+  eventSheetBg.addEventListener('click', closeEventSheet);
+
   document.getElementById('btnScanNav').addEventListener('click', openScanChoice);
   scanChoiceBg.addEventListener('click', closeScanChoice);
   document.getElementById('btnChoiceScan').addEventListener('click', function () {
@@ -1647,7 +1661,7 @@ var APP_VERSION = '0.3';
              '<span>' + (fmtDate(curDate) || 'Datum w\u00e4hlen') + '</span>' +
              (r.dateFromDevice ? '<span class="tag">heute</span>' : '') +
              '</button>' +
-             '<input type="date" id="dateInput" value="' + codeToInput(curDate) + '">';
+             '<input type="date" id="dateInput" class="hidden-date-input" value="' + codeToInput(curDate) + '">';
     }
 
     content.innerHTML =
@@ -2273,6 +2287,70 @@ var APP_VERSION = '0.3';
     return ev.invites.length === 0 || ev.invites.every(function (i) { return i.status === 'accepted'; });
   }
 
+  // Inhalt des "Neuer Termin"-Sheets. Freunde als antippbare Avatare statt
+  // Abhak-Kaestchen: ausgewaehlt = gruener Kranz (.pickava.on), siehe CSS.
+  function eventFormHtml(friends) {
+    var html = '<div class="panel"><h3>Neuer Termin</h3>' +
+      '<div class="datewrap" style="margin-bottom:14px">' +
+      '<button type="button" class="datebtn" id="fWhenBtn">' + I.cal +
+      '<span id="fWhenLabel">Datum &amp; Uhrzeit wählen</span></button>' +
+      '<input type="datetime-local" id="fWhen" class="hidden-date-input"></div>' +
+      '<div class="form"><input type="text" id="fWhere" placeholder="Ort (optional)" autocomplete="off"></div>';
+
+    if (!friends.length) {
+      html += '<p class="hint" style="margin-top:0">Noch keine Freunde zum Einladen. ' +
+              'Füg welche über den Punkt Freunde hinzu, du kannst den Termin ' +
+              'aber auch ohne Einladung für dich selbst anlegen.</p>';
+    } else {
+      html += '<div class="pickrow">' + friends.map(function (f) {
+        return '<button type="button" class="pickava" data-uid="' + f.userId + '">' +
+               '<span class="ava">' + esc(nameOf(f).charAt(0).toUpperCase()) + '</span>' +
+               '<span class="fname">' + esc(nameOf(f)) + '</span></button>';
+      }).join('') + '</div>';
+    }
+
+    html += '<div class="actions"><button class="btn" id="btnCreate">Termin anlegen</button></div></div>';
+    return html;
+  }
+
+  function wireEventForm() {
+    var whenInput = document.getElementById('fWhen');
+    document.getElementById('fWhenBtn').addEventListener('click', function () {
+      if (whenInput.showPicker) { try { whenInput.showPicker(); return; } catch (e) {} }
+      whenInput.click();
+    });
+    whenInput.addEventListener('change', function () {
+      var d = new Date(whenInput.value);
+      document.getElementById('fWhenLabel').textContent =
+        isNaN(d.getTime()) ? 'Datum & Uhrzeit wählen' : fmtDateTime(d.toISOString());
+    });
+
+    var selected = {};
+    Array.prototype.forEach.call(document.querySelectorAll('.pickava'), function (btn) {
+      btn.addEventListener('click', function () {
+        var uid = btn.getAttribute('data-uid');
+        btn.classList.toggle('on');
+        if (btn.classList.contains('on')) selected[uid] = true; else delete selected[uid];
+      });
+    });
+
+    document.getElementById('btnCreate').addEventListener('click', function () {
+      var when = whenInput.value;
+      var where = document.getElementById('fWhere').value.trim();
+      if (!when) { toast('Bitte Datum und Uhrzeit wählen.', true); return; }
+      var d = new Date(when);
+      if (isNaN(d.getTime())) { toast('Datum konnte nicht gelesen werden.', true); return; }
+
+      toast('Lege Termin an …');
+      Planner.create({ date: d.toISOString(), location: where }, Object.keys(selected)).then(function (r) {
+        if (!r.ok) { toast('Hat nicht geklappt: ' + (r.message || 'unbekannt'), true); return; }
+        closeEventSheet();
+        toast('Termin angelegt.');
+        renderPlan();
+      });
+    });
+  }
+
   function renderPlan() {
     brand.textContent = 'Planen';
 
@@ -2296,32 +2374,13 @@ var APP_VERSION = '0.3';
       var friends = res[1].friends;
       var me = Auth.id();
 
-      var html =
-        '<div class="panel"><h3>Neue Runde planen</h3>' +
-        '<p>W\u00e4hl Datum, Uhrzeit und optional einen Ort, dann Freunde zum ' +
-        'Einladen ausw\u00e4hlen.</p>' +
-        '<div class="form">' +
-        '<input type="datetime-local" id="fWhen">' +
-        '<input type="text" id="fWhere" placeholder="Ort (optional)" autocomplete="off">' +
-        '</div>';
-
-      if (!friends.length) {
-        html += '<p class="hint" style="margin-top:0">Noch keine Freunde zum Einladen. ' +
-                'F\u00fcg welche \u00fcber den Punkt Freunde hinzu, du kannst den Termin ' +
-                'aber auch ohne Einladung f\u00fcr dich selbst anlegen.</p>';
-      } else {
-        html += '<div class="invitelist">' + friends.map(function (f) {
-          return '<label class="invitecheck"><input type="checkbox" value="' + f.userId + '">' +
-                 '<span class="ava small">' + esc(nameOf(f).charAt(0).toUpperCase()) + '</span>' +
-                 '<span>' + esc(nameOf(f)) + '</span></label>';
-        }).join('') + '</div>';
-      }
-
-      html += '<div class="actions"><button class="btn" id="btnCreate">Termin anlegen</button></div></div>';
+      var html = '<div class="actions" style="margin-bottom:18px">' +
+        '<button class="btn" id="btnNewEvent"><svg viewBox="0 0 24 24" width="17" height="17">' +
+        '<path d="M12 5v14M5 12h14"/></svg>Neuer Termin</button></div>';
 
       if (!events.length) {
         html += '<div class="empty"><b>Noch keine geplanten Runden</b>' +
-                'Leg oben eine neue Runde an.</div>';
+                'Leg \u00fcber "Neuer Termin" eine neue Runde an.</div>';
       } else {
         html += '<div class="sectionhead"><span class="t">Termine</span>' +
                 '<span class="c">' + events.length + '</span></div><div class="list">';
@@ -2369,24 +2428,10 @@ var APP_VERSION = '0.3';
 
       content.innerHTML = html;
 
-      document.getElementById('btnCreate').addEventListener('click', function () {
-        var when = document.getElementById('fWhen').value;
-        var where = document.getElementById('fWhere').value.trim();
-        if (!when) { toast('Bitte Datum und Uhrzeit w\u00e4hlen.', true); return; }
-        var d = new Date(when);
-        if (isNaN(d.getTime())) { toast('Datum konnte nicht gelesen werden.', true); return; }
-
-        var ids = Array.prototype.map.call(
-          content.querySelectorAll('.invitecheck input:checked'),
-          function (el) { return el.value; }
-        );
-
-        toast('Lege Termin an \u2026');
-        Planner.create({ date: d.toISOString(), location: where }, ids).then(function (r) {
-          if (!r.ok) { toast('Hat nicht geklappt: ' + (r.message || 'unbekannt'), true); return; }
-          toast('Termin angelegt.');
-          renderPlan();
-        });
+      document.getElementById('btnNewEvent').addEventListener('click', function () {
+        document.getElementById('eventSheetContent').innerHTML = eventFormHtml(friends);
+        wireEventForm();
+        openEventSheet();
       });
 
       Array.prototype.forEach.call(content.querySelectorAll('[data-accept-invite]'), function (el) {
@@ -2522,7 +2567,10 @@ var APP_VERSION = '0.3';
     function renderSetup() {
       content.innerHTML =
         '<div class="panel"><h3>Runde eintragen</h3>' +
-        '<div class="form"><input type="date" id="mDate" value="' + todayInput + '"></div>' +
+        '<div class="datewrap" style="margin-bottom:14px">' +
+        '<button type="button" class="datebtn" id="mDateBtn">' + I.cal +
+        '<span id="mDateLabel">' + (fmtDate(inputToCode(todayInput)) || 'Datum wählen') + '</span></button>' +
+        '<input type="date" id="mDate" class="hidden-date-input" value="' + todayInput + '"></div>' +
         '<div class="seg" id="mHolesSeg">' +
         '<button type="button" class="on" data-holes="9">9 L\u00f6cher</button>' +
         '<button type="button" data-holes="18">18 L\u00f6cher</button></div>' +
@@ -2535,6 +2583,16 @@ var APP_VERSION = '0.3';
         '</div>' +
         '<div class="actions"><button class="btn" id="mNext">Weiter</button></div>' +
         '</div>';
+
+      var mDateInput = document.getElementById('mDate');
+      document.getElementById('mDateBtn').addEventListener('click', function () {
+        if (mDateInput.showPicker) { try { mDateInput.showPicker(); return; } catch (e) {} }
+        mDateInput.click();
+      });
+      mDateInput.addEventListener('change', function () {
+        var c = inputToCode(mDateInput.value);
+        document.getElementById('mDateLabel').textContent = c ? fmtDate(c) : 'Datum wählen';
+      });
 
       Array.prototype.forEach.call(document.querySelectorAll('#mHolesSeg button'), function (b) {
         b.addEventListener('click', function () {
