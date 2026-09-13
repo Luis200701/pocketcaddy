@@ -110,6 +110,16 @@
   .navitem.active{color:var(--lime)}
   .navitem.disabled{opacity:.4}
   .navlabel{display:none}
+  /* Golfplatz-Konten sehen eine eigene, reduzierte Nav-Leiste (nur
+     Platz/Angebote) statt der Spieler-Leiste - Umschaltung ueber eine
+     Klasse am body (siehe updateSidebarProfile()), gleiches Prinzip
+     wie .desktop-only/.mobile-only. .club-only{display:none} muss vor
+     body.club-account stehen, aber die Nachfahren-Selektoren unten sind
+     ohnehin spezifischer als .navitem{display:flex} - keine
+     !important-Kruecke noetig. */
+  .club-only{display:none}
+  body.club-account .player-only{display:none}
+  body.club-account .club-only{display:flex}
   /* Nur am Rechner sichtbar - fuer Dinge, die es am Handy nicht gibt
      (z.B. Golfplatz-Registrierung/-Verwaltung). */
   .desktop-only{display:none}
@@ -567,27 +577,35 @@
 </div>
 
 <nav class="bottomnav" id="bottomNav">
-  <button class="navitem" data-tab="home" data-go="" aria-label="Start">
+  <button class="navitem player-only" data-tab="home" data-go="" aria-label="Start">
     <svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 21v-7h6v7"/></svg>
     <span class="navlabel">Start</span>
   </button>
-  <button class="navitem" data-tab="stats" data-go="menu/stats" aria-label="Statistik">
+  <button class="navitem player-only" data-tab="stats" data-go="menu/stats" aria-label="Statistik">
     <svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>
     <span class="navlabel">Statistik</span>
   </button>
-  <button class="navitem scan" id="btnScanNav" data-tab="scan" aria-label="Runde hinzuf&uuml;gen">
+  <button class="navitem scan player-only" id="btnScanNav" data-tab="scan" aria-label="Runde hinzuf&uuml;gen">
     <span class="navscanwrap"><svg viewBox="0 0 24 24">
       <path d="M6 21V10"/><path d="M6 4l9 3-9 3"/>
       <path d="M18 15v6"/><path d="M15 18h6"/></svg></span>
     <span class="navlabel">Runde hinzuf&uuml;gen</span>
   </button>
-  <button class="navitem" data-tab="friends" data-go="menu/friends" aria-label="Freunde">
+  <button class="navitem player-only" data-tab="friends" data-go="menu/friends" aria-label="Freunde">
     <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6.5 6.5 0 0 1 13 0v1"/><path d="M17 5.2a3.5 3.5 0 0 1 0 6.6"/><path d="M19.5 21v-1a5.6 5.6 0 0 0-2.2-4.4"/></svg>
     <span class="navlabel">Freunde</span>
   </button>
-  <button class="navitem" id="btnCalNav" data-tab="cal" data-go="menu/plan" aria-label="Kalender">
+  <button class="navitem player-only" id="btnCalNav" data-tab="cal" data-go="menu/plan" aria-label="Kalender">
     <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
     <span class="navlabel">Planen</span>
+  </button>
+  <button class="navitem club-only" data-tab="home" data-go="" aria-label="Platz">
+    <svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 21v-7h6v7"/></svg>
+    <span class="navlabel">Platz</span>
+  </button>
+  <button class="navitem club-only" data-tab="offers" data-go="menu/offers" aria-label="Angebote">
+    <svg viewBox="0 0 24 24"><path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M2 4h20v4H2z"/><path d="M10 12h4"/></svg>
+    <span class="navlabel">Angebote</span>
   </button>
   <button class="navitem sidebarprofile desktop-only" id="btnSidebarProfile"
           data-go="menu/login" aria-label="Konto">
@@ -648,7 +666,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.19';
+var APP_VERSION = '0.20';
 </script>
 
 <script>
@@ -1198,17 +1216,20 @@ var APP_VERSION = '0.19';
     // Startseite, Statistik, Freunde und Kalender/Planen stecken jetzt in
     // der unteren Leiste, hier bleiben nur die selteneren Einstellungs-
     // Punkte, die dort keinen Platz gefunden haetten.
+    // Golfplatz-Konten sehen "Freund hinzufuegen"/"Sicherung" nicht - beides
+    // reine Spieler-Funktionen, ergeben fuer einen Platz keinen Sinn.
+    var isClub = Friends.isClub();
     var items = [
       { id:'menu/login',  icon:loggedIn ? I.cloud : I.user,
         label:loggedIn ? 'Konto' : 'Anmelden',
         sub:loggedIn ? Auth.email() : 'Runden ger\u00e4te\u00fcbergreifend sichern',
         ready:true },
-      { id:'menu/addfriend', icon:I.share, label:'Freund hinzuf\u00fcgen',
+      isClub ? null : { id:'menu/addfriend', icon:I.share, label:'Freund hinzuf\u00fcgen',
         sub:'Eigenen Code teilen oder per Code anfragen', ready:true },
       { sep:true },
       Friends.isAdmin() ? { id:'menu/admin', icon:I.info, label:'Admin',
         sub:'Golfplatz-Anfragen freischalten', ready:true } : null,
-      { id:'menu/backup',  icon:I.box,   label:'Sicherung',    sub:'Runden exportieren und einlesen', ready:true },
+      isClub ? null : { id:'menu/backup',  icon:I.box,   label:'Sicherung',    sub:'Runden exportieren und einlesen', ready:true },
       { id:'menu/privacy', icon:I.info,  label:'Datenschutz',  sub:'Welche Daten wo landen', ready:true },
       { id:'menu/about',   icon:I.info,  label:'\u00dcber',    sub:'Version und Hinweise', ready:true }
     ];
@@ -1422,6 +1443,14 @@ var APP_VERSION = '0.19';
 
   /* ---------- Startseite ---------- */
   function renderHome() {
+    // Golfplatz-Konten sehen hier ihre Platzverwaltung statt der Spieler-
+    // Startseite. Synchron VOR dem Player-UI geprueft (statt nur im
+    // asynchronen Friends.loadProfile()-Callback weiter unten), damit die
+    // Spieler-Ansicht bei einer schon bekannten Golfplatz-Sitzung nicht
+    // kurz aufblitzt. Beim allerersten Laden (Profil noch nicht gecacht)
+    // greift weiterhin der bestehende asynchrone Check unten.
+    if (Friends.isClub()) { renderClub(); return; }
+
     brand.textContent = 'Pocket Caddy';
     var arr = Store.all().map(function (x) {
       var p = parseCode(x.code);
@@ -2163,6 +2192,7 @@ var APP_VERSION = '0.19';
              roundsOf:roundsOf,
              hasRoundOnDate:hasRoundOnDate, confirmRound:confirmRound,
              isAdmin:function () { return !!(myProfile && myProfile.is_admin); },
+             isClub:function () { return !!(myProfile && myProfile.account_type === 'club'); },
              reset:function () { myProfile = null; } };
   })();
 
@@ -4005,6 +4035,7 @@ var APP_VERSION = '0.19';
     if (/^friend\//.test(raw)) return 'friends';
     if (raw === 'rounds')      return 'home';
     if (raw === 'manual')      return 'scan';
+    if (raw === 'menu/offers') return 'offers';
     if (parseCode(raw).holes.length) return 'home';   // eigene Runde direkt per Link
     return null;
   }
@@ -4015,17 +4046,24 @@ var APP_VERSION = '0.19';
   // Netzwerk-Aufruf bei wiederholtem Rufen.
   function updateSidebarProfile() {
     var el = document.getElementById('btnSidebarProfile');
-    if (!el) return;
     if (!Auth.id()) {
-      el.querySelector('.ava').outerHTML = avaHtml(null, '?');
-      el.querySelector('.sidebarname').textContent = 'Anmelden';
+      document.body.classList.remove('club-account');
+      if (el) {
+        el.querySelector('.ava').outerHTML = avaHtml(null, '?');
+        el.querySelector('.sidebarname').textContent = 'Anmelden';
+      }
       return;
     }
     Friends.loadProfile().then(function (p) {
       if (!p) return;
-      el.querySelector('.ava').outerHTML =
-        avaHtml(p.avatar_url, p.display_name || Auth.email(), '', '', badgeTypeFor(p.is_admin, p.verified_role));
-      el.querySelector('.sidebarname').textContent = p.display_name || 'Konto';
+      // Golfplatz-Konten sehen eine eigene, reduzierte Nav-Leiste statt
+      // der Spieler-Leiste (siehe .club-only/.player-only CSS).
+      document.body.classList.toggle('club-account', p.account_type === 'club');
+      if (el) {
+        el.querySelector('.ava').outerHTML =
+          avaHtml(p.avatar_url, p.display_name || Auth.email(), '', '', badgeTypeFor(p.is_admin, p.verified_role));
+        el.querySelector('.sidebarname').textContent = p.display_name || 'Konto';
+      }
     });
   }
 
@@ -4033,6 +4071,17 @@ var APP_VERSION = '0.19';
     closeMenu(); closeScanChoice(); window.scrollTo(0,0);
     updateSidebarProfile();
     var raw = (location.hash || '').replace(/^#/, '');
+
+    // Golfplatz-Konten sehen keine Spieler-Seiten (Statistik, Runde
+    // eintragen, Freunde, Planen, eigene Runden) - reiner UX-Schutz vor
+    // alten/falschen Links, keine Sicherheitsmassnahme (siehe Golfplatz-
+    // Navigation-Lektion). Greift erst, sobald das Profil einmal geladen
+    // wurde (Friends.isClub() ist bis dahin false, gleiche Einschraenkung
+    // wie bei Friends.isAdmin()).
+    var CLUB_BLOCKED_HASHES = ['manual', 'menu/stats', 'menu/friends', 'menu/addfriend', 'menu/plan', 'rounds'];
+    if (Friends.isClub() && (CLUB_BLOCKED_HASHES.indexOf(raw) >= 0 || parseCode(raw).holes.length)) {
+      location.hash = ''; route(); return;
+    }
 
     // Zurueck-Pfeil nur auf tieferen Seiten, nicht auf den drei direkt in
     // der unteren Leiste erreichbaren Hauptbereichen.
