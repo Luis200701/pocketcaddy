@@ -368,6 +368,9 @@
 
   /* Planung */
   .form input[type=datetime-local]{color-scheme:dark}
+  .dtrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .dtinput{background:var(--bg);border:1px solid var(--line);border-radius:12px;
+           color:var(--txt);font:inherit;font-size:15px;padding:11px 12px;color-scheme:dark}
   .event{background:var(--card);border-radius:14px;padding:16px;margin-bottom:10px}
   .event.past{opacity:.55}
   .eventtitle{font-weight:700;font-size:15.5px;margin-bottom:4px}
@@ -527,7 +530,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.9';
+var APP_VERSION = '0.10';
 </script>
 
 <script>
@@ -1865,31 +1868,35 @@ var APP_VERSION = '0.9';
     }
 
     // Laedt das Bild als quadratisches, verkleinertes JPEG hoch (siehe
-    // resizeImageToJpeg()) und traegt die oeffentliche URL im Profil ein.
-    // Fester Dateiname pro Nutzer, "upsert" ersetzt ein vorhandenes Bild.
+    // resizeImageToJpeg()). Jedes Mal ein NEUER Dateiname statt ein
+    // bestehendes Bild zu ersetzen (upsert bzw. Loeschen+Neu-Anlegen
+    // haben sich in der Praxis als unzuverlaessig gezeigt, vermutlich
+    // ein Eigenheit von Supabase Storage beim Ersetzen vorhandener
+    // Dateien) - dadurch ist es immer eine einfache Neuanlage, nie ein
+    // Konfliktfall. Das alte Bild wird danach nur noch im Hintergrund
+    // bestmoeglich aufgeraeumt, ein Fehlschlag dabei ist egal.
     function setAvatar(file) {
       var uid = Auth.id();
-      var path = uid + '/avatar.jpg';   // fuer Diagnosemeldung im catch() unten sichtbar
+      var oldUrl = myProfile && myProfile.avatar_url;
       return resizeImageToJpeg(file, 400).then(function (blob) {
-        return db().storage.from('avatars').upload(path, blob, {
-          upsert: true, contentType: 'image/jpeg'
-        }).then(function (up) {
-          if (up.error) throw up.error;
-          var pub = db().storage.from('avatars').getPublicUrl(path);
-          // Cache-Buster, sonst zeigt der Browser nach dem Ersetzen noch
-          // lange die alte, unter derselben URL zwischengespeicherte Datei.
-          var url = pub.data.publicUrl + '?v=' + Date.now();
-          return db().from('profiles').update({ avatar_url: url }).eq('user_id', uid)
-            .then(function (r) {
-              if (r.error) throw r.error;
-              if (myProfile) myProfile.avatar_url = url;
-              return { ok:true, url:url };
-            });
-        });
+        var path = uid + '/' + Date.now() + '.jpg';
+        return db().storage.from('avatars').upload(path, blob, { contentType: 'image/jpeg' })
+          .then(function (up) {
+            if (up.error) throw up.error;
+            var url = db().storage.from('avatars').getPublicUrl(path).data.publicUrl;
+            return db().from('profiles').update({ avatar_url: url }).eq('user_id', uid)
+              .then(function (r) {
+                if (r.error) throw r.error;
+                if (myProfile) myProfile.avatar_url = url;
+                if (oldUrl) {
+                  var m = /\/avatars\/(.+)$/.exec(oldUrl);
+                  if (m) db().storage.from('avatars').remove([decodeURIComponent(m[1])]).catch(function () {});
+                }
+                return { ok:true, url:url };
+              });
+          });
       }).catch(function (e) {
-        // TEMPORAER zum Eingrenzen des RLS-Fehlers beim Hochladen: zeigt
-        // Nutzer-ID und Pfad mit an. Wieder entfernen, sobald geklaert.
-        return { ok:false, message:((e && e.message) || '') + ' [uid=' + uid + ' path=' + path + ']' };
+        return { ok:false, message:(e && e.message) || '' };
       });
     }
 
@@ -2359,20 +2366,21 @@ var APP_VERSION = '0.9';
   // der Seite statt in einem schiebenden Sheet: ein CSS-transform auf
   // einem Vorfahren (wie beim Sheet fuer die Schiebe-Animation) bringt in
   // etlichen Browsern den nativen Datum/Uhrzeit-Picker durcheinander oder
-  // verhindert ihn ganz. Freunde als antippbare Avatare statt
-  // Abhak-Kaestchen: ausgewaehlt = gruener Kranz (.pickava.on), siehe CSS.
+  // verhindert ihn ganz. Datum/Uhrzeit als zwei GANZ NORMALE, sichtbare
+  // native Felder (kein verstecktes Feld + Knopf-Umweg mehr wie sonst im
+  // Projekt ueblich): dieser Umweg hat sich hier auf dem Handy als nicht
+  // zuverlaessig gezeigt, ein echtes natives Feld funktioniert dagegen
+  // garantiert, nur eben schmaler als 100% Breite statt versteckt.
+  // Freunde als antippbare Avatare statt Abhak-Kaestchen: ausgewaehlt =
+  // gruener Kranz (.pickava.on), siehe CSS.
   function eventFormHtml(friends) {
     var html = '<div class="panel"><h3>Neuer Termin</h3>' +
       '<div class="form"><input type="text" id="fTitle" placeholder="Titel (z.B. Golfrunde)" ' +
       'maxlength="60" autocomplete="off"></div>' +
-      '<div class="datewrap" style="margin-bottom:14px;flex-wrap:wrap">' +
-      '<button type="button" class="datebtn" id="fDateBtn">' + I.cal +
-      '<span id="fDateLabel">Datum wählen</span></button>' +
-      '<input type="date" id="fDate" class="hidden-date-input">' +
-      '<button type="button" class="datebtn" id="fTimeBtn">' +
-      '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>' +
-      '<span id="fTimeLabel">Uhrzeit wählen</span></button>' +
-      '<input type="time" id="fTime" class="hidden-date-input"></div>' +
+      '<div class="dtrow">' +
+      '<input type="date" id="fDate" class="dtinput">' +
+      '<input type="time" id="fTime" class="dtinput">' +
+      '</div>' +
       '<div class="form"><input type="text" id="fWhere" placeholder="Ort (optional)" autocomplete="off"></div>';
 
     if (!friends.length) {
@@ -2391,30 +2399,9 @@ var APP_VERSION = '0.9';
     return html;
   }
 
-  // Datum und Uhrzeit bewusst als zwei getrennte native Felder (nicht
-  // "datetime-local" in einem): Safari auf iPhone/iPad unterstuetzt
-  // datetime-local gar nicht (zeigt kein Auswahlfenster), waehrend
-  // type="date" und type="time" einzeln dort ganz normal funktionieren.
-  function wirePillDate(slot, btnId, inputId, labelId, placeholder, formatFn) {
-    var input = slot.querySelector('#' + inputId);
-    slot.querySelector('#' + btnId).addEventListener('click', function () {
-      if (input.showPicker) { try { input.showPicker(); return; } catch (e) {} }
-      input.click();
-    });
-    input.addEventListener('change', function () {
-      slot.querySelector('#' + labelId).textContent =
-        input.value ? formatFn(input.value) : placeholder;
-    });
-    return input;
-  }
-
   function wireEventForm(slot) {
-    var dateInput = wirePillDate(slot, 'fDateBtn', 'fDate', 'fDateLabel', 'Datum wählen', function (v) {
-      return fmtDate(inputToCode(v)) || 'Datum wählen';
-    });
-    var timeInput = wirePillDate(slot, 'fTimeBtn', 'fTime', 'fTimeLabel', 'Uhrzeit wählen', function (v) {
-      return v + ' Uhr';
-    });
+    var dateInput = slot.querySelector('#fDate');
+    var timeInput = slot.querySelector('#fTime');
 
     var selected = {};
     Array.prototype.forEach.call(slot.querySelectorAll('.pickava'), function (btn) {
