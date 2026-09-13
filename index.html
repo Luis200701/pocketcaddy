@@ -369,8 +369,13 @@
   /* Planung */
   .form input[type=datetime-local]{color-scheme:dark}
   .dtrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  /* Native Datum/Uhrzeit-Felder haben kein echtes "placeholder" wie
+     Textfelder - der leere Zustand (tt.mm.jjjj / --:--) uebernimmt sonst
+     einfach die normale Textfarbe. .has-value wird per JS gesetzt,
+     sobald wirklich ein Wert drinsteht (siehe wireEventForm()). */
   .dtinput{background:var(--bg);border:1px solid var(--line);border-radius:12px;
-           color:var(--txt);font:inherit;font-size:15px;padding:11px 12px;color-scheme:dark}
+           color:var(--mut);font:inherit;font-size:15px;padding:11px 12px;color-scheme:dark}
+  .dtinput.has-value{color:var(--txt)}
   .event{background:var(--card);border-radius:14px;padding:16px;margin-bottom:10px}
   .event.past{opacity:.55}
   .eventtitle{font-weight:700;font-size:15.5px;margin-bottom:4px}
@@ -530,7 +535,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.10';
+var APP_VERSION = '0.11';
 </script>
 
 <script>
@@ -2402,6 +2407,9 @@ var APP_VERSION = '0.10';
   function wireEventForm(slot) {
     var dateInput = slot.querySelector('#fDate');
     var timeInput = slot.querySelector('#fTime');
+    [dateInput, timeInput].forEach(function (el) {
+      el.addEventListener('input', function () { el.classList.toggle('has-value', !!el.value); });
+    });
 
     var selected = {};
     Array.prototype.forEach.call(slot.querySelectorAll('.pickava'), function (btn) {
