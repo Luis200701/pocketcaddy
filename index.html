@@ -369,6 +369,8 @@
   /* Planung */
   .form input[type=datetime-local]{color-scheme:dark}
   .dtrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .dtcol{display:flex;flex-direction:column;gap:5px}
+  .dtlabel{font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
   /* Native Datum/Uhrzeit-Felder haben kein echtes "placeholder" wie
      Textfelder - der leere Zustand (tt.mm.jjjj / --:--) uebernimmt sonst
      einfach die normale Textfarbe. .has-value wird per JS gesetzt,
@@ -535,7 +537,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.12';
+var APP_VERSION = '0.13';
 </script>
 
 <script>
@@ -2383,8 +2385,10 @@ var APP_VERSION = '0.12';
       '<div class="form"><input type="text" id="fTitle" placeholder="Titel (z.B. Golfrunde)" ' +
       'maxlength="60" autocomplete="off"></div>' +
       '<div class="dtrow">' +
-      '<input type="date" id="fDate" class="dtinput">' +
-      '<input type="time" id="fTime" class="dtinput">' +
+      '<div class="dtcol"><label class="dtlabel" for="fDate">Datum</label>' +
+      '<input type="date" id="fDate" class="dtinput"></div>' +
+      '<div class="dtcol"><label class="dtlabel" for="fTime">Uhrzeit</label>' +
+      '<input type="time" id="fTime" class="dtinput"></div>' +
       '</div>' +
       '<div class="form"><input type="text" id="fWhere" placeholder="Ort (optional)" autocomplete="off"></div>';
 
