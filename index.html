@@ -528,7 +528,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.4';
+var APP_VERSION = '0.5';
 </script>
 
 <script>
@@ -1377,6 +1377,9 @@ var APP_VERSION = '0.4';
       var head = document.getElementById('profileHead');
       if (!head) return;
       var name = prof && prof.display_name;
+      if (prof && prof.avatar_url) {
+        head.querySelector('.ava').outerHTML = avaHtml(prof.avatar_url, name || Auth.email());
+      }
       head.querySelector('.pname').outerHTML = name
         ? '<div class="pname">' + esc(name) + '</div>'
         : '<button class="pname link" id="btnSetName">Namen festlegen \u2192</button>';
@@ -1401,8 +1404,8 @@ var APP_VERSION = '0.4';
       if (d.friends.length) {
         html += '<div class="sectionhead"><span class="t">Freunde</span></div>' +
           '<div class="friendrow" id="friendAvas">' + d.friends.map(function (f) {
-            return '<button data-friend="' + f.userId + '"><span class="ava" data-uid="' + f.userId + '">' +
-              esc(nameOf(f).charAt(0).toUpperCase()) + '</span>' +
+            return '<button data-friend="' + f.userId + '">' +
+              avaHtml(f.avatarUrl, nameOf(f), '', 'data-uid="' + f.userId + '"') +
               '<span class="fname">' + esc(nameOf(f)) + '</span></button>';
           }).join('') + '</div>';
       }
@@ -1817,6 +1820,29 @@ var APP_VERSION = '0.4';
 
   }
 
+  // Schneidet ein Bild auf ein Quadrat (Bildmitte) zu und verkleinert es
+  // auf maxSize, damit nicht ein volles Handyfoto (mehrere MB) hochgeht
+  // und alle Avatare im gleichen Seitenverhaeltnis dargestellt werden.
+  function resizeImageToJpeg(file, maxSize) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var side = Math.min(img.width, img.height);
+        var sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+        var out = Math.min(maxSize, side);
+        var canvas = document.createElement('canvas');
+        canvas.width = out; canvas.height = out;
+        canvas.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, out, out);
+        canvas.toBlob(function (blob) {
+          URL.revokeObjectURL(img.src);
+          blob ? resolve(blob) : reject(new Error('Bild konnte nicht verarbeitet werden.'));
+        }, 'image/jpeg', 0.85);
+      };
+      img.onerror = function () { reject(new Error('Bild konnte nicht gelesen werden.')); };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
   /* ==========================================================
      Freunde
      Alles laeuft ueber die Datenbank, es wird nichts lokal
@@ -1830,7 +1856,7 @@ var APP_VERSION = '0.4';
     function loadProfile(force) {
       if (myProfile && !force) return Promise.resolve(myProfile);
       if (!Auth.id() || !Auth.isOnline()) return Promise.resolve(null);
-      return db().from('profiles').select('user_id,display_name,friend_code')
+      return db().from('profiles').select('user_id,display_name,friend_code,avatar_url')
         .eq('user_id', Auth.id()).maybeSingle()
         .then(function (r) { myProfile = r.data || null; return myProfile; })
         .catch(function () { return null; });
@@ -1843,6 +1869,33 @@ var APP_VERSION = '0.4';
           if (!r.error && myProfile) myProfile.display_name = name;
           return r;
         });
+    }
+
+    // Laedt das Bild als quadratisches, verkleinertes JPEG hoch (siehe
+    // resizeImageToJpeg()) und traegt die oeffentliche URL im Profil ein.
+    // Fester Dateiname pro Nutzer, "upsert" ersetzt ein vorhandenes Bild.
+    function setAvatar(file) {
+      var uid = Auth.id();
+      return resizeImageToJpeg(file, 400).then(function (blob) {
+        var path = uid + '/avatar.jpg';
+        return db().storage.from('avatars').upload(path, blob, {
+          upsert: true, contentType: 'image/jpeg'
+        }).then(function (up) {
+          if (up.error) throw up.error;
+          var pub = db().storage.from('avatars').getPublicUrl(path);
+          // Cache-Buster, sonst zeigt der Browser nach dem Ersetzen noch
+          // lange die alte, unter derselben URL zwischengespeicherte Datei.
+          var url = pub.data.publicUrl + '?v=' + Date.now();
+          return db().from('profiles').update({ avatar_url: url }).eq('user_id', uid)
+            .then(function (r) {
+              if (r.error) throw r.error;
+              if (myProfile) myProfile.avatar_url = url;
+              return { ok:true, url:url };
+            });
+        });
+      }).catch(function (e) {
+        return { ok:false, message:(e && e.message) || '' };
+      });
     }
 
     // Gibt alle Verbindungen zurueck, angereichert um den Namen des
@@ -1860,13 +1913,16 @@ var APP_VERSION = '0.4';
           var others = rows.map(function (f) {
             return f.requester === me ? f.addressee : f.requester;
           });
-          if (!others.length) return { rows:rows, names:{} };
-          return db().from('profiles').select('user_id,display_name')
+          if (!others.length) return { rows:rows, names:{}, avatars:{} };
+          return db().from('profiles').select('user_id,display_name,avatar_url')
             .in('user_id', others)
             .then(function (p) {
-              var names = {};
-              (p.data || []).forEach(function (x) { names[x.user_id] = x.display_name; });
-              return { rows:rows, names:names };
+              var names = {}, avatars = {};
+              (p.data || []).forEach(function (x) {
+                names[x.user_id] = x.display_name;
+                avatars[x.user_id] = x.avatar_url;
+              });
+              return { rows:rows, names:names, avatars:avatars };
             });
         })
         .then(function (res) {
@@ -1874,7 +1930,7 @@ var APP_VERSION = '0.4';
           res.rows.forEach(function (f) {
             var other = f.requester === me ? f.addressee : f.requester;
             var item = { id:f.id, userId:other, status:f.status,
-                         name:res.names[other] || '' };
+                         name:res.names[other] || '', avatarUrl:res.avatars[other] || null };
             if (f.status === 'accepted') friends.push(item);
             else if (f.addressee === me) incoming.push(item);
             else outgoing.push(item);
@@ -1973,7 +2029,7 @@ var APP_VERSION = '0.4';
         .catch(function () { return false; });
     }
 
-    return { loadProfile:loadProfile, setName:setName, list:list,
+    return { loadProfile:loadProfile, setName:setName, setAvatar:setAvatar, list:list,
              requestByCode:requestByCode, accept:accept, remove:remove,
              roundsOf:roundsOf, latestActivity:latestActivity,
              hasRoundOnDate:hasRoundOnDate, confirmRound:confirmRound,
@@ -2012,11 +2068,14 @@ var APP_VERSION = '0.4';
               events.forEach(function (e) { uids[e.creator] = true; });
               invites.forEach(function (i) { uids[i.invitee] = true; });
 
-              return db().from('profiles').select('user_id,display_name')
+              return db().from('profiles').select('user_id,display_name,avatar_url')
                 .in('user_id', Object.keys(uids))
                 .then(function (pr) {
-                  var names = {};
-                  (pr.data || []).forEach(function (p) { names[p.user_id] = p.display_name; });
+                  var names = {}, avatars = {};
+                  (pr.data || []).forEach(function (p) {
+                    names[p.user_id] = p.display_name;
+                    avatars[p.user_id] = p.avatar_url;
+                  });
 
                   return events.map(function (e) {
                     var evInvites = invites.filter(function (i) { return i.event_id === e.id; });
@@ -2027,7 +2086,9 @@ var APP_VERSION = '0.4';
                       creatorName: names[e.creator] || 'Spieler',
                       invites: evInvites.map(function (i) {
                         return { id:i.id, userId:i.invitee, status:i.status,
-                                 name: names[i.invitee] || 'Spieler', isMe: i.invitee === me };
+                                 name: names[i.invitee] || 'Spieler',
+                                 avatarUrl: avatars[i.invitee] || null,
+                                 isMe: i.invitee === me };
                       })
                     };
                   }).filter(function (e) {
@@ -2116,6 +2177,20 @@ var APP_VERSION = '0.4';
     return item.name || 'Spieler';
   }
 
+  // Baut einen Avatar: eigenes Profilbild, falls vorhanden, sonst wie
+  // bisher ein Kreis mit dem ersten Buchstaben des Namens. extraClass
+  // z.B. "big"/"small" fuer die vorhandenen Groessen-Varianten von .ava.
+  function avaHtml(url, letter, extraClass, extraAttrs) {
+    var cls = 'ava' + (extraClass ? ' ' + extraClass : '');
+    var attrs = extraAttrs ? ' ' + extraAttrs : '';
+    if (url) {
+      return '<span class="' + cls + '"' + attrs + '><img src="' + esc(url) + '" alt="" ' +
+             'style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></span>';
+    }
+    return '<span class="' + cls + '"' + attrs + '>' +
+           esc((letter || '?').charAt(0).toUpperCase()) + '</span>';
+  }
+
   function renderFriends() {
     brand.textContent = 'Freunde';
 
@@ -2143,8 +2218,7 @@ var APP_VERSION = '0.4';
         html += '<div class="sectionhead"><span class="t">Offene Anfragen</span>' +
                 '<span class="c">' + data.incoming.length + '</span></div><div class="list">' +
           data.incoming.map(function (f) {
-            return '<div class="item static"><span class="ava">' +
-              esc(nameOf(f).charAt(0).toUpperCase()) + '</span>' +
+            return '<div class="item static">' + avaHtml(f.avatarUrl, nameOf(f)) +
               '<span class="meta"><span class="d">' + esc(nameOf(f)) + '</span>' +
               '<span class="s">m\u00f6chte sich verbinden</span></span>' +
               '<span class="btnrow">' +
@@ -2163,7 +2237,7 @@ var APP_VERSION = '0.4';
       } else {
         html += '<div class="list">' + data.friends.map(function (f) {
           return '<button class="item" data-friend="' + f.userId + '">' +
-            '<span class="ava">' + esc(nameOf(f).charAt(0).toUpperCase()) + '</span>' +
+            avaHtml(f.avatarUrl, nameOf(f)) +
             '<span class="meta"><span class="d">' + esc(nameOf(f)) + '</span>' +
             '<span class="s">Runden ansehen</span></span>' +
             '<span class="chev">' + I.chev + '</span></button>';
@@ -2174,8 +2248,7 @@ var APP_VERSION = '0.4';
         html += '<div class="sectionhead"><span class="t">Gesendet</span>' +
                 '<span class="c">' + data.outgoing.length + '</span></div><div class="list">' +
           data.outgoing.map(function (f) {
-            return '<div class="item static"><span class="ava dim">' +
-              esc(nameOf(f).charAt(0).toUpperCase()) + '</span>' +
+            return '<div class="item static">' + avaHtml(f.avatarUrl, nameOf(f), 'dim') +
               '<span class="meta"><span class="d">' + esc(nameOf(f)) + '</span>' +
               '<span class="s">wartet auf Best\u00e4tigung</span></span>' +
               '<span class="btnrow"><button class="mini no" data-drop="' + f.id +
@@ -2304,7 +2377,7 @@ var APP_VERSION = '0.4';
     } else {
       html += '<div class="pickrow">' + friends.map(function (f) {
         return '<button type="button" class="pickava" data-uid="' + f.userId + '">' +
-               '<span class="ava">' + esc(nameOf(f).charAt(0).toUpperCase()) + '</span>' +
+               avaHtml(f.avatarUrl, nameOf(f)) +
                '<span class="fname">' + esc(nameOf(f)) + '</span></button>';
       }).join('') + '</div>';
     }
@@ -2399,6 +2472,11 @@ var APP_VERSION = '0.4';
 
           if (ev.invites.length) {
             html += '<div class="avarow">' + ev.invites.map(function (i) {
+              if (i.avatarUrl) {
+                return '<span class="avachip" style="color:' + statusColor(i.status) + '" title="' +
+                       esc(nameOf(i)) + '"><img src="' + esc(i.avatarUrl) + '" alt="" ' +
+                       'style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></span>';
+              }
               return '<span class="avachip" style="color:' + statusColor(i.status) + '" title="' +
                      esc(nameOf(i)) + '">' + esc(nameOf(i).charAt(0).toUpperCase()) + '</span>';
             }).join('') + '</div>';
@@ -2494,8 +2572,7 @@ var APP_VERSION = '0.4';
         return b.createdAt - a.createdAt;
       });
 
-      var head = '<div class="friendhead"><span class="ava big">' +
-                 esc(nameOf(f).charAt(0).toUpperCase()) + '</span>' +
+      var head = '<div class="friendhead">' + avaHtml(f.avatarUrl, nameOf(f), 'big') +
                  '<span class="fname">' + esc(nameOf(f)) + '</span></div>';
 
       if (!arr.length) {
@@ -2750,6 +2827,14 @@ var APP_VERSION = '0.4';
         '<button class="btn ghost" id="btnSync">' + I.sync + 'Jetzt abgleichen</button>' +
         '<button class="btn ghost" id="btnOut">Abmelden</button></div></div>' +
 
+        '<div class="panel"><h3>Profilbild</h3>' +
+        '<p>Erscheint überall dort, wo dich deine Freunde sehen.</p>' +
+        '<div style="display:flex;align-items:center;gap:16px">' +
+        '<span id="avPreviewSlot">' + avaHtml(null, Auth.email(), 'big') + '</span>' +
+        '<button class="btn ghost" id="btnAvatarPick" style="margin:0">Bild auswählen</button>' +
+        '</div>' +
+        '<input type="file" id="fAvatar" accept="image/*" style="display:none"></div>' +
+
         '<div class="panel"><h3>Anzeigename</h3>' +
         '<p>Unter diesem Namen sehen dich deine Freunde. Ohne Namen erscheinst ' +
         'du dort nur als &bdquo;Spieler&ldquo;.</p>' +
@@ -2766,6 +2851,26 @@ var APP_VERSION = '0.4';
       Friends.loadProfile().then(function (p) {
         var el = document.getElementById('fName');
         if (el && p && p.display_name) el.value = p.display_name;
+        if (p && p.avatar_url) {
+          document.getElementById('avPreviewSlot').innerHTML =
+            avaHtml(p.avatar_url, p.display_name || Auth.email(), 'big');
+        }
+      });
+
+      document.getElementById('btnAvatarPick').addEventListener('click', function () {
+        document.getElementById('fAvatar').click();
+      });
+      document.getElementById('fAvatar').addEventListener('change', function (e) {
+        var file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        toast('Lade Bild hoch …');
+        Friends.setAvatar(file).then(function (r) {
+          if (!r.ok) { toast('Hochladen fehlgeschlagen: ' + (r.message || 'unbekannt'), true); return; }
+          document.getElementById('avPreviewSlot').innerHTML = avaHtml(r.url, Auth.email(), 'big');
+          toast('Profilbild gespeichert.');
+          buildMenu();
+        });
       });
 
       document.getElementById('btnName').addEventListener('click', function () {
