@@ -666,7 +666,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.20';
+var APP_VERSION = '0.21';
 </script>
 
 <script>
@@ -1207,7 +1207,8 @@ var APP_VERSION = '0.20';
     x:'<svg viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>',
     down:'<svg viewBox="0 0 24 24"><path d="M12 3v13"/><path d="M7 12l5 5 5-5"/><path d="M4 21h16"/></svg>',
     up:'<svg viewBox="0 0 24 24"><path d="M12 21V8"/><path d="M7 12l5-5 5 5"/><path d="M4 3h16"/></svg>',
-    flag:'<svg viewBox="0 0 24 24"><path d="M8.88 19.2L8.88 11.04L15.12 7.92L8.88 4.8"/></svg>'
+    flag:'<svg viewBox="0 0 24 24"><path d="M8.88 19.2L8.88 11.04L15.12 7.92L8.88 4.8"/></svg>',
+    edit:'<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>'
   };
 
   /* ---------- Menue ---------- */
@@ -2380,10 +2381,46 @@ var APP_VERSION = '0.20';
       return db().from('club_offers').update({ deleted:true }).eq('id', id);
     }
 
-    // Fuer die Kurs-Auswahl bei der manuellen Eingabe (nur freigeschaltete).
-    function verifiedClubs() {
-      return db().from('golf_clubs').select('user_id,name,holes,pars').eq('verified', true)
+    // Plaetze (Loch/Par-Layouts) eines Clubs - ein Club kann mehrere haben
+    // (z.B. Hauptplatz + Kurzplatz), siehe datenbank/08_mehrere_plaetze.sql.
+    function coursesOf(clubId) {
+      return db().from('golf_courses').select('*')
+        .eq('club_id', clubId).order('created_at')
         .then(function (r) { if (r.error) throw r.error; return r.data || []; })
+        .catch(function () { return []; });
+    }
+    function myCourses() {
+      var uid = Auth.id();
+      if (!uid) return Promise.resolve([]);
+      return coursesOf(uid);
+    }
+    function addCourse(fields) {
+      var payload = { club_id: Auth.id() };
+      for (var k in fields) payload[k] = fields[k];
+      return db().from('golf_courses').insert(payload);
+    }
+    function saveCourse(id, fields) {
+      var payload = { updated_at: new Date().toISOString() };
+      for (var k in fields) payload[k] = fields[k];
+      return db().from('golf_courses').update(payload).eq('id', id).eq('club_id', Auth.id());
+    }
+    function removeCourse(id) {
+      return db().from('golf_courses').delete().eq('id', id).eq('club_id', Auth.id());
+    }
+
+    // Fuer die Kurs-Auswahl bei der manuellen Eingabe (nur Plaetze
+    // freigeschalteter Clubs) - ein Eintrag pro Platz, nicht mehr pro Club.
+    function verifiedCourses() {
+      return db().from('golf_courses')
+        .select('id,name,holes,pars,golf_clubs!inner(name,verified)')
+        .eq('golf_clubs.verified', true)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          return (r.data || []).map(function (c) {
+            return { id:c.id, name:c.name, holes:c.holes, pars:c.pars,
+                     clubName:c.golf_clubs.name };
+          });
+        })
         .catch(function () { return []; });
     }
 
@@ -2398,7 +2435,9 @@ var APP_VERSION = '0.20';
 
     return { myClub:myClub, saveClub:saveClub, uploadMedia:uploadMedia,
              offersOf:offersOf, addOffer:addOffer, removeOffer:removeOffer,
-             verifiedClubs:verifiedClubs, isVerified:isVerified,
+             coursesOf:coursesOf, myCourses:myCourses, addCourse:addCourse,
+             saveCourse:saveCourse, removeCourse:removeCourse,
+             verifiedCourses:verifiedCourses, isVerified:isVerified,
              myRequest:myRequest, submitRequest:submitRequest,
              pendingRequests:pendingRequests, approveRequest:approveRequest,
              rejectRequest:rejectRequest };
@@ -2467,13 +2506,15 @@ var APP_VERSION = '0.20';
     brand.textContent = 'Golfplatz';
     content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
 
-    Club.myClub().then(function (club) {
+    Promise.all([Club.myClub(), Club.myCourses()]).then(function (res) {
+      var club = res[0];
       if (!club) {
         content.innerHTML = '<div class="empty"><b>Kein Golfplatz-Profil gefunden</b>' +
           'Bitte melde dich bei uns, falls das nicht stimmt.</div>';
         return;
       }
-      var pars = (club.pars && club.pars.length === club.holes) ? club.pars : parDefaults(club.holes);
+      var courses = res[1];
+      var expandedCourse = null;   // id des gerade aufgeklappten Platzes, 'new' fuer einen neuen
 
       var html = '<div class="panel">' +
         (club.verified
@@ -2493,14 +2534,11 @@ var APP_VERSION = '0.20';
         'value="' + esc(club.price_info || '') + '">' +
         '</div><div class="actions"><button class="btn" id="btnSaveClub">Speichern</button></div></div>';
 
-      html += '<div class="panel"><h3>Löcher &amp; Par</h3>' +
-        '<div class="seg" id="cHolesSeg">' +
-        [9, 18].map(function (n) {
-          return '<button type="button" data-holes="' + n + '" class="' +
-            (club.holes === n ? 'on' : '') + '">' + n + ' Löcher</button>';
-        }).join('') + '</div>' +
-        '<div class="pars-grid" id="cParsGrid">' + parsGridHtml(pars) + '</div>' +
-        '<div class="actions"><button class="btn" id="btnSavePars">Par speichern</button></div></div>';
+      // Plaetze: eingeklappt nur Name+Lochzahl+Stift, aufgeklappt (per
+      // Klick auf eine einzelne Karte) das volle Bearbeiten-Formular -
+      // siehe renderCourses()/wireCourseCardEvents() weiter unten.
+      html += '<div class="panel"><h3>Plätze</h3><div id="clubCoursesList"></div>' +
+        '<div class="actions"><button class="btn ghost" id="btnAddCourse">+ Neuen Platz anlegen</button></div></div>';
 
       html += '<div class="panel"><h3>Bilder</h3>' +
         '<p class="hint" style="margin-top:0">Titelbild' +
@@ -2538,24 +2576,109 @@ var APP_VERSION = '0.20';
         });
       });
 
-      Array.prototype.forEach.call(document.querySelectorAll('#cHolesSeg button'), function (b) {
-        b.addEventListener('click', function () {
-          var n = parseInt(b.getAttribute('data-holes'), 10);
-          Array.prototype.forEach.call(document.querySelectorAll('#cHolesSeg button'), function (x) {
-            x.classList.toggle('on', x === b);
+      // Ein Platz als Karte: eingeklappt nur Name/Lochzahl mit Stift-Symbol,
+      // aufgeklappt (expandedCourse === diese id) das volle Formular mit
+      // Name/9-18-Umschalter/Par-Raster - alles per data-course="<id>"
+      // sauber pro Karte gescoped, da mehrere Plaetze gleichzeitig existieren.
+      function courseCardHtml(c) {
+        var id = c.id || 'new';
+        var pars = (c.pars && c.pars.length === c.holes) ? c.pars : parDefaults(c.holes);
+        if (expandedCourse !== id) {
+          return '<div class="item static" data-course="' + id + '">' +
+            '<span class="meta"><span class="d">' + esc(c.name || 'Platz') + '</span>' +
+            '<span class="s">' + c.holes + ' Löcher</span></span>' +
+            '<button class="mini" data-edit-course="' + id + '">' + I.edit + '</button>' +
+            '</div>';
+        }
+        return '<div class="panel" data-course="' + id + '" style="margin-bottom:10px">' +
+          '<div class="form"><input type="text" data-course-name value="' + esc(c.name || '') +
+          '" placeholder="Name des Platzes (z.B. Hauptplatz)"></div>' +
+          '<div class="seg" data-course-holes-seg>' +
+          [9, 18].map(function (n) {
+            return '<button type="button" data-holes="' + n + '" class="' +
+              (c.holes === n ? 'on' : '') + '">' + n + ' Löcher</button>';
+          }).join('') + '</div>' +
+          '<div class="pars-grid" data-course-pars-grid>' + parsGridHtml(pars) + '</div>' +
+          '<div class="actions">' +
+          '<button class="btn" data-save-course="' + id + '">Speichern</button>' +
+          (c.id ? '<button class="btn ghost" data-delete-course="' + id + '">Löschen</button>' : '') +
+          '<button class="btn ghost" data-cancel-course="' + id + '">Abbrechen</button>' +
+          '</div></div>';
+      }
+
+      function renderCourses() {
+        var listEl = document.getElementById('clubCoursesList');
+        if (!listEl) return;
+        listEl.innerHTML = courses.length
+          ? '<div class="list">' + courses.map(courseCardHtml).join('') + '</div>'
+          : '<p class="hint" style="margin:0">Noch kein Platz angelegt.</p>';
+        wireCourseCardEvents();
+      }
+
+      function wireCourseCardEvents() {
+        Array.prototype.forEach.call(document.querySelectorAll('[data-edit-course]'), function (btn) {
+          btn.addEventListener('click', function () {
+            expandedCourse = btn.getAttribute('data-edit-course');
+            renderCourses();
           });
-          document.getElementById('cParsGrid').innerHTML = parsGridHtml(parDefaults(n));
         });
+        Array.prototype.forEach.call(document.querySelectorAll('[data-cancel-course]'), function (btn) {
+          btn.addEventListener('click', function () {
+            if (btn.getAttribute('data-cancel-course') === 'new') {
+              courses = courses.filter(function (c) { return c.id; });
+            }
+            expandedCourse = null;
+            renderCourses();
+          });
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('[data-course-holes-seg] button'), function (b) {
+          b.addEventListener('click', function () {
+            var wrap = b.closest('[data-course]');
+            var n = parseInt(b.getAttribute('data-holes'), 10);
+            Array.prototype.forEach.call(wrap.querySelectorAll('[data-course-holes-seg] button'), function (x) {
+              x.classList.toggle('on', x === b);
+            });
+            wrap.querySelector('[data-course-pars-grid]').innerHTML = parsGridHtml(parDefaults(n));
+          });
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('[data-save-course]'), function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.getAttribute('data-save-course');
+            var wrap = btn.closest('[data-course]');
+            var name = wrap.querySelector('[data-course-name]').value.trim();
+            var selects = wrap.querySelectorAll('[data-course-pars-grid] select');
+            var pars = Array.prototype.map.call(selects, function (s) { return parseInt(s.value, 10); });
+            var fields = { name:name, holes:pars.length, pars:pars };
+            toast('Speichere …');
+            var op = (id === 'new') ? Club.addCourse(fields) : Club.saveCourse(id, fields);
+            op.then(function (r) {
+              if (r.error) { toast('Hat nicht geklappt.', true); return; }
+              toast('Gespeichert.');
+              expandedCourse = null;
+              Club.myCourses().then(function (fresh) { courses = fresh; renderCourses(); });
+            });
+          });
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('[data-delete-course]'), function (btn) {
+          btn.addEventListener('click', function () {
+            if (!confirm('Diesen Platz wirklich löschen?')) return;
+            var id = btn.getAttribute('data-delete-course');
+            Club.removeCourse(id).then(function () {
+              toast('Gelöscht.');
+              expandedCourse = null;
+              Club.myCourses().then(function (fresh) { courses = fresh; renderCourses(); });
+            });
+          });
+        });
+      }
+
+      document.getElementById('btnAddCourse').addEventListener('click', function () {
+        courses.push({ name:'', holes:18, pars:parDefaults(18) });
+        expandedCourse = 'new';
+        renderCourses();
       });
 
-      document.getElementById('btnSavePars').addEventListener('click', function () {
-        var selects = document.querySelectorAll('#cParsGrid select');
-        var newPars = Array.prototype.map.call(selects, function (s) { return parseInt(s.value, 10); });
-        toast('Speichere …');
-        Club.saveClub({ holes: newPars.length, pars: newPars }).then(function (r) {
-          toast(r.error ? 'Hat nicht geklappt.' : 'Par gespeichert.', !!r.error);
-        });
-      });
+      renderCourses();
 
       document.getElementById('btnCoverPick').addEventListener('click', function () {
         document.getElementById('fCover').click();
@@ -3313,14 +3436,14 @@ var APP_VERSION = '0.20';
     // Mobil (Schritt-fuer-Schritt-Assistent, siehe renderSetup()/
     // startHoleWizard() unten) und Desktop (renderDesktopEntry(), volle
     // Lochtabelle auf einen Blick) stehen gleichzeitig im DOM, per CSS-
-    // Klasse ein-/ausgeblendet - eine Anfrage an Club.verifiedClubs()
+    // Klasse ein-/ausgeblendet - eine Anfrage an Club.verifiedCourses()
     // reicht fuer beide.
     content.innerHTML =
       '<div class="mobile-only" id="manualMobile"></div>' +
       '<div class="desktop-only" id="manualDesktop"></div>';
     var mobileEl = document.getElementById('manualMobile');
     var desktopEl = document.getElementById('manualDesktop');
-    var clubsPromise = Club.verifiedClubs();
+    var coursesPromise = Club.verifiedCourses();
 
     function renderSetup() {
       mobileEl.innerHTML =
@@ -3345,18 +3468,18 @@ var APP_VERSION = '0.20';
         '<div class="actions"><button class="btn" id="mNext">Weiter</button></div>' +
         '</div>';
 
-      // Vereine erst nachladen, Auswahl bleibt bis dahin auf "Kein Verein".
-      clubsPromise.then(function (clubs) {
+      // Plaetze erst nachladen, Auswahl bleibt bis dahin auf "Kein Verein".
+      coursesPromise.then(function (courses) {
         var sel = document.getElementById('mClub');
-        if (!sel || !clubs.length) return;
-        clubs.forEach(function (c) {
+        if (!sel || !courses.length) return;
+        courses.forEach(function (c) {
           var o = document.createElement('option');
-          o.value = c.user_id;
-          o.textContent = c.name || 'Golfplatz';
+          o.value = c.id;
+          o.textContent = c.clubName + ' – ' + (c.name || 'Platz');
           sel.appendChild(o);
         });
         sel.addEventListener('change', function () {
-          var c = clubs.filter(function (x) { return x.user_id === sel.value; })[0];
+          var c = courses.filter(function (x) { return x.id === sel.value; })[0];
           var holesSeg = document.getElementById('mHolesSeg');
           var modeSeg = document.getElementById('mModeSeg');
           var simpleBox = document.getElementById('mSimple');
@@ -3527,17 +3650,17 @@ var APP_VERSION = '0.20';
           '<div class="actions"><button class="btn" id="mdSave">Runde speichern</button></div>' +
           '</div>';
 
-        clubsPromise.then(function (clubs) {
+        coursesPromise.then(function (courses) {
           var sel = document.getElementById('mdClub');
-          if (!sel || !clubs.length) return;
-          clubs.forEach(function (c) {
+          if (!sel || !courses.length) return;
+          courses.forEach(function (c) {
             var o = document.createElement('option');
-            o.value = c.user_id;
-            o.textContent = c.name || 'Golfplatz';
+            o.value = c.id;
+            o.textContent = c.clubName + ' – ' + (c.name || 'Platz');
             sel.appendChild(o);
           });
           sel.addEventListener('change', function () {
-            var c = clubs.filter(function (x) { return x.user_id === sel.value; })[0];
+            var c = courses.filter(function (x) { return x.id === sel.value; })[0];
             var holesSeg = document.getElementById('mdHolesSeg');
             if (c) {
               mdHoles = c.holes; mdClubPars = c.pars;
