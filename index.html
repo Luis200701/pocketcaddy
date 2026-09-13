@@ -113,6 +113,11 @@
   /* Nur am Rechner sichtbar - fuer Dinge, die es am Handy nicht gibt
      (z.B. Golfplatz-Registrierung/-Verwaltung). */
   .desktop-only{display:none}
+  /* Gegenstueck: nur am Handy sichtbar (z.B. der Schritt-fuer-Schritt-
+     Assistent bei "Runde hinzufuegen", der am Rechner einer breiten
+     Tabelle weicht, oder der QR-Scan-Knopf in der Auswahl-Sheet). Auf
+     dem Handy selbst keine eigene Regel noetig - Elemente wie button.btn
+     behalten dort einfach ihr eigenes display. */
   /* Scan-Taste: mittig, angehoben, kreisrund, wie eine schwebende Taste
      innerhalb der Leiste statt eines normalen Symbols */
   .navitem.scan{margin-top:-26px}
@@ -141,14 +146,6 @@
   .friendrow button{background:transparent;border:0;padding:0;cursor:pointer;
                     display:flex;flex-direction:column;align-items:center;gap:6px;
                     color:inherit;font:inherit;width:58px}
-  .friendrow .ava{position:relative}
-  /* Bewusst ohne Animation: ein pulsierender Punkt sieht nach "gerade
-     online" aus, das Zeichen bedeutet aber nur "Runde aus den letzten
-     7 Tagen gespeichert" - mit Animation war das verwirrend und
-     aufdringlich zugleich. */
-  .friendrow .ava .pulse{position:absolute;top:-2px;right:-2px;width:12px;height:12px;
-                         border-radius:99px;background:var(--lime);
-                         box-shadow:0 0 0 2.5px var(--bg)}
   .friendrow .fname{font-size:11.5px;color:var(--mut);text-align:center;
                     max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* Freunde-Auswahl beim Termin anlegen: antippbare Avatare statt
@@ -317,6 +314,15 @@
   .pars-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));
              gap:10px;margin:12px 0}
   .pars-grid label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--mut)}
+  /* Desktop-Seite "Runde eintragen": alle Loecher auf einen Blick statt
+     Schritt-fuer-Schritt-Assistent (siehe .mobile-only/.desktop-only). */
+  .holegrid{display:flex;flex-direction:column;gap:8px;margin:14px 0}
+  .holerow{display:grid;grid-template-columns:64px 1fr 1fr;gap:10px;align-items:center;
+           background:var(--card);border-radius:12px;padding:10px 14px}
+  .holerow .holenum{font-size:13px;color:var(--mut);font-weight:600}
+  .holerow select,.holerow input{background:var(--bg);border:1px solid var(--line);
+           border-radius:10px;color:var(--txt);font:inherit;font-size:15px;
+           padding:9px 10px;width:100%}
   .form select{background:var(--bg);border:1px solid var(--line);border-radius:12px;
        color:var(--txt);font:inherit;padding:12px}
   .seg{display:flex;gap:8px;margin-bottom:2px}
@@ -354,7 +360,7 @@
            padding:16px;text-align:center;font-size:26px;font-weight:800;
            letter-spacing:.14em;font-variant-numeric:tabular-nums;margin-bottom:14px}
   .item.static{cursor:default}
-  .ava{width:40px;height:40px;border-radius:999px;background:var(--bar);
+  .ava{position:relative;width:40px;height:40px;border-radius:999px;background:var(--bar);
        display:flex;align-items:center;justify-content:center;flex:none;
        font-weight:700;font-size:16px;color:var(--lime)}
   .ava.dim{color:var(--mut)}
@@ -369,6 +375,8 @@
   .mini.no{color:#c07070;border-color:#ff5c5c33}
   .mini:active{background:#ffffff10}
   .friendhead{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+  .friendhead .namewrap{display:flex;flex-direction:column;gap:2px}
+  .friendhead .roletag{font-size:13px;color:var(--mut)}
 
   /* Statistik */
   .distlist{display:flex;flex-direction:column;gap:11px}
@@ -398,12 +406,17 @@
   .eventloc{color:var(--mut);font-size:13.5px;margin-top:3px}
   .eventwho{color:var(--mut);font-size:12.5px;margin-top:6px}
   .badge.ok{color:var(--lime);border-color:#a3e63544}
-  .rolebadge{display:inline-flex;align-items:center;justify-content:center;width:16px;
-             height:16px;border-radius:50%;flex:none;vertical-align:middle;margin-left:4px}
-  .rolebadge svg{width:10px;height:10px;fill:none;stroke:#0d1117;stroke-width:2.6;
-                 stroke-linecap:round;stroke-linejoin:round}
-  .rolebadge.admin{background:var(--lime)}
-  .rolebadge.club{background:#5ab4ff}
+  .avabadge{position:absolute;top:-2px;right:-2px;width:16px;height:16px;border-radius:50%;
+            display:flex;align-items:center;justify-content:center;flex:none;
+            box-shadow:0 0 0 2px var(--bg)}
+  .avabadge svg{width:10px;height:10px;fill:none;stroke-width:2.6;
+                stroke-linecap:round;stroke-linejoin:round}
+  .avabadge.admin{background:var(--lime)}
+  .avabadge.admin svg{stroke:#0d1117}
+  .avabadge.verified{background:#3aa0ff}
+  .avabadge.verified svg{stroke:#fff}
+  .avabadge.club{background:#fff}
+  .avabadge.club svg{stroke:var(--bg)}
   .avarow{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
   .avachip{width:30px;height:30px;border-radius:999px;background:var(--bg);
            display:flex;align-items:center;justify-content:center;
@@ -480,6 +493,9 @@
     .navitem:hover{background:#ffffff10}
     .navlabel{display:inline;font-size:14.5px}
     .desktop-only{display:block}
+    /* !important: muss auch button.btn (display:inline-flex) zuverlaessig
+       ausblenden koennen, z.B. den QR-Scan-Knopf in der Auswahl-Sheet. */
+    .mobile-only{display:none!important}
     /* Die schwebende, angehobene Scan-Taste ergibt in einer Liste
        keinen Sinn mehr, wird zu einem normalen Eintrag wie die anderen */
     .navitem.scan{margin-top:0}
@@ -487,8 +503,10 @@
       box-shadow:none;color:inherit}
     .navitem.scan svg{width:25px;height:25px;color:inherit}
 
-    /* Inhalt rueckt neben die Seitenleiste, etwas mehr Luft als am Handy */
-    .wrap,.topbar{margin:0 0 0 268px;max-width:680px}
+    /* Inhalt rueckt neben die Seitenleiste, nutzt den Rest der Breite statt
+       fest auf 680px begrenzt zu sein - waechst mit dem Fenster mit, ohne
+       auf sehr breiten Monitoren ausufernd zu werden. */
+    .wrap,.topbar{margin:0 0 0 268px;max-width:min(1040px, calc(100vw - 268px - 48px))}
 
     /* Menue/Scan-Auswahl: zentriertes, kurz einblendendes Fenster statt
        eines aus dem Boden schiebenden Bodensheets (das Handy-Muster
@@ -561,7 +579,7 @@
 <div class="sheetbg" id="scanChoiceBg"></div>
 <div class="sheet" id="scanChoiceSheet"><div class="grip"></div>
   <div style="display:flex;flex-direction:column;gap:12px;padding:4px 8px 6px">
-    <button class="btn" id="btnChoiceScan" style="width:100%;justify-content:center">
+    <button class="btn mobile-only" id="btnChoiceScan" style="width:100%;justify-content:center">
       <svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
       <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
       <rect x="7" y="7" width="4" height="4"/><rect x="13" y="7" width="4" height="4"/>
@@ -605,7 +623,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.17';
+var APP_VERSION = '0.18';
 </script>
 
 <script>
@@ -1334,7 +1352,18 @@ var APP_VERSION = '0.17';
   function openScanChoice()  { closeMenu(); scanChoiceSheet.classList.add('on'); scanChoiceBg.classList.add('on'); }
   function closeScanChoice() { scanChoiceSheet.classList.remove('on'); scanChoiceBg.classList.remove('on'); }
 
-  document.getElementById('btnScanNav').addEventListener('click', openScanChoice);
+  document.getElementById('btnScanNav').addEventListener('click', function () {
+    // Einzige bewusste JS-seitige Breakpoint-Pruefung im ganzen File: QR-Scan
+    // ergibt am Rechner keinen Sinn, daher direkt zur manuellen Eingabe statt
+    // der Auswahl-Sheet (die zeigt "QR-Code scannen" ohnehin nur am Handy,
+    // siehe .mobile-only auf #btnChoiceScan - das hier ist die zweite,
+    // gleichwertige Absicherung).
+    if (window.matchMedia('(min-width: 860px)').matches) {
+      location.hash = 'manual'; route();
+    } else {
+      openScanChoice();
+    }
+  });
   scanChoiceBg.addEventListener('click', closeScanChoice);
   document.getElementById('btnChoiceScan').addEventListener('click', function () {
     closeScanChoice(); Scanner.start();
@@ -1462,8 +1491,9 @@ var APP_VERSION = '0.17';
       var head = document.getElementById('profileHead');
       if (!head) return;
       var name = prof && prof.display_name;
-      if (prof && prof.avatar_url) {
-        head.querySelector('.ava').outerHTML = avaHtml(prof.avatar_url, name || Auth.email());
+      if (prof) {
+        head.querySelector('.ava').outerHTML =
+          avaHtml(prof.avatar_url, name || Auth.email(), '', '', badgeTypeFor(prof.is_admin, prof.verified_role));
       }
       head.querySelector('.pname').outerHTML = name
         ? '<div class="pname">' + esc(name) + '</div>'
@@ -1490,7 +1520,7 @@ var APP_VERSION = '0.17';
         html += '<div class="sectionhead"><span class="t">Freunde</span></div>' +
           '<div class="friendrow" id="friendAvas">' + d.friends.map(function (f) {
             return '<button data-friend="' + f.userId + '">' +
-              avaHtml(f.avatarUrl, nameOf(f), '', 'data-uid="' + f.userId + '"') +
+              avaHtml(f.avatarUrl, nameOf(f), '', '', badgeTypeFor(f.isAdmin, f.verifiedRole)) +
               '<span class="fname">' + esc(nameOf(f)) + '</span></button>';
           }).join('') + '</div>';
       }
@@ -1504,18 +1534,6 @@ var APP_VERSION = '0.17';
           location.hash = 'friend/' + el.getAttribute('data-friend'); route();
         });
       });
-
-      // Kleiner Punkt bei Freunden mit einer Runde aus den letzten 7 Tagen
-      if (d.friends.length) {
-        var ids = d.friends.map(function (f) { return f.userId; });
-        Friends.latestActivity(ids).then(function (latest) {
-          var cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-          Array.prototype.forEach.call(slot.querySelectorAll('.ava[data-uid]'), function (el) {
-            var t = latest[el.getAttribute('data-uid')];
-            if (t && t > cutoff) el.innerHTML += '<span class="pulse"></span>';
-          });
-        });
-      }
     });
   }
 
@@ -1950,7 +1968,7 @@ var APP_VERSION = '0.17';
     function loadProfile(force) {
       if (myProfile && !force) return Promise.resolve(myProfile);
       if (!Auth.id() || !Auth.isOnline()) return Promise.resolve(null);
-      return db().from('profiles').select('user_id,display_name,friend_code,avatar_url,account_type,is_admin')
+      return db().from('profiles').select('user_id,display_name,friend_code,avatar_url,account_type,is_admin,verified_role')
         .eq('user_id', Auth.id()).maybeSingle()
         .then(function (r) { myProfile = r.data || null; return myProfile; })
         .catch(function () { return null; });
@@ -2013,17 +2031,19 @@ var APP_VERSION = '0.17';
           var others = rows.map(function (f) {
             return f.requester === me ? f.addressee : f.requester;
           });
-          if (!others.length) return { rows:rows, names:{}, avatars:{}, admins:{} };
-          return db().from('profiles').select('user_id,display_name,avatar_url,is_admin')
+          if (!others.length) return { rows:rows, names:{}, avatars:{}, admins:{}, roles:{}, types:{} };
+          return db().from('profiles').select('user_id,display_name,avatar_url,is_admin,verified_role,account_type')
             .in('user_id', others)
             .then(function (p) {
-              var names = {}, avatars = {}, admins = {};
+              var names = {}, avatars = {}, admins = {}, roles = {}, types = {};
               (p.data || []).forEach(function (x) {
                 names[x.user_id] = x.display_name;
                 avatars[x.user_id] = x.avatar_url;
                 admins[x.user_id] = !!x.is_admin;
+                roles[x.user_id] = x.verified_role;
+                types[x.user_id] = x.account_type;
               });
-              return { rows:rows, names:names, avatars:avatars, admins:admins };
+              return { rows:rows, names:names, avatars:avatars, admins:admins, roles:roles, types:types };
             });
         })
         .then(function (res) {
@@ -2032,7 +2052,8 @@ var APP_VERSION = '0.17';
             var other = f.requester === me ? f.addressee : f.requester;
             var item = { id:f.id, userId:other, status:f.status,
                          name:res.names[other] || '', avatarUrl:res.avatars[other] || null,
-                         isAdmin:!!res.admins[other] };
+                         isAdmin:!!res.admins[other], verifiedRole:res.roles[other] || null,
+                         accountType:res.types[other] || 'player' };
             if (f.status === 'accepted') friends.push(item);
             else if (f.addressee === me) incoming.push(item);
             else outgoing.push(item);
@@ -2089,25 +2110,6 @@ var APP_VERSION = '0.17';
         .catch(function () { return []; });
     }
 
-    // Neuestes Speicherdatum je Freund, fuer den "kuerzlich aktiv"-Hinweis
-    // auf der Startseite. Eine Abfrage fuer alle Freunde zusammen statt
-    // eine pro Freund.
-    function latestActivity(friendIds) {
-      if (!friendIds.length) return Promise.resolve({});
-      return db().from('rounds').select('user_id,created_at')
-        .in('user_id', friendIds).eq('deleted', false)
-        .then(function (r) {
-          if (r.error) throw r.error;
-          var latest = {};
-          (r.data || []).forEach(function (row) {
-            var t = Date.parse(row.created_at) || 0;
-            if (!latest[row.user_id] || t > latest[row.user_id]) latest[row.user_id] = t;
-          });
-          return latest;
-        })
-        .catch(function () { return {}; });
-    }
-
     // Hat der aktuelle Nutzer selbst eine (nicht geloeschte) Runde vom
     // angegebenen Datum? Nur dann darf er die Runde eines Freundes
     // bestaetigen, egal ob die eigene selbst schon bestaetigt ist.
@@ -2133,7 +2135,7 @@ var APP_VERSION = '0.17';
 
     return { loadProfile:loadProfile, setName:setName, setAvatar:setAvatar, list:list,
              requestByCode:requestByCode, accept:accept, remove:remove,
-             roundsOf:roundsOf, latestActivity:latestActivity,
+             roundsOf:roundsOf,
              hasRoundOnDate:hasRoundOnDate, confirmRound:confirmRound,
              isAdmin:function () { return !!(myProfile && myProfile.is_admin); },
              reset:function () { myProfile = null; } };
@@ -2330,9 +2332,60 @@ var APP_VERSION = '0.17';
         .catch(function () { return []; });
     }
 
+    // Fuer das Golfplatz-Abzeichen auf der Freund-Detailseite: RLS laesst
+    // eine fremde Zeile nur lesen, wenn sie verified ist - kein Treffer
+    // heisst also automatisch "kein Abzeichen".
+    function isVerified(uid) {
+      return db().from('golf_clubs').select('verified').eq('user_id', uid).maybeSingle()
+        .then(function (r) { return !!(r.data && r.data.verified); })
+        .catch(function () { return false; });
+    }
+
     return { myClub:myClub, saveClub:saveClub, uploadMedia:uploadMedia,
              offersOf:offersOf, addOffer:addOffer, removeOffer:removeOffer,
-             verifiedClubs:verifiedClubs, myRequest:myRequest, submitRequest:submitRequest,
+             verifiedClubs:verifiedClubs, isVerified:isVerified,
+             myRequest:myRequest, submitRequest:submitRequest,
+             pendingRequests:pendingRequests, approveRequest:approveRequest,
+             rejectRequest:rejectRequest };
+  })();
+
+  // ============================================================
+  // Verifizierungs-Anfragen (Trainer/Profi/Influencer)
+  // Gleiches Muster wie Club oben: normale Konten stellen eine Anfrage mit
+  // gewuenschter Rolle in den Konto-Einstellungen, ein Admin schaltet sie
+  // ueber renderAdmin() frei - erst dann wird profiles.verified_role gesetzt.
+  // ============================================================
+  var Verify = (function () {
+    function db() { return Auth.db(); }
+
+    function myRequest() {
+      var uid = Auth.id();
+      if (!uid) return Promise.resolve(null);
+      return db().from('role_requests').select('*').eq('user_id', uid).maybeSingle()
+        .then(function (r) { return r.data || null; })
+        .catch(function () { return null; });
+    }
+
+    // "upsert" statt insert: nach einer Ablehnung soll ein erneutes
+    // Stellen (auch mit anderer gewuenschter Rolle) moeglich sein.
+    function submitRequest(role, message) {
+      return db().from('role_requests').upsert({
+        user_id: Auth.id(), requested_role: role, message: message, status: 'pending',
+        requested_at: new Date().toISOString(), decided_at: null
+      }, { onConflict: 'user_id' });
+    }
+
+    function pendingRequests() {
+      return db().from('role_requests').select('*').eq('status', 'pending')
+        .order('requested_at')
+        .then(function (r) { if (r.error) throw r.error; return r.data || []; })
+        .catch(function () { return []; });
+    }
+
+    function approveRequest(uid) { return db().rpc('approve_role_request', { target_user: uid }); }
+    function rejectRequest(uid)  { return db().rpc('reject_role_request', { target_user: uid }); }
+
+    return { myRequest:myRequest, submitRequest:submitRequest,
              pendingRequests:pendingRequests, approveRequest:approveRequest,
              rejectRequest:rejectRequest };
   })();
@@ -2369,8 +2422,7 @@ var APP_VERSION = '0.17';
 
       var html = '<div class="panel">' +
         (club.verified
-          ? '<p class="hint" style="margin:0">' + roleBadgeHtml(false, true) +
-            ' <span class="badge ok">Freigeschaltet</span> ' +
+          ? '<p class="hint" style="margin:0"><span class="badge ok">Freigeschaltet</span> ' +
             'Dein Platz ist für Spieler sichtbar und auswählbar.</p>'
           : '<p class="hint" style="margin:0"><span class="badge">Noch nicht freigeschaltet</span> ' +
             'Sobald deine Angaben stehen, meld dich bei uns – wir schalten deinen Platz dann frei.</p>') +
@@ -2546,46 +2598,91 @@ var APP_VERSION = '0.17';
     brand.textContent = 'Admin';
     content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
 
-    Club.pendingRequests().then(function (reqs) {
-      if (!reqs.length) {
+    Promise.all([Club.pendingRequests(), Verify.pendingRequests()]).then(function (res) {
+      var clubReqs = res[0], roleReqs = res[1];
+
+      if (!clubReqs.length && !roleReqs.length) {
         content.innerHTML = '<div class="empty"><b>Keine offenen Anfragen</b>' +
-          'Golfplatz-Anfragen aus den Konto-Einstellungen erscheinen hier.</div>';
+          'Golfplatz- und Verifizierungs-Anfragen aus den Konto-Einstellungen ' +
+          'erscheinen hier.</div>';
         return;
       }
-      var ids = reqs.map(function (r) { return r.user_id; });
+
+      var ids = clubReqs.map(function (r) { return r.user_id; })
+        .concat(roleReqs.map(function (r) { return r.user_id; }));
+
       Auth.db().from('profiles').select('user_id,display_name').in('user_id', ids)
         .then(function (pr) {
           var names = {};
           (pr.data || []).forEach(function (p) { names[p.user_id] = p.display_name; });
 
-          var html = '<div class="sectionhead"><span class="t">Golfplatz-Anfragen</span>' +
-            '<span class="c">' + reqs.length + '</span></div><div class="list">';
-          reqs.forEach(function (r) {
-            html += '<div class="event"><div class="eventtitle">' +
-              esc(names[r.user_id] || 'Spieler') + '</div>' +
-              (r.message ? '<div class="eventloc">' + esc(r.message) + '</div>' : '') +
-              '<div class="eventwho">Angefragt am ' + fmtDateTime(r.requested_at) + '</div>' +
-              '<div class="actions" style="margin-top:12px">' +
-              '<button class="btn" data-approve="' + r.user_id + '">Freischalten</button>' +
-              '<button class="btn ghost" data-reject="' + r.user_id + '">Ablehnen</button>' +
-              '</div></div>';
-          });
-          html += '</div>';
+          var html = '';
+
+          if (clubReqs.length) {
+            html += '<div class="sectionhead"><span class="t">Golfplatz-Anfragen</span>' +
+              '<span class="c">' + clubReqs.length + '</span></div><div class="list">';
+            clubReqs.forEach(function (r) {
+              html += '<div class="event"><div class="eventtitle">' +
+                esc(names[r.user_id] || 'Spieler') + '</div>' +
+                (r.message ? '<div class="eventloc">' + esc(r.message) + '</div>' : '') +
+                '<div class="eventwho">Angefragt am ' + fmtDateTime(r.requested_at) + '</div>' +
+                '<div class="actions" style="margin-top:12px">' +
+                '<button class="btn" data-approve-club="' + r.user_id + '">Freischalten</button>' +
+                '<button class="btn ghost" data-reject-club="' + r.user_id + '">Ablehnen</button>' +
+                '</div></div>';
+            });
+            html += '</div>';
+          }
+
+          if (roleReqs.length) {
+            html += '<div class="sectionhead"><span class="t">Verifizierungs-Anfragen</span>' +
+              '<span class="c">' + roleReqs.length + '</span></div><div class="list">';
+            roleReqs.forEach(function (r) {
+              html += '<div class="event"><div class="eventtitle">' +
+                esc(names[r.user_id] || 'Spieler') + ' – ' + esc(roleLabel(r.requested_role)) + '</div>' +
+                (r.message ? '<div class="eventloc">' + esc(r.message) + '</div>' : '') +
+                '<div class="eventwho">Angefragt am ' + fmtDateTime(r.requested_at) + '</div>' +
+                '<div class="actions" style="margin-top:12px">' +
+                '<button class="btn" data-approve-role="' + r.user_id + '">Freischalten</button>' +
+                '<button class="btn ghost" data-reject-role="' + r.user_id + '">Ablehnen</button>' +
+                '</div></div>';
+            });
+            html += '</div>';
+          }
+
           content.innerHTML = html;
 
-          Array.prototype.forEach.call(document.querySelectorAll('[data-approve]'), function (el) {
+          Array.prototype.forEach.call(document.querySelectorAll('[data-approve-club]'), function (el) {
             el.addEventListener('click', function () {
               toast('Schalte frei …');
-              Club.approveRequest(el.getAttribute('data-approve')).then(function (r) {
+              Club.approveRequest(el.getAttribute('data-approve-club')).then(function (r) {
                 if (r.error) { toast('Hat nicht geklappt: ' + r.error.message, true); return; }
                 toast('Freigeschaltet.'); renderAdmin();
               });
             });
           });
-          Array.prototype.forEach.call(document.querySelectorAll('[data-reject]'), function (el) {
+          Array.prototype.forEach.call(document.querySelectorAll('[data-reject-club]'), function (el) {
             el.addEventListener('click', function () {
               if (!confirm('Diese Anfrage wirklich ablehnen?')) return;
-              Club.rejectRequest(el.getAttribute('data-reject')).then(function (r) {
+              Club.rejectRequest(el.getAttribute('data-reject-club')).then(function (r) {
+                if (r.error) { toast('Hat nicht geklappt: ' + r.error.message, true); return; }
+                toast('Abgelehnt.'); renderAdmin();
+              });
+            });
+          });
+          Array.prototype.forEach.call(document.querySelectorAll('[data-approve-role]'), function (el) {
+            el.addEventListener('click', function () {
+              toast('Schalte frei …');
+              Verify.approveRequest(el.getAttribute('data-approve-role')).then(function (r) {
+                if (r.error) { toast('Hat nicht geklappt: ' + r.error.message, true); return; }
+                toast('Freigeschaltet.'); renderAdmin();
+              });
+            });
+          });
+          Array.prototype.forEach.call(document.querySelectorAll('[data-reject-role]'), function (el) {
+            el.addEventListener('click', function () {
+              if (!confirm('Diese Anfrage wirklich ablehnen?')) return;
+              Verify.rejectRequest(el.getAttribute('data-reject-role')).then(function (r) {
                 if (r.error) { toast('Hat nicht geklappt: ' + r.error.message, true); return; }
                 toast('Abgelehnt.'); renderAdmin();
               });
@@ -2635,28 +2732,41 @@ var APP_VERSION = '0.17';
     return item.name || 'Spieler';
   }
 
+  // Kleines Abzeichen oben rechts auf dem Profilbild: gruene Fahne (wie
+  // das Logo) fuer Admin/Team-Konten, blauer Haken fuer verifizierte
+  // Trainer/Profis/Influencer, weisser Punkt mit Haus fuer verifizierte
+  // Golfplaetze. Immer gleiche Stelle/Groesse, egal welcher Typ.
+  function avaBadgeHtml(badge) {
+    if (badge === 'admin')    return '<span class="avabadge admin" title="Pocket Caddy Team">' + I.flag + '</span>';
+    if (badge === 'verified') return '<span class="avabadge verified" title="Verifiziert">' + I.check + '</span>';
+    if (badge === 'club')     return '<span class="avabadge club" title="Verifizierter Golfplatz">' + I.home + '</span>';
+    return '';
+  }
+
+  function roleLabel(role) {
+    return { trainer:'Trainer', profi:'Profi', influencer:'Influencer' }[role] || '';
+  }
+
   // Baut einen Avatar: eigenes Profilbild, falls vorhanden, sonst wie
   // bisher ein Kreis mit dem ersten Buchstaben des Namens. extraClass
   // z.B. "big"/"small" fuer die vorhandenen Groessen-Varianten von .ava.
-  function avaHtml(url, letter, extraClass, extraAttrs) {
+  // badge (optional): 'admin'/'verified'/'club', siehe avaBadgeHtml().
+  function avaHtml(url, letter, extraClass, extraAttrs, badge) {
     var cls = 'ava' + (extraClass ? ' ' + extraClass : '');
     var attrs = extraAttrs ? ' ' + extraAttrs : '';
+    var badgeHtml = avaBadgeHtml(badge);
     if (url) {
       return '<span class="' + cls + '"' + attrs + '><img src="' + esc(url) + '" alt="" ' +
-             'style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></span>';
+             'style="width:100%;height:100%;object-fit:cover;border-radius:inherit">' + badgeHtml + '</span>';
     }
     return '<span class="' + cls + '"' + attrs + '>' +
-           esc((letter || '?').charAt(0).toUpperCase()) + '</span>';
+           esc((letter || '?').charAt(0).toUpperCase()) + badgeHtml + '</span>';
   }
 
-  // Kleines Rollen-Abzeichen neben einem Namen: grüne Fahne (wie das
-  // Logo) für Admin-Konten, Haus-Symbol für verifizierte Golfplaetze.
-  // Weitere Rollen (Trainer, Influencer, ...) koennen hier spaeter einfach
-  // ergaenzt werden.
-  function roleBadgeHtml(isAdmin, isVerifiedClub) {
-    if (isAdmin) return '<span class="rolebadge admin" title="Admin">' + I.flag + '</span>';
-    if (isVerifiedClub) return '<span class="rolebadge club" title="Verifizierter Golfplatz">' + I.home + '</span>';
-    return '';
+  function badgeTypeFor(isAdmin, verifiedRole) {
+    if (isAdmin) return 'admin';
+    if (verifiedRole) return 'verified';
+    return null;
   }
 
   function renderFriends() {
@@ -2686,8 +2796,9 @@ var APP_VERSION = '0.17';
         html += '<div class="sectionhead"><span class="t">Offene Anfragen</span>' +
                 '<span class="c">' + data.incoming.length + '</span></div><div class="list">' +
           data.incoming.map(function (f) {
-            return '<div class="item static">' + avaHtml(f.avatarUrl, nameOf(f)) +
-              '<span class="meta"><span class="d">' + esc(nameOf(f)) + roleBadgeHtml(f.isAdmin) + '</span>' +
+            return '<div class="item static">' +
+              avaHtml(f.avatarUrl, nameOf(f), '', '', badgeTypeFor(f.isAdmin, f.verifiedRole)) +
+              '<span class="meta"><span class="d">' + esc(nameOf(f)) + '</span>' +
               '<span class="s">m\u00f6chte sich verbinden</span></span>' +
               '<span class="btnrow">' +
               '<button class="mini ok" data-accept="' + f.id + '">' + I.check + '</button>' +
@@ -2705,8 +2816,8 @@ var APP_VERSION = '0.17';
       } else {
         html += '<div class="list">' + data.friends.map(function (f) {
           return '<button class="item" data-friend="' + f.userId + '">' +
-            avaHtml(f.avatarUrl, nameOf(f)) +
-            '<span class="meta"><span class="d">' + esc(nameOf(f)) + roleBadgeHtml(f.isAdmin) + '</span>' +
+            avaHtml(f.avatarUrl, nameOf(f), '', '', badgeTypeFor(f.isAdmin, f.verifiedRole)) +
+            '<span class="meta"><span class="d">' + esc(nameOf(f)) + '</span>' +
             '<span class="s">Runden ansehen</span></span>' +
             '<span class="chev">' + I.chev + '</span></button>';
         }).join('') + '</div>';
@@ -2716,7 +2827,8 @@ var APP_VERSION = '0.17';
         html += '<div class="sectionhead"><span class="t">Gesendet</span>' +
                 '<span class="c">' + data.outgoing.length + '</span></div><div class="list">' +
           data.outgoing.map(function (f) {
-            return '<div class="item static">' + avaHtml(f.avatarUrl, nameOf(f), 'dim') +
+            return '<div class="item static">' +
+              avaHtml(f.avatarUrl, nameOf(f), 'dim', '', badgeTypeFor(f.isAdmin, f.verifiedRole)) +
               '<span class="meta"><span class="d">' + esc(nameOf(f)) + '</span>' +
               '<span class="s">wartet auf Best\u00e4tigung</span></span>' +
               '<span class="btnrow"><button class="mini no" data-drop="' + f.id +
@@ -2858,7 +2970,7 @@ var APP_VERSION = '0.17';
     } else {
       html += '<div class="pickrow">' + friends.map(function (f) {
         return '<button type="button" class="pickava" data-uid="' + f.userId + '">' +
-               avaHtml(f.avatarUrl, nameOf(f)) +
+               avaHtml(f.avatarUrl, nameOf(f), '', '', badgeTypeFor(f.isAdmin, f.verifiedRole)) +
                '<span class="fname">' + esc(nameOf(f)) + '</span></button>';
       }).join('') + '</div>';
     }
@@ -3053,8 +3165,26 @@ var APP_VERSION = '0.17';
         return b.createdAt - a.createdAt;
       });
 
-      var head = '<div class="friendhead">' + avaHtml(f.avatarUrl, nameOf(f), 'big') +
-                 '<span class="fname">' + esc(nameOf(f)) + '</span></div>';
+      var badgeType = badgeTypeFor(f.isAdmin, f.verifiedRole);
+      var roleText = f.verifiedRole ? roleLabel(f.verifiedRole) : '';
+      var head = '<div class="friendhead" id="friendHead">' + avaHtml(f.avatarUrl, nameOf(f), 'big', '', badgeType) +
+                 '<div class="namewrap"><span class="fname">' + esc(nameOf(f)) + '</span>' +
+                 (roleText ? '<div class="roletag">' + esc(roleText) + '</div>' : '') +
+                 '</div></div>';
+
+      // Golfplatz-Abzeichen braucht eine eigene Abfrage (verified liegt in
+      // golf_clubs, nicht in profiles) - deshalb erst nachtraeglich gesetzt,
+      // blockiert nicht das eigentliche Rendern.
+      function applyClubBadgeIfNeeded() {
+        if (badgeType || f.accountType !== 'club') return;
+        Club.isVerified(f.userId).then(function (verified) {
+          if (!verified) return;
+          var wrap = document.getElementById('friendHead');
+          if (wrap) {
+            wrap.querySelector('.ava').outerHTML = avaHtml(f.avatarUrl, nameOf(f), 'big', '', 'club');
+          }
+        });
+      }
 
       if (!arr.length) {
         content.innerHTML = head +
@@ -3062,6 +3192,7 @@ var APP_VERSION = '0.17';
           esc(nameOf(f)) + ' hat bisher nichts gespeichert.</div>' +
           '<div class="actions"><button class="btn ghost" id="btnBackF">' +
           I.back + 'Freunde</button></div>';
+        applyClubBadgeIfNeeded();
         document.getElementById('btnBackF').addEventListener('click', function () {
           location.hash = 'menu/friends'; route();
         });
@@ -3089,6 +3220,7 @@ var APP_VERSION = '0.17';
         }).join('') + '</div>' +
         '<div class="actions"><button class="btn ghost" id="btnBackF">' +
         I.back + 'Freunde</button></div>';
+      applyClubBadgeIfNeeded();
 
       Array.prototype.forEach.call(content.querySelectorAll('[data-open]'), function (el) {
         el.addEventListener('click', function () {
@@ -3123,8 +3255,20 @@ var APP_VERSION = '0.17';
     var mode = 'simple';
     var clubPars = null;   // gesetzt, wenn ein Verein ausgewaehlt wurde
 
+    // Mobil (Schritt-fuer-Schritt-Assistent, siehe renderSetup()/
+    // startHoleWizard() unten) und Desktop (renderDesktopEntry(), volle
+    // Lochtabelle auf einen Blick) stehen gleichzeitig im DOM, per CSS-
+    // Klasse ein-/ausgeblendet - eine Anfrage an Club.verifiedClubs()
+    // reicht fuer beide.
+    content.innerHTML =
+      '<div class="mobile-only" id="manualMobile"></div>' +
+      '<div class="desktop-only" id="manualDesktop"></div>';
+    var mobileEl = document.getElementById('manualMobile');
+    var desktopEl = document.getElementById('manualDesktop');
+    var clubsPromise = Club.verifiedClubs();
+
     function renderSetup() {
-      content.innerHTML =
+      mobileEl.innerHTML =
         '<div class="panel"><h3>Runde eintragen</h3>' +
         '<div class="form" style="margin-bottom:14px">' +
         '<select id="mClub"><option value="">Kein Verein / Loch für Loch selbst wählen</option></select>' +
@@ -3147,7 +3291,7 @@ var APP_VERSION = '0.17';
         '</div>';
 
       // Vereine erst nachladen, Auswahl bleibt bis dahin auf "Kein Verein".
-      Club.verifiedClubs().then(function (clubs) {
+      clubsPromise.then(function (clubs) {
         var sel = document.getElementById('mClub');
         if (!sel || !clubs.length) return;
         clubs.forEach(function (c) {
@@ -3233,7 +3377,7 @@ var APP_VERSION = '0.17';
       var par = fixedPars ? fixedPars[0] : 4, sc = 4;
 
       function renderStep() {
-        content.innerHTML =
+        mobileEl.innerHTML =
           '<div class="panel">' +
           '<div class="holeprogress">Loch ' + (idx + 1) + ' von ' + totalHoles + '</div>' +
           '<div class="stepperrow"><span class="steppertitle">Par</span>' +
@@ -3287,7 +3431,104 @@ var APP_VERSION = '0.17';
       toast('Runde gespeichert.');
     }
 
+    // Desktop-Fassung: statt Schritt-fuer-Schritt-Assistent gleich alle
+    // Loecher auf einen Blick als Tabelle - ruft am Ende dieselbe
+    // finishManual() wie am Handy auf, gleiche Kodierung/gleicher
+    // Speicherweg. Kein "Nur Gesamt"-Modus: der ganze Sinn der eigenen
+    // Seite ist, alles auf einmal einzutragen.
+    function renderDesktopEntry() {
+      var mdHoles = 9;
+      var mdClubPars = null;
+
+      function gridHtml(n, fixedPars) {
+        var rows = '';
+        for (var i = 0; i < n; i++) {
+          var p = fixedPars ? fixedPars[i] : 4;
+          rows += '<div class="holerow"><span class="holenum">Loch ' + (i + 1) + '</span>' +
+            (fixedPars
+              ? '<span>Par ' + p + '</span>'
+              : '<select data-md-par="' + i + '">' +
+                [3, 4, 5, 6].map(function (v) {
+                  return '<option value="' + v + '"' + (v === p ? ' selected' : '') + '>Par ' + v + '</option>';
+                }).join('') + '</select>') +
+            '<input type="number" min="1" max="15" value="4" data-md-sc="' + i + '" placeholder="Schläge">' +
+            '</div>';
+        }
+        return rows;
+      }
+
+      function render() {
+        desktopEl.innerHTML =
+          '<div class="panel"><h3>Runde eintragen</h3>' +
+          '<div class="form" style="margin-bottom:14px">' +
+          '<select id="mdClub"><option value="">Kein Verein / Par selbst wählen</option></select>' +
+          '<input type="date" id="mdDate" value="' + todayInput + '">' +
+          '</div>' +
+          '<div class="seg" id="mdHolesSeg">' +
+          '<button type="button" class="' + (mdHoles === 9 ? 'on' : '') + '" data-holes="9">9 Löcher</button>' +
+          '<button type="button" class="' + (mdHoles === 18 ? 'on' : '') + '" data-holes="18">18 Löcher</button>' +
+          '</div>' +
+          '<div class="holegrid" id="mdGrid">' + gridHtml(mdHoles, mdClubPars) + '</div>' +
+          '<div class="actions"><button class="btn" id="mdSave">Runde speichern</button></div>' +
+          '</div>';
+
+        clubsPromise.then(function (clubs) {
+          var sel = document.getElementById('mdClub');
+          if (!sel || !clubs.length) return;
+          clubs.forEach(function (c) {
+            var o = document.createElement('option');
+            o.value = c.user_id;
+            o.textContent = c.name || 'Golfplatz';
+            sel.appendChild(o);
+          });
+          sel.addEventListener('change', function () {
+            var c = clubs.filter(function (x) { return x.user_id === sel.value; })[0];
+            var holesSeg = document.getElementById('mdHolesSeg');
+            if (c) {
+              mdHoles = c.holes; mdClubPars = c.pars;
+              holesSeg.style.display = 'none';
+            } else {
+              mdClubPars = null;
+              holesSeg.style.display = '';
+            }
+            document.getElementById('mdGrid').innerHTML = gridHtml(mdHoles, mdClubPars);
+          });
+        });
+
+        Array.prototype.forEach.call(document.querySelectorAll('#mdHolesSeg button'), function (b) {
+          b.addEventListener('click', function () {
+            mdHoles = parseInt(b.getAttribute('data-holes'), 10);
+            mdClubPars = null;
+            document.getElementById('mdClub').value = '';
+            Array.prototype.forEach.call(document.querySelectorAll('#mdHolesSeg button'), function (x) {
+              x.classList.toggle('on', x === b);
+            });
+            document.getElementById('mdGrid').innerHTML = gridHtml(mdHoles, null);
+          });
+        });
+
+        document.getElementById('mdSave').addEventListener('click', function () {
+          var dateCode = inputToCode(document.getElementById('mdDate').value) || todayCode();
+          var holesArr = [];
+          for (var i = 0; i < mdHoles; i++) {
+            var par = mdClubPars ? mdClubPars[i]
+              : parseInt(document.querySelector('[data-md-par="' + i + '"]').value, 10);
+            var sc = parseInt(document.querySelector('[data-md-sc="' + i + '"]').value, 10);
+            if (isNaN(sc) || sc < 1 || sc > 15) {
+              toast('Bitte bei jedem Loch eine plausible Schlagzahl eintragen.', true);
+              return;
+            }
+            holesArr.push({ par:par, sc:sc });
+          }
+          finishManual(dateCode, holesArr);
+        });
+      }
+
+      render();
+    }
+
     renderSetup();
+    renderDesktopEntry();
   }
 
   // Golfplatz-Anfrage im Konto-Bereich (renderLogin()): normale Konten
@@ -3324,6 +3565,54 @@ var APP_VERSION = '0.17';
           if (r.error) { toast('Hat nicht geklappt.', true); return; }
           toast('Anfrage gesendet.');
           renderClubRequestPanel(profile);
+        });
+      });
+    });
+  }
+
+  // Verifizierungs-Anfrage im Konto-Bereich (renderLogin()): normale
+  // Spieler-Konten stellen hier eine Anfrage mit gewuenschter Rolle, ein
+  // Admin schaltet sie in renderAdmin() frei. Admins, schon verifizierte
+  // und Golfplatz-Konten sehen das Formular gar nicht erst.
+  function renderVerifyRequestPanel(profile) {
+    var slot = document.getElementById('verifyReqSlot');
+    if (!slot) return;
+    if (!profile || profile.is_admin || profile.verified_role || profile.account_type !== 'player') {
+      slot.innerHTML = '';
+      return;
+    }
+
+    Verify.myRequest().then(function (req) {
+      if (req && req.status === 'pending') {
+        slot.innerHTML = '<div class="panel"><h3>Verifizierungs-Anfrage</h3>' +
+          '<p class="hint" style="margin:0"><span class="badge">Wird geprüft</span> ' +
+          'Wir melden uns, sobald wir das freigeschaltet haben.</p></div>';
+        return;
+      }
+
+      slot.innerHTML = '<div class="panel"><h3>Trainer, Profi oder Influencer?</h3>' +
+        '<p>Stell eine Anfrage, dann prüfen wir das und schalten deinen ' +
+        'blauen Haken samt Rollen-Kennzeichnung frei.</p>' +
+        (req && req.status === 'rejected'
+          ? '<p class="hint" style="margin-top:0">Deine letzte Anfrage wurde ' +
+            'abgelehnt – du kannst es gerne nochmal versuchen.</p>' : '') +
+        '<div class="form"><select id="fVerifyRole">' +
+        '<option value="trainer">Trainer</option>' +
+        '<option value="profi">Profi</option>' +
+        '<option value="influencer">Influencer</option>' +
+        '</select>' +
+        '<input type="text" id="fVerifyMsg" placeholder="Nachricht (optional)"></div>' +
+        '<div class="actions"><button class="btn ghost" id="btnVerifyRequest">' +
+        'Anfrage stellen</button></div></div>';
+
+      document.getElementById('btnVerifyRequest').addEventListener('click', function () {
+        var role = document.getElementById('fVerifyRole').value;
+        var msg = document.getElementById('fVerifyMsg').value.trim();
+        toast('Sende Anfrage …');
+        Verify.submitRequest(role, msg).then(function (r) {
+          if (r.error) { toast('Hat nicht geklappt.', true); return; }
+          toast('Anfrage gesendet.');
+          renderVerifyRequestPanel(profile);
         });
       });
     });
@@ -3378,6 +3667,7 @@ var APP_VERSION = '0.17';
 
     if (Auth.id()) {
       var n = Store.all().length;
+      var ownBadgeType = null;
       content.innerHTML =
         '<div class="panel"><h3>Angemeldet</h3>' +
         '<p>' + esc(Auth.email()) + '<span id="ownBadgeSlot"></span><br><br>' +
@@ -3404,6 +3694,7 @@ var APP_VERSION = '0.17';
         '<div class="actions"><button class="btn ghost" id="btnName">Namen speichern</button></div></div>' +
 
         '<div id="clubReqSlot"></div>' +
+        '<div id="verifyReqSlot"></div>' +
 
         '<div class="panel"><h3>Konto löschen</h3>' +
         '<p>Entfernt dein Konto, alle deine Runden, Freundschaften und dein ' +
@@ -3411,22 +3702,36 @@ var APP_VERSION = '0.17';
         '<div class="del" style="margin-top:0;text-align:left">' +
         '<button id="btnDeleteAccount">Konto endgültig löschen</button></div></div>';
 
+      function applyOwnAvatar(p) {
+        var slot = document.getElementById('avPreviewSlot');
+        if (slot) {
+          slot.innerHTML = avaHtml(p.avatar_url, p.display_name || Auth.email(), 'big', '', ownBadgeType);
+        }
+        var textSlot = document.getElementById('ownBadgeSlot');
+        if (textSlot) {
+          textSlot.textContent = (ownBadgeType === 'verified' && p.verified_role)
+            ? ' · ' + roleLabel(p.verified_role) : '';
+        }
+      }
+
       Friends.loadProfile().then(function (p) {
         var el = document.getElementById('fName');
         if (el && p && p.display_name) el.value = p.display_name;
-        if (p && p.avatar_url) {
-          document.getElementById('avPreviewSlot').innerHTML =
-            avaHtml(p.avatar_url, p.display_name || Auth.email(), 'big');
-        }
         renderClubRequestPanel(p);
+        renderVerifyRequestPanel(p);
 
-        var badgeSlot = document.getElementById('ownBadgeSlot');
-        if (p && p.is_admin) {
-          badgeSlot.innerHTML = roleBadgeHtml(true);
-        } else if (p && p.account_type === 'club') {
+        if (!p) return;
+        if (p.is_admin) {
+          ownBadgeType = 'admin';
+          applyOwnAvatar(p);
+        } else if (p.account_type === 'club') {
           Club.myClub().then(function (club) {
-            if (badgeSlot) badgeSlot.innerHTML = roleBadgeHtml(false, club && club.verified);
+            ownBadgeType = (club && club.verified) ? 'club' : null;
+            applyOwnAvatar(p);
           });
+        } else {
+          ownBadgeType = p.verified_role ? 'verified' : null;
+          applyOwnAvatar(p);
         }
       });
 
@@ -3440,7 +3745,7 @@ var APP_VERSION = '0.17';
         toast('Lade Bild hoch …');
         Friends.setAvatar(file).then(function (r) {
           if (!r.ok) { toast('Hochladen fehlgeschlagen: ' + (r.message || 'unbekannt'), true); return; }
-          document.getElementById('avPreviewSlot').innerHTML = avaHtml(r.url, Auth.email(), 'big');
+          document.getElementById('avPreviewSlot').innerHTML = avaHtml(r.url, Auth.email(), 'big', '', ownBadgeType);
           toast('Profilbild gespeichert.');
           buildMenu();
         });
