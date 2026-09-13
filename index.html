@@ -370,8 +370,9 @@
   .form input[type=datetime-local]{color-scheme:dark}
   .event{background:var(--card);border-radius:14px;padding:16px;margin-bottom:10px}
   .event.past{opacity:.55}
+  .eventtitle{font-weight:700;font-size:15.5px;margin-bottom:4px}
   .eventhead{display:flex;justify-content:space-between;align-items:center}
-  .eventdate{font-weight:700;font-size:15.5px}
+  .eventdate{color:var(--mut);font-size:13.5px}
   .eventloc{color:var(--mut);font-size:13.5px;margin-top:3px}
   .eventwho{color:var(--mut);font-size:12.5px;margin-top:6px}
   .badge.ok{color:var(--lime);border-color:#a3e63544}
@@ -493,8 +494,6 @@
   </div>
 </div>
 
-<div class="sheetbg" id="eventSheetBg"></div>
-<div class="sheet" id="eventSheet"><div class="grip"></div><div id="eventSheetContent"></div></div>
 <div class="toast" id="toast"></div>
 
 <div class="scanview" id="scanview">
@@ -528,7 +527,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.5';
+var APP_VERSION = '0.6';
 </script>
 
 <script>
@@ -1252,12 +1251,6 @@ var APP_VERSION = '0.5';
   var scanChoiceBg    = document.getElementById('scanChoiceBg');
   function openScanChoice()  { closeMenu(); scanChoiceSheet.classList.add('on'); scanChoiceBg.classList.add('on'); }
   function closeScanChoice() { scanChoiceSheet.classList.remove('on'); scanChoiceBg.classList.remove('on'); }
-
-  var eventSheet   = document.getElementById('eventSheet');
-  var eventSheetBg = document.getElementById('eventSheetBg');
-  function openEventSheet()  { eventSheet.classList.add('on'); eventSheetBg.classList.add('on'); }
-  function closeEventSheet() { eventSheet.classList.remove('on'); eventSheetBg.classList.remove('on'); }
-  eventSheetBg.addEventListener('click', closeEventSheet);
 
   document.getElementById('btnScanNav').addEventListener('click', openScanChoice);
   scanChoiceBg.addEventListener('click', closeScanChoice);
@@ -2360,10 +2353,16 @@ var APP_VERSION = '0.5';
     return ev.invites.length === 0 || ev.invites.every(function (i) { return i.status === 'accepted'; });
   }
 
-  // Inhalt des "Neuer Termin"-Sheets. Freunde als antippbare Avatare statt
+  // Inhalt des aufklappbaren "Neuer Termin"-Bereichs. Bewusst direkt auf
+  // der Seite statt in einem schiebenden Sheet: ein CSS-transform auf
+  // einem Vorfahren (wie beim Sheet fuer die Schiebe-Animation) bringt in
+  // etlichen Browsern den nativen Datum/Uhrzeit-Picker durcheinander oder
+  // verhindert ihn ganz. Freunde als antippbare Avatare statt
   // Abhak-Kaestchen: ausgewaehlt = gruener Kranz (.pickava.on), siehe CSS.
   function eventFormHtml(friends) {
     var html = '<div class="panel"><h3>Neuer Termin</h3>' +
+      '<div class="form"><input type="text" id="fTitle" placeholder="Titel (z.B. Golfrunde)" ' +
+      'maxlength="60" autocomplete="off"></div>' +
       '<div class="datewrap" style="margin-bottom:14px">' +
       '<button type="button" class="datebtn" id="fWhenBtn">' + I.cal +
       '<span id="fWhenLabel">Datum &amp; Uhrzeit wählen</span></button>' +
@@ -2386,20 +2385,20 @@ var APP_VERSION = '0.5';
     return html;
   }
 
-  function wireEventForm() {
-    var whenInput = document.getElementById('fWhen');
-    document.getElementById('fWhenBtn').addEventListener('click', function () {
+  function wireEventForm(slot) {
+    var whenInput = slot.querySelector('#fWhen');
+    slot.querySelector('#fWhenBtn').addEventListener('click', function () {
       if (whenInput.showPicker) { try { whenInput.showPicker(); return; } catch (e) {} }
       whenInput.click();
     });
     whenInput.addEventListener('change', function () {
       var d = new Date(whenInput.value);
-      document.getElementById('fWhenLabel').textContent =
+      slot.querySelector('#fWhenLabel').textContent =
         isNaN(d.getTime()) ? 'Datum & Uhrzeit wählen' : fmtDateTime(d.toISOString());
     });
 
     var selected = {};
-    Array.prototype.forEach.call(document.querySelectorAll('.pickava'), function (btn) {
+    Array.prototype.forEach.call(slot.querySelectorAll('.pickava'), function (btn) {
       btn.addEventListener('click', function () {
         var uid = btn.getAttribute('data-uid');
         btn.classList.toggle('on');
@@ -2407,17 +2406,18 @@ var APP_VERSION = '0.5';
       });
     });
 
-    document.getElementById('btnCreate').addEventListener('click', function () {
+    slot.querySelector('#btnCreate').addEventListener('click', function () {
+      var title = slot.querySelector('#fTitle').value.trim();
       var when = whenInput.value;
-      var where = document.getElementById('fWhere').value.trim();
+      var where = slot.querySelector('#fWhere').value.trim();
       if (!when) { toast('Bitte Datum und Uhrzeit wählen.', true); return; }
       var d = new Date(when);
       if (isNaN(d.getTime())) { toast('Datum konnte nicht gelesen werden.', true); return; }
 
       toast('Lege Termin an …');
-      Planner.create({ date: d.toISOString(), location: where }, Object.keys(selected)).then(function (r) {
+      Planner.create({ date: d.toISOString(), location: where, title: title }, Object.keys(selected)).then(function (r) {
         if (!r.ok) { toast('Hat nicht geklappt: ' + (r.message || 'unbekannt'), true); return; }
-        closeEventSheet();
+        slot.innerHTML = '';
         toast('Termin angelegt.');
         renderPlan();
       });
@@ -2449,7 +2449,8 @@ var APP_VERSION = '0.5';
 
       var html = '<div class="actions" style="margin-bottom:18px">' +
         '<button class="btn" id="btnNewEvent"><svg viewBox="0 0 24 24" width="17" height="17">' +
-        '<path d="M12 5v14M5 12h14"/></svg>Neuer Termin</button></div>';
+        '<path d="M12 5v14M5 12h14"/></svg>Neuer Termin</button></div>' +
+        '<div id="newEventSlot"></div>';
 
       if (!events.length) {
         html += '<div class="empty"><b>Noch keine geplanten Runden</b>' +
@@ -2464,6 +2465,7 @@ var APP_VERSION = '0.5';
           var mine = ev.invites.filter(function (i) { return i.isMe; })[0];
 
           html += '<div class="event' + (past ? ' past' : '') + '">' +
+            '<div class="eventtitle">' + esc(ev.title || 'Golfrunde') + '</div>' +
             '<div class="eventhead"><span class="eventdate">' + fmtDateTime(ev.date) + '</span>' +
             (past ? '<span class="badge">vorbei</span>' : (confirmed ? '<span class="badge ok">best\u00e4tigt</span>' : '')) +
             '</div>' +
@@ -2507,9 +2509,10 @@ var APP_VERSION = '0.5';
       content.innerHTML = html;
 
       document.getElementById('btnNewEvent').addEventListener('click', function () {
-        document.getElementById('eventSheetContent').innerHTML = eventFormHtml(friends);
-        wireEventForm();
-        openEventSheet();
+        var slot = document.getElementById('newEventSlot');
+        if (slot.innerHTML) { slot.innerHTML = ''; return; }
+        slot.innerHTML = eventFormHtml(friends);
+        wireEventForm(slot);
       });
 
       Array.prototype.forEach.call(content.querySelectorAll('[data-accept-invite]'), function (el) {
