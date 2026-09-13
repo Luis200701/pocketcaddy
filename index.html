@@ -113,7 +113,6 @@
   /* Nur am Rechner sichtbar - fuer Dinge, die es am Handy nicht gibt
      (z.B. Golfplatz-Registrierung/-Verwaltung). */
   .desktop-only{display:none}
-  .club-toggle{display:none}
   /* Scan-Taste: mittig, angehoben, kreisrund, wie eine schwebende Taste
      innerhalb der Leiste statt eines normalen Symbols */
   .navitem.scan{margin-top:-26px}
@@ -475,7 +474,6 @@
     .navitem:hover{background:#ffffff10}
     .navlabel{display:inline;font-size:14.5px}
     .desktop-only{display:block}
-    .club-toggle{display:flex}
     /* Die schwebende, angehobene Scan-Taste ergibt in einer Liste
        keinen Sinn mehr, wird zu einem normalen Eintrag wie die anderen */
     .navitem.scan{margin-top:0}
@@ -601,7 +599,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.15';
+var APP_VERSION = '0.16';
 </script>
 
 <script>
@@ -693,9 +691,8 @@ var APP_VERSION = '0.15';
       user: function () { return user; },
       id: function () { return user ? user.id : null; },
       email: function () { return user ? user.email : ''; },
-      signUp: function (email, pw, accountType) {
-        var opts = accountType ? { data: { account_type: accountType } } : undefined;
-        return client.auth.signUp({ email: email, password: pw, options: opts });
+      signUp: function (email, pw) {
+        return client.auth.signUp({ email: email, password: pw });
       },
       signIn: function (email, pw) {
         return client.auth.signInWithPassword({ email: email, password: pw });
@@ -1151,7 +1148,7 @@ var APP_VERSION = '0.15';
     // Startseite, Statistik, Freunde und Kalender/Planen stecken jetzt in
     // der unteren Leiste, hier bleiben nur die selteneren Einstellungs-
     // Punkte, die dort keinen Platz gefunden haetten.
-    return [
+    var items = [
       { id:'menu/login',  icon:loggedIn ? I.cloud : I.user,
         label:loggedIn ? 'Konto' : 'Anmelden',
         sub:loggedIn ? Auth.email() : 'Runden ger\u00e4te\u00fcbergreifend sichern',
@@ -1159,10 +1156,13 @@ var APP_VERSION = '0.15';
       { id:'menu/addfriend', icon:I.share, label:'Freund hinzuf\u00fcgen',
         sub:'Eigenen Code teilen oder per Code anfragen', ready:true },
       { sep:true },
+      Friends.isAdmin() ? { id:'menu/admin', icon:I.info, label:'Admin',
+        sub:'Golfplatz-Anfragen freischalten', ready:true } : null,
       { id:'menu/backup',  icon:I.box,   label:'Sicherung',    sub:'Runden exportieren und einlesen', ready:true },
       { id:'menu/privacy', icon:I.info,  label:'Datenschutz',  sub:'Welche Daten wo landen', ready:true },
       { id:'menu/about',   icon:I.info,  label:'\u00dcber',    sub:'Version und Hinweise', ready:true }
     ];
+    return items.filter(function (m) { return m; });
   }
 
   var sheet = document.getElementById('sheet');
@@ -1442,6 +1442,10 @@ var APP_VERSION = '0.15';
     // Profil und Freunde-Ausschnitt laden, ohne den Rest der Seite zu
     // blockieren, sie sind schon sichtbar bevor das hier fertig ist.
     Friends.loadProfile().then(function (prof) {
+      // Erneut aufbauen, damit z.B. der Admin-Menuepunkt erscheint,
+      // sobald is_admin bekannt ist (beim allerersten Aufbau war das
+      // noch nicht geladen).
+      buildMenu();
       // Golfplatz-Konten sehen hier ihre Platzverwaltung statt der
       // normalen Rundenuebersicht - siehe renderClub().
       if (prof && prof.account_type === 'club' && location.hash === '') {
@@ -1939,7 +1943,7 @@ var APP_VERSION = '0.15';
     function loadProfile(force) {
       if (myProfile && !force) return Promise.resolve(myProfile);
       if (!Auth.id() || !Auth.isOnline()) return Promise.resolve(null);
-      return db().from('profiles').select('user_id,display_name,friend_code,avatar_url,account_type')
+      return db().from('profiles').select('user_id,display_name,friend_code,avatar_url,account_type,is_admin')
         .eq('user_id', Auth.id()).maybeSingle()
         .then(function (r) { myProfile = r.data || null; return myProfile; })
         .catch(function () { return null; });
@@ -2122,6 +2126,7 @@ var APP_VERSION = '0.15';
              requestByCode:requestByCode, accept:accept, remove:remove,
              roundsOf:roundsOf, latestActivity:latestActivity,
              hasRoundOnDate:hasRoundOnDate, confirmRound:confirmRound,
+             isAdmin:function () { return !!(myProfile && myProfile.is_admin); },
              reset:function () { myProfile = null; } };
   })();
 
@@ -2242,6 +2247,35 @@ var APP_VERSION = '0.15';
         .catch(function () { return null; });
     }
 
+    // Golfplatz-Anfrage: normale Konten stellen sie in den Konto-
+    // Einstellungen, ein Admin schaltet sie ueber renderAdmin() frei.
+    function myRequest() {
+      var uid = Auth.id();
+      if (!uid) return Promise.resolve(null);
+      return db().from('club_requests').select('*').eq('user_id', uid).maybeSingle()
+        .then(function (r) { return r.data || null; })
+        .catch(function () { return null; });
+    }
+
+    // "upsert" statt insert: nach einer Ablehnung soll ein erneutes
+    // Stellen moeglich sein, ohne dass die Zeile vorher geloescht wird.
+    function submitRequest(message) {
+      return db().from('club_requests').upsert({
+        user_id: Auth.id(), message: message, status: 'pending',
+        requested_at: new Date().toISOString(), decided_at: null
+      }, { onConflict: 'user_id' });
+    }
+
+    function pendingRequests() {
+      return db().from('club_requests').select('*').eq('status', 'pending')
+        .order('requested_at')
+        .then(function (r) { if (r.error) throw r.error; return r.data || []; })
+        .catch(function () { return []; });
+    }
+
+    function approveRequest(uid) { return db().rpc('approve_club_request', { target_user: uid }); }
+    function rejectRequest(uid)  { return db().rpc('reject_club_request', { target_user: uid }); }
+
     function saveClub(fields) {
       var payload = { updated_at: new Date().toISOString() };
       for (var k in fields) payload[k] = fields[k];
@@ -2289,7 +2323,9 @@ var APP_VERSION = '0.15';
 
     return { myClub:myClub, saveClub:saveClub, uploadMedia:uploadMedia,
              offersOf:offersOf, addOffer:addOffer, removeOffer:removeOffer,
-             verifiedClubs:verifiedClubs };
+             verifiedClubs:verifiedClubs, myRequest:myRequest, submitRequest:submitRequest,
+             pendingRequests:pendingRequests, approveRequest:approveRequest,
+             rejectRequest:rejectRequest };
   })();
 
   function parDefaults(holes) {
@@ -2489,6 +2525,63 @@ var APP_VERSION = '0.15';
           });
         });
       });
+    });
+  }
+
+  // Nur erreichbar, wenn Friends.isAdmin() den Menuepunkt ueberhaupt
+  // anzeigt - die eigentliche Absicherung passiert aber serverseitig in
+  // approve_club_request()/reject_club_request() (siehe 05_golfplaetze.sql),
+  // nicht hier im Frontend.
+  function renderAdmin() {
+    brand.textContent = 'Admin';
+    content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
+
+    Club.pendingRequests().then(function (reqs) {
+      if (!reqs.length) {
+        content.innerHTML = '<div class="empty"><b>Keine offenen Anfragen</b>' +
+          'Golfplatz-Anfragen aus den Konto-Einstellungen erscheinen hier.</div>';
+        return;
+      }
+      var ids = reqs.map(function (r) { return r.user_id; });
+      Auth.db().from('profiles').select('user_id,display_name').in('user_id', ids)
+        .then(function (pr) {
+          var names = {};
+          (pr.data || []).forEach(function (p) { names[p.user_id] = p.display_name; });
+
+          var html = '<div class="sectionhead"><span class="t">Golfplatz-Anfragen</span>' +
+            '<span class="c">' + reqs.length + '</span></div><div class="list">';
+          reqs.forEach(function (r) {
+            html += '<div class="event"><div class="eventtitle">' +
+              esc(names[r.user_id] || 'Spieler') + '</div>' +
+              (r.message ? '<div class="eventloc">' + esc(r.message) + '</div>' : '') +
+              '<div class="eventwho">Angefragt am ' + fmtDateTime(r.requested_at) + '</div>' +
+              '<div class="actions" style="margin-top:12px">' +
+              '<button class="btn" data-approve="' + r.user_id + '">Freischalten</button>' +
+              '<button class="btn ghost" data-reject="' + r.user_id + '">Ablehnen</button>' +
+              '</div></div>';
+          });
+          html += '</div>';
+          content.innerHTML = html;
+
+          Array.prototype.forEach.call(document.querySelectorAll('[data-approve]'), function (el) {
+            el.addEventListener('click', function () {
+              toast('Schalte frei …');
+              Club.approveRequest(el.getAttribute('data-approve')).then(function (r) {
+                if (r.error) { toast('Hat nicht geklappt: ' + r.error.message, true); return; }
+                toast('Freigeschaltet.'); renderAdmin();
+              });
+            });
+          });
+          Array.prototype.forEach.call(document.querySelectorAll('[data-reject]'), function (el) {
+            el.addEventListener('click', function () {
+              if (!confirm('Diese Anfrage wirklich ablehnen?')) return;
+              Club.rejectRequest(el.getAttribute('data-reject')).then(function (r) {
+                if (r.error) { toast('Hat nicht geklappt: ' + r.error.message, true); return; }
+                toast('Abgelehnt.'); renderAdmin();
+              });
+            });
+          });
+        });
     });
   }
 
@@ -3177,6 +3270,45 @@ var APP_VERSION = '0.15';
     renderSetup();
   }
 
+  // Golfplatz-Anfrage im Konto-Bereich (renderLogin()): normale Konten
+  // stellen hier eine Anfrage, ein Admin schaltet sie in renderAdmin()
+  // frei - kein Selbstbedienungsweg zum Golfplatz-Konto.
+  function renderClubRequestPanel(profile) {
+    var slot = document.getElementById('clubReqSlot');
+    if (!slot) return;
+    if (!profile || profile.account_type !== 'player') { slot.innerHTML = ''; return; }
+
+    Club.myRequest().then(function (req) {
+      if (req && req.status === 'pending') {
+        slot.innerHTML = '<div class="panel"><h3>Golfplatz-Anfrage</h3>' +
+          '<p class="hint" style="margin:0"><span class="badge">Wird geprüft</span> ' +
+          'Wir melden uns, sobald wir das freigeschaltet haben.</p></div>';
+        return;
+      }
+
+      slot.innerHTML = '<div class="panel"><h3>Bist du ein Golfplatz?</h3>' +
+        '<p>Stell eine Anfrage, dann schalten wir dein Konto zu einem ' +
+        'Golfplatz-Konto mit eigener Platzverwaltung frei.</p>' +
+        (req && req.status === 'rejected'
+          ? '<p class="hint" style="margin-top:0">Deine letzte Anfrage wurde ' +
+            'abgelehnt – du kannst es gerne nochmal versuchen.</p>' : '') +
+        '<div class="form"><input type="text" id="fClubMsg" placeholder="' +
+        'Name des Platzes (optional)"></div>' +
+        '<div class="actions"><button class="btn ghost" id="btnClubRequest">' +
+        'Anfrage stellen</button></div></div>';
+
+      document.getElementById('btnClubRequest').addEventListener('click', function () {
+        var msg = document.getElementById('fClubMsg').value.trim();
+        toast('Sende Anfrage …');
+        Club.submitRequest(msg).then(function (r) {
+          if (r.error) { toast('Hat nicht geklappt.', true); return; }
+          toast('Anfrage gesendet.');
+          renderClubRequestPanel(profile);
+        });
+      });
+    });
+  }
+
   function renderLogin() {
     brand.textContent = Auth.id() ? 'Konto' : 'Anmelden';
 
@@ -3251,6 +3383,8 @@ var APP_VERSION = '0.15';
         'maxlength="40" autocomplete="nickname"></div>' +
         '<div class="actions"><button class="btn ghost" id="btnName">Namen speichern</button></div></div>' +
 
+        '<div id="clubReqSlot"></div>' +
+
         '<div class="panel"><h3>Konto löschen</h3>' +
         '<p>Entfernt dein Konto, alle deine Runden, Freundschaften und dein ' +
         'Profil endgültig. Das lässt sich nicht rückgängig machen.</p>' +
@@ -3264,6 +3398,7 @@ var APP_VERSION = '0.15';
           document.getElementById('avPreviewSlot').innerHTML =
             avaHtml(p.avatar_url, p.display_name || Auth.email(), 'big');
         }
+        renderClubRequestPanel(p);
       });
 
       document.getElementById('btnAvatarPick').addEventListener('click', function () {
@@ -3337,10 +3472,6 @@ var APP_VERSION = '0.15';
       '<input type="password" id="fPass" placeholder="Passwort" ' +
       'autocomplete="current-password">' +
       '</div>' +
-      '<label class="club-toggle" style="align-items:center;gap:10px;' +
-      'font-size:13.5px;color:var(--mut);margin:2px 0 14px">' +
-      '<input type="checkbox" id="fIsClub" style="width:auto">' +
-      'Ich melde ein Golfplatz-Konto an (Platzverwaltung statt Rundenerfassung)</label>' +
       '<div class="actions">' +
       '<button class="btn" id="btnIn">Anmelden</button>' +
       '<button class="btn ghost" id="btnUp">Neu registrieren</button>' +
@@ -3395,9 +3526,8 @@ var APP_VERSION = '0.15';
 
     document.getElementById('btnUp').addEventListener('click', function () {
       var c = creds(); if (!c) return;
-      var isClub = document.getElementById('fIsClub').checked;
       toast('Lege Konto an \u2026');
-      Auth.signUp(c.e, c.p, isClub ? 'club' : null).then(function (r) {
+      Auth.signUp(c.e, c.p).then(function (r) {
         if (r.error) { toast(loginError(r.error), true); return; }
         if (r.data && r.data.session) { afterLogin(); return; }
         // Ohne Sitzung: die Bestaetigung per Mail ist noch eingeschaltet
@@ -3581,6 +3711,7 @@ var APP_VERSION = '0.15';
     if (raw === 'menu/privacy'){ renderPrivacy();    return; }
     if (raw === 'menu/about')  { renderAbout();      return; }
     if (raw === 'menu/offers') { renderClubOffers(); return; }
+    if (raw === 'menu/admin')  { renderAdmin();      return; }
     if (PAGES[raw])           { renderPlaceholder(raw); return; }
 
     var r = parseCode(raw);
