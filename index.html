@@ -216,6 +216,17 @@
   .item .chev svg{width:18px;height:18px;fill:none;stroke:currentColor;
                   stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
+  /* Golfplaetze-Kacheln auf der Startseite: bewusst immer 2 Spalten
+     (auch am Handy), anders als .list/.item (volle Zeilen). */
+  .clubgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .clubcard{background:var(--card);border-radius:14px;padding:14px 10px;
+            display:flex;flex-direction:column;align-items:center;gap:8px;
+            text-align:center;border:0;color:inherit;font:inherit;cursor:pointer}
+  .clubcard:active{background:var(--bar)}
+  .clubcard .ava{width:48px;height:48px}
+  .clubcard .name{font-size:13px;font-weight:600}
+  .clubcard .sub{font-size:11.5px;color:var(--mut)}
+
   .empty{background:var(--card);border-radius:14px;padding:28px 22px;text-align:center;
          color:var(--mut);line-height:1.7}
   .empty b{color:var(--txt);display:block;margin-bottom:8px;font-size:17px}
@@ -388,6 +399,17 @@
   .friendhead{display:flex;align-items:center;gap:14px;margin-bottom:20px}
   .friendhead .namewrap{display:flex;flex-direction:column;gap:2px}
   .friendhead .roletag{font-size:13px;color:var(--mut)}
+
+  /* Golfplatz-Profilseite: Banner mit ueberlappendem Profilbild, bewusst
+     anders aufgebaut als .friendhead/.profilehead (einfache Zeile). */
+  .clubbanner{width:100%;height:140px;background:var(--bar);
+              background-size:cover;background-position:center}
+  .clubheadrow{display:flex;align-items:flex-end;gap:14px;
+               padding:0 16px;margin-top:-28px}
+  .clubheadrow .ava{width:64px;height:64px;font-size:24px;
+                     border:3px solid var(--card);flex:none}
+  .clubheadrow .namewrap{display:flex;flex-direction:column;gap:6px;padding-bottom:2px}
+  .clubheadrow .btn{padding:6px 16px;font-size:13px}
 
   /* Statistik */
   .distlist{display:flex;flex-direction:column;gap:11px}
@@ -666,7 +688,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.22';
+var APP_VERSION = '0.23';
 </script>
 
 <script>
@@ -1227,6 +1249,8 @@ var APP_VERSION = '0.22';
         ready:true },
       isClub ? null : { id:'menu/addfriend', icon:I.share, label:'Freund hinzuf\u00fcgen',
         sub:'Eigenen Code teilen oder per Code anfragen', ready:true },
+      isClub ? null : { id:'menu/clubs', icon:I.home, label:'Golfpl\u00e4tze',
+        sub:'Suchen und folgen', ready:true },
       { sep:true },
       Friends.isAdmin() ? { id:'menu/admin', icon:I.info, label:'Admin',
         sub:'Golfplatz-Anfragen freischalten', ready:true } : null,
@@ -1528,23 +1552,29 @@ var APP_VERSION = '0.22';
       location.hash = 'rounds'; route();
     });
 
-    // Golfplaetze zum Durchstoebern - unabhaengig vom Login (nur lesend,
-    // RLS erlaubt jedem verifizierte Plaetze), deshalb bewusst vor dem
-    // Login-Guard weiter unten.
-    if (Auth.isOnline()) {
-      Club.verifiedClubsList().then(function (clubs) {
+    // Golfplaetze, denen man folgt - als kompaktes 2-Spalten-Raster,
+    // hoechstens 3 Zeilen (6 Kacheln). Die volle Liste zum Suchen/Folgen
+    // sitzt im Menue unter "Golfplaetze" (renderClubSearch()).
+    if (Auth.id() && Auth.isOnline()) {
+      Club.followedClubs().then(function (clubs) {
         var slot = document.getElementById('clubSlot');
-        if (!slot || !clubs.length) return;
+        if (!slot) return;
+        if (!clubs.length) {
+          slot.innerHTML =
+            '<div class="sectionhead"><span class="t">Golfplätze</span></div>' +
+            '<p class="hint" style="margin:0">Noch keinen Golfplätzen gefolgt – ' +
+            'im Menü unter &bdquo;Golfplätze&ldquo; suchen.</p>';
+          return;
+        }
         slot.innerHTML =
           '<div class="sectionhead"><span class="t">Golfplätze</span></div>' +
-          '<div class="list">' + clubs.map(function (c) {
+          '<div class="clubgrid">' + clubs.slice(0, 6).map(function (c) {
             var n = c.courses.length;
-            return '<button class="item" data-club="' + c.id + '">' +
-              avaHtml(c.coverImageUrl, c.name, '', '', 'club') +
-              '<span class="meta"><span class="d">' + esc(c.name || 'Golfplatz') + '</span>' +
-              '<span class="s">' + (n ? (n + (n === 1 ? ' Platz' : ' Plätze')) : 'Noch keine Plätze') +
-              '</span></span>' +
-              '<span class="chev">' + I.chev + '</span></button>';
+            return '<button class="clubcard" data-club="' + c.id + '">' +
+              avaHtml(c.avatarUrl || c.coverImageUrl, c.name, '', '', 'club') +
+              '<span class="name">' + esc(c.name || 'Golfplatz') + '</span>' +
+              '<span class="sub">' + (n ? (n + (n === 1 ? ' Platz' : ' Plätze')) : 'Noch keine Plätze') +
+              '</span></button>';
           }).join('') + '</div>';
         Array.prototype.forEach.call(slot.querySelectorAll('[data-club]'), function (el) {
           el.addEventListener('click', function () {
@@ -2452,12 +2482,87 @@ var APP_VERSION = '0.22';
         .catch(function () { return null; });
     }
 
+    // Golfplaetzen folgen (datenbank/09_golfplaetze_folgen.sql): Start-
+    // seite und Kursauswahl beim manuellen Eintragen zeigen bewusst nur
+    // noch gefolgte Plaetze statt ausnahmslos aller verifizierten - die
+    // volle Liste zum Suchen/Folgen sitzt im eigenen Menuepunkt.
+    function myFollows() {
+      var uid = Auth.id();
+      if (!uid) return Promise.resolve([]);
+      return db().from('club_follows').select('club_id').eq('user_id', uid)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          return (r.data || []).map(function (x) { return x.club_id; });
+        })
+        .catch(function () { return []; });
+    }
+    function isFollowing(clubId) {
+      var uid = Auth.id();
+      if (!uid) return Promise.resolve(false);
+      return db().from('club_follows').select('user_id')
+        .eq('user_id', uid).eq('club_id', clubId).maybeSingle()
+        .then(function (r) { return !!r.data; })
+        .catch(function () { return false; });
+    }
+    function follow(clubId) {
+      return db().from('club_follows').insert({ user_id: Auth.id(), club_id: clubId });
+    }
+    function unfollow(clubId) {
+      return db().from('club_follows').delete()
+        .eq('user_id', Auth.id()).eq('club_id', clubId);
+    }
+
+    // Fuer die Startseiten-Kacheln: nur Clubs, denen das eigene Konto folgt.
+    function followedClubs() {
+      var uid = Auth.id();
+      if (!uid) return Promise.resolve([]);
+      return db().from('club_follows')
+        .select('golf_clubs(user_id,name,cover_image_url,avatar_url,golf_courses(id,name,holes))')
+        .eq('user_id', uid)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          return (r.data || []).map(function (row) { return row.golf_clubs; })
+            .filter(function (c) { return c; })
+            .map(function (c) {
+              return { id:c.user_id, name:c.name, coverImageUrl:c.cover_image_url,
+                       avatarUrl:c.avatar_url, courses:c.golf_courses || [] };
+            });
+        })
+        .catch(function () { return []; });
+    }
+
+    // Fuer die Kursauswahl beim manuellen Eintragen: nur Kurse aus
+    // gefolgten Clubs (ersetzt verifiedCourses() dort).
+    function followedCourses() {
+      var uid = Auth.id();
+      if (!uid) return Promise.resolve([]);
+      return db().from('club_follows')
+        .select('golf_clubs(name,golf_courses(id,name,holes,pars))')
+        .eq('user_id', uid)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var out = [];
+          (r.data || []).forEach(function (row) {
+            var c = row.golf_clubs;
+            if (!c) return;
+            (c.golf_courses || []).forEach(function (course) {
+              out.push({ id:course.id, name:course.name, holes:course.holes,
+                         pars:course.pars, clubName:c.name });
+            });
+          });
+          return out;
+        })
+        .catch(function () { return []; });
+    }
+
     return { myClub:myClub, saveClub:saveClub, uploadMedia:uploadMedia,
              offersOf:offersOf, addOffer:addOffer, removeOffer:removeOffer,
              coursesOf:coursesOf, myCourses:myCourses, addCourse:addCourse,
              saveCourse:saveCourse, removeCourse:removeCourse,
              verifiedCourses:verifiedCourses, verifiedClubsList:verifiedClubsList,
              clubById:clubById, isVerified:isVerified,
+             myFollows:myFollows, isFollowing:isFollowing, follow:follow, unfollow:unfollow,
+             followedClubs:followedClubs, followedCourses:followedCourses,
              myRequest:myRequest, submitRequest:submitRequest,
              pendingRequests:pendingRequests, approveRequest:approveRequest,
              rejectRequest:rejectRequest };
@@ -2561,7 +2666,14 @@ var APP_VERSION = '0.22';
         '<div class="actions"><button class="btn ghost" id="btnAddCourse">+ Neuen Platz anlegen</button></div></div>';
 
       html += '<div class="panel"><h3>Bilder</h3>' +
-        '<p class="hint" style="margin-top:0">Titelbild' +
+        '<p class="hint" style="margin-top:0">Profilbild' +
+        (club.avatar_url ? '' : ' (noch keins hochgeladen)') + '</p>' +
+        '<div style="display:flex;align-items:center;gap:16px;margin-bottom:14px">' +
+        '<span id="cAvatarPreview">' + avaHtml(club.avatar_url, club.name) + '</span>' +
+        '<button class="btn ghost" id="btnAvatarPick" style="margin:0">Profilbild wählen</button>' +
+        '</div>' +
+        '<input type="file" id="fClubAvatar" accept="image/*" style="display:none">' +
+        '<p class="hint">Titelbild' +
         (club.cover_image_url ? '' : ' (noch keins hochgeladen)') + '</p>' +
         (club.cover_image_url
           ? '<img src="' + esc(club.cover_image_url) + '" style="width:100%;border-radius:12px;margin-bottom:12px">'
@@ -2700,6 +2812,19 @@ var APP_VERSION = '0.22';
 
       renderCourses();
 
+      document.getElementById('btnAvatarPick').addEventListener('click', function () {
+        document.getElementById('fClubAvatar').click();
+      });
+      document.getElementById('fClubAvatar').addEventListener('change', function (e) {
+        var file = e.target.files && e.target.files[0]; e.target.value = '';
+        if (!file) return;
+        toast('Lade Bild hoch …');
+        Club.uploadMedia(file, 400, 400).then(function (url) {
+          return Club.saveClub({ avatar_url: url });
+        }).then(function () { toast('Profilbild gespeichert.'); renderClub(); })
+          .catch(function (e) { toast('Hochladen fehlgeschlagen: ' + (e && e.message || ''), true); });
+      });
+
       document.getElementById('btnCoverPick').addEventListener('click', function () {
         document.getElementById('fCover').click();
       });
@@ -2788,6 +2913,82 @@ var APP_VERSION = '0.22';
     });
   }
 
+  // Golfplaetze suchen und folgen (menu/clubs) - die volle Liste aller
+  // verifizierten Plaetze, unabhaengig vom Login lesbar (RLS erlaubt
+  // jedem verified=true-Zeilen), Folgen selbst braucht ein Konto.
+  function renderClubSearch() {
+    brand.textContent = 'Golfplätze';
+    content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
+
+    Promise.all([Club.verifiedClubsList(), Club.myFollows()]).then(function (res) {
+      var clubs = res[0], follows = res[1];
+
+      function rowHtml(c) {
+        var n = c.courses.length;
+        var following = follows.indexOf(c.id) >= 0;
+        // <div> statt <button> als Zeilen-Element, da hier zusaetzlich
+        // ein eigener Klick-Bereich (Folgen-Knopf) drinsteckt -
+        // verschachtelte <button>s waeren ungueltiges HTML. Klick auf die
+        // Zeile selbst bleibt ueber einen JS-Listener nutzbar (siehe unten).
+        return '<div class="item" data-club="' + c.id + '">' +
+          avaHtml(c.avatarUrl || c.coverImageUrl, c.name, '', '', 'club') +
+          '<span class="meta"><span class="d">' + esc(c.name || 'Golfplatz') + '</span>' +
+          '<span class="s">' + (n ? (n + (n === 1 ? ' Platz' : ' Plätze')) : 'Noch keine Plätze') +
+          '</span></span>' +
+          '<button class="mini' + (following ? ' ok' : '') + '" data-follow="' + c.id + '">' +
+          (following ? I.check : '+') + '</button>' +
+          '</div>';
+      }
+
+      function renderList(filtered) {
+        var listEl = document.getElementById('clubSearchList');
+        if (!listEl) return;
+        listEl.innerHTML = filtered.length
+          ? '<div class="list">' + filtered.map(rowHtml).join('') + '</div>'
+          : '<div class="empty"><b>Nichts gefunden</b>Versuch einen anderen Suchbegriff.</div>';
+        wireRowEvents();
+      }
+
+      function wireRowEvents() {
+        Array.prototype.forEach.call(document.querySelectorAll('[data-club]'), function (el) {
+          el.addEventListener('click', function () {
+            location.hash = 'club/' + el.getAttribute('data-club'); route();
+          });
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('[data-follow]'), function (btn) {
+          btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (!Auth.id()) { toast('Bitte zuerst anmelden.', true); return; }
+            var id = btn.getAttribute('data-follow');
+            var following = follows.indexOf(id) >= 0;
+            var op = following ? Club.unfollow(id) : Club.follow(id);
+            op.then(function (r) {
+              if (r.error) { toast('Hat nicht geklappt.', true); return; }
+              if (following) { follows = follows.filter(function (x) { return x !== id; }); }
+              else { follows.push(id); }
+              btn.classList.toggle('ok', !following);
+              btn.innerHTML = following ? '+' : I.check;
+            });
+          });
+        });
+      }
+
+      content.innerHTML =
+        '<div class="form" style="margin-bottom:14px">' +
+        '<input type="text" id="clubSearchInput" placeholder="Golfplatz suchen …"></div>' +
+        '<div id="clubSearchList"></div>';
+
+      renderList(clubs);
+
+      document.getElementById('clubSearchInput').addEventListener('input', function (e) {
+        var q = e.target.value.trim().toLowerCase();
+        renderList(!q ? clubs : clubs.filter(function (c) {
+          return (c.name || '').toLowerCase().indexOf(q) >= 0;
+        }));
+      });
+    });
+  }
+
   // Golfplatz-Profil zum Durchstoebern (club/<id>) - rein lesend, fuer
   // jeden erreichbar, der den Link hat (RLS zeigt ohnehin nur
   // verifizierte Plaetze). Analog renderFriendRounds().
@@ -2795,25 +2996,34 @@ var APP_VERSION = '0.22';
     brand.textContent = 'Golfplatz';
     content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
 
-    Promise.all([Club.clubById(id), Club.coursesOf(id), Club.offersOf(id)]).then(function (res) {
+    Promise.all([Club.clubById(id), Club.coursesOf(id), Club.offersOf(id), Club.isFollowing(id)]).then(function (res) {
       var club = res[0], courses = res[1], offers = res[2];
+      var following = res[3];
       if (!club) {
         content.innerHTML = '<div class="empty"><b>Kein Zugriff</b>' +
           'Dieser Golfplatz ist nicht (mehr) verfügbar.</div>';
         return;
       }
 
-      var html = '<div class="panel">' +
-        (club.cover_image_url
-          ? '<img src="' + esc(club.cover_image_url) + '" style="width:100%;border-radius:12px;margin-bottom:14px">'
-          : '') +
-        '<h3 style="margin-bottom:4px">' + esc(club.name || 'Golfplatz') + '</h3>' +
+      // Banner (Titelbild) + darueber ragendes Profilbild, bewusst anders
+      // aufgebaut als .profilehead/.friendhead, damit ein Golfplatz-Profil
+      // optisch klar kein normales Spieler-/Freund-Profil ist.
+      var html = '<div class="panel" style="padding:0;overflow:hidden">' +
+        '<div class="clubbanner"' +
+        (club.cover_image_url ? ' style="background-image:url(\'' + esc(club.cover_image_url) + '\')"' : '') +
+        '></div>' +
+        '<div class="clubheadrow">' +
+        avaHtml(club.avatar_url, club.name) +
+        '<div class="namewrap"><h3 style="margin:0">' + esc(club.name || 'Golfplatz') + '</h3>' +
+        '<button class="btn ghost" id="btnFollowClub">' + (following ? 'Folgt' : 'Folgen') + '</button>' +
+        '</div></div>' +
+        '<div style="padding:16px">' +
         (club.description ? '<p>' + esc(club.description) + '</p>' : '') +
         (club.address ? '<p class="hint" style="margin:0">' + esc(club.address) + '</p>' : '') +
         (club.phone ? '<p class="hint" style="margin:0">' + esc(club.phone) + '</p>' : '') +
         (club.website ? '<p class="hint" style="margin:0">' + esc(club.website) + '</p>' : '') +
         (club.price_info ? '<p class="hint" style="margin-top:8px">' + esc(club.price_info) + '</p>' : '') +
-        '</div>';
+        '</div></div>';
 
       html += '<div class="sectionhead"><span class="t">Plätze</span>' +
         '<span class="c">' + courses.length + '</span></div>';
@@ -2842,6 +3052,16 @@ var APP_VERSION = '0.22';
       content.innerHTML = html;
       document.getElementById('btnBackClub').addEventListener('click', function () {
         location.hash = ''; route();
+      });
+      document.getElementById('btnFollowClub').addEventListener('click', function () {
+        if (!Auth.id()) { toast('Bitte zuerst anmelden.', true); return; }
+        var btn = document.getElementById('btnFollowClub');
+        var op = following ? Club.unfollow(id) : Club.follow(id);
+        op.then(function (r) {
+          if (r.error) { toast('Hat nicht geklappt.', true); return; }
+          following = !following;
+          btn.textContent = following ? 'Folgt' : 'Folgen';
+        });
       });
     });
   }
@@ -3514,14 +3734,16 @@ var APP_VERSION = '0.22';
     // Mobil (Schritt-fuer-Schritt-Assistent, siehe renderSetup()/
     // startHoleWizard() unten) und Desktop (renderDesktopEntry(), volle
     // Lochtabelle auf einen Blick) stehen gleichzeitig im DOM, per CSS-
-    // Klasse ein-/ausgeblendet - eine Anfrage an Club.verifiedCourses()
-    // reicht fuer beide.
+    // Klasse ein-/ausgeblendet - eine Anfrage an Club.followedCourses()
+    // reicht fuer beide. Bewusst nur gefolgte Plaetze (nicht alle
+    // verifizierten), sonst waechst die Auswahl unuebersichtlich - suchen/
+    // folgen passiert im Menue unter "Golfplaetze".
     content.innerHTML =
       '<div class="mobile-only" id="manualMobile"></div>' +
       '<div class="desktop-only" id="manualDesktop"></div>';
     var mobileEl = document.getElementById('manualMobile');
     var desktopEl = document.getElementById('manualDesktop');
-    var coursesPromise = Club.verifiedCourses();
+    var coursesPromise = Club.followedCourses();
 
     function renderSetup() {
       mobileEl.innerHTML =
@@ -4366,6 +4588,7 @@ var APP_VERSION = '0.22';
     if (raw === 'menu/privacy'){ renderPrivacy();    return; }
     if (raw === 'menu/about')  { renderAbout();      return; }
     if (raw === 'menu/offers') { renderClubOffers(); return; }
+    if (raw === 'menu/clubs')  { renderClubSearch(); return; }
     if (raw === 'menu/admin')  { renderAdmin();      return; }
     if (PAGES[raw])           { renderPlaceholder(raw); return; }
 
