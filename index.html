@@ -316,7 +316,8 @@
   .pars-grid label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--mut)}
   /* Desktop-Seite "Runde eintragen": alle Loecher auf einen Blick statt
      Schritt-fuer-Schritt-Assistent (siehe .mobile-only/.desktop-only). */
-  .holegrid{display:flex;flex-direction:column;gap:8px;margin:14px 0}
+  .holegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+            gap:8px;margin:14px 0}
   .holerow{display:grid;grid-template-columns:64px 1fr 1fr;gap:10px;align-items:center;
            background:var(--card);border-radius:12px;padding:10px 14px}
   .holerow .holenum{font-size:13px;color:var(--mut);font-weight:600}
@@ -523,6 +524,25 @@
     .btn:hover{filter:brightness(1.08)}
     .btn.ghost:hover{background:#ffffff10}
     .menuitem:hover{background:#ffffff10}
+
+    /* Eigenes Profil unten links in der Seitenleiste, Kurzzugriff auf
+       die Konto-Einstellungen (kein eigener "Tab", daher kein
+       data-tab und keine Aktiv-Markierung). display:flex explizit
+       noetig, sonst gewinnt .desktop-only{display:block} (gleiche
+       Spezifitaet, aber spaeter im Stylesheet) gegen das display:flex
+       von .navitem. */
+    .sidebarprofile{display:flex;margin-top:auto}
+    .sidebarprofile .ava{width:32px;height:32px;font-size:14px}
+    .sidebarprofile .navlabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+    /* Desktop-Feinschliff: Handy-Bausteine bekommen auf der zusaetzlichen
+       Breite ein Karten-Raster statt einer gestreckten Einzelspalte. */
+    .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+      align-items:stretch}
+    .stats{gap:14px}
+    .stat{padding:20px 14px}
+    .stat .v{font-size:28px}
+    .panel{padding:26px}
   }
 </style>
 </head>
@@ -555,7 +575,7 @@
     <svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>
     <span class="navlabel">Statistik</span>
   </button>
-  <button class="navitem scan" id="btnScanNav" aria-label="Runde hinzuf&uuml;gen">
+  <button class="navitem scan" id="btnScanNav" data-tab="scan" aria-label="Runde hinzuf&uuml;gen">
     <span class="navscanwrap"><svg viewBox="0 0 24 24">
       <path d="M6 21V10"/><path d="M6 4l9 3-9 3"/>
       <path d="M18 15v6"/><path d="M15 18h6"/></svg></span>
@@ -568,6 +588,11 @@
   <button class="navitem" id="btnCalNav" data-tab="cal" data-go="menu/plan" aria-label="Kalender">
     <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
     <span class="navlabel">Planen</span>
+  </button>
+  <button class="navitem sidebarprofile desktop-only" id="btnSidebarProfile"
+          data-go="menu/login" aria-label="Konto">
+    <span class="ava">?</span>
+    <span class="navlabel sidebarname">Konto</span>
   </button>
 </nav>
 
@@ -623,7 +648,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.18';
+var APP_VERSION = '0.19';
 </script>
 
 <script>
@@ -3748,6 +3773,7 @@ var APP_VERSION = '0.18';
           document.getElementById('avPreviewSlot').innerHTML = avaHtml(r.url, Auth.email(), 'big', '', ownBadgeType);
           toast('Profilbild gespeichert.');
           buildMenu();
+          updateSidebarProfile();
         });
       });
 
@@ -3758,6 +3784,7 @@ var APP_VERSION = '0.18';
           if (r.error) { toast('Hat nicht geklappt.', true); return; }
           toast('Name gespeichert.');
           buildMenu();
+          updateSidebarProfile();
         });
       });
 
@@ -3977,13 +4004,34 @@ var APP_VERSION = '0.18';
     if (raw === 'menu/plan')   return 'cal';
     if (/^friend\//.test(raw)) return 'friends';
     if (raw === 'rounds')      return 'home';
-    if (raw === 'manual')      return 'home';
+    if (raw === 'manual')      return 'scan';
     if (parseCode(raw).holes.length) return 'home';   // eigene Runde direkt per Link
     return null;
   }
 
+  // Profil-Kachel unten links in der Desktop-Seitenleiste (am Handy per
+  // .desktop-only ohnehin unsichtbar, das Patchen hier kostet trotzdem
+  // nichts). Friends.loadProfile() cached intern, also kein zusaetzlicher
+  // Netzwerk-Aufruf bei wiederholtem Rufen.
+  function updateSidebarProfile() {
+    var el = document.getElementById('btnSidebarProfile');
+    if (!el) return;
+    if (!Auth.id()) {
+      el.querySelector('.ava').outerHTML = avaHtml(null, '?');
+      el.querySelector('.sidebarname').textContent = 'Anmelden';
+      return;
+    }
+    Friends.loadProfile().then(function (p) {
+      if (!p) return;
+      el.querySelector('.ava').outerHTML =
+        avaHtml(p.avatar_url, p.display_name || Auth.email(), '', '', badgeTypeFor(p.is_admin, p.verified_role));
+      el.querySelector('.sidebarname').textContent = p.display_name || 'Konto';
+    });
+  }
+
   function route() {
     closeMenu(); closeScanChoice(); window.scrollTo(0,0);
+    updateSidebarProfile();
     var raw = (location.hash || '').replace(/^#/, '');
 
     // Zurueck-Pfeil nur auf tieferen Seiten, nicht auf den drei direkt in
