@@ -138,11 +138,13 @@
                     display:flex;flex-direction:column;align-items:center;gap:6px;
                     color:inherit;font:inherit;width:58px}
   .friendrow .ava{position:relative}
+  /* Bewusst ohne Animation: ein pulsierender Punkt sieht nach "gerade
+     online" aus, das Zeichen bedeutet aber nur "Runde aus den letzten
+     7 Tagen gespeichert" - mit Animation war das verwirrend und
+     aufdringlich zugleich. */
   .friendrow .ava .pulse{position:absolute;top:-2px;right:-2px;width:12px;height:12px;
                          border-radius:99px;background:var(--lime);
-                         box-shadow:0 0 0 2.5px var(--bg);
-                         animation:softPulse 1.8s ease-in-out infinite}
-  @keyframes softPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.18);opacity:.75}}
+                         box-shadow:0 0 0 2.5px var(--bg)}
   .friendrow .fname{font-size:11.5px;color:var(--mut);text-align:center;
                     max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* Freunde-Auswahl beim Termin anlegen: antippbare Avatare statt
@@ -537,7 +539,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.13';
+var APP_VERSION = '0.14';
 </script>
 
 <script>
