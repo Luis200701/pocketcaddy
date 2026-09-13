@@ -666,7 +666,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.21';
+var APP_VERSION = '0.22';
 </script>
 
 <script>
@@ -1516,7 +1516,7 @@ var APP_VERSION = '0.21';
         '</div><div class="list">' + items + '</div>';
     }
 
-    content.innerHTML = profileHtml + statsHtml + listHtml + '<div id="friendSlot"></div>';
+    content.innerHTML = profileHtml + statsHtml + listHtml + '<div id="clubSlot"></div>';
 
     Array.prototype.forEach.call(content.querySelectorAll('.item'), function (el) {
       el.addEventListener('click', function () {
@@ -1527,6 +1527,32 @@ var APP_VERSION = '0.21';
     if (allBtn) allBtn.addEventListener('click', function () {
       location.hash = 'rounds'; route();
     });
+
+    // Golfplaetze zum Durchstoebern - unabhaengig vom Login (nur lesend,
+    // RLS erlaubt jedem verifizierte Plaetze), deshalb bewusst vor dem
+    // Login-Guard weiter unten.
+    if (Auth.isOnline()) {
+      Club.verifiedClubsList().then(function (clubs) {
+        var slot = document.getElementById('clubSlot');
+        if (!slot || !clubs.length) return;
+        slot.innerHTML =
+          '<div class="sectionhead"><span class="t">Golfplätze</span></div>' +
+          '<div class="list">' + clubs.map(function (c) {
+            var n = c.courses.length;
+            return '<button class="item" data-club="' + c.id + '">' +
+              avaHtml(c.coverImageUrl, c.name, '', '', 'club') +
+              '<span class="meta"><span class="d">' + esc(c.name || 'Golfplatz') + '</span>' +
+              '<span class="s">' + (n ? (n + (n === 1 ? ' Platz' : ' Plätze')) : 'Noch keine Plätze') +
+              '</span></span>' +
+              '<span class="chev">' + I.chev + '</span></button>';
+          }).join('') + '</div>';
+        Array.prototype.forEach.call(slot.querySelectorAll('[data-club]'), function (el) {
+          el.addEventListener('click', function () {
+            location.hash = 'club/' + el.getAttribute('data-club'); route();
+          });
+        });
+      });
+    }
 
     if (!Auth.id() || !Auth.isOnline()) return;
 
@@ -1556,38 +1582,6 @@ var APP_VERSION = '0.21';
       var setNameBtn = document.getElementById('btnSetName');
       if (setNameBtn) setNameBtn.addEventListener('click', function () {
         location.hash = 'menu/login'; route();
-      });
-    });
-
-    Friends.list().then(function (d) {
-      var slot = document.getElementById('friendSlot');
-      if (!slot || (!d.friends.length && !d.incoming.length)) return;
-
-      var html = '';
-      if (d.incoming.length) {
-        html += '<button class="friendnudge" id="btnIncoming"><span class="dot"></span>' +
-          '<span style="flex:1">' + d.incoming.length +
-          (d.incoming.length === 1 ? ' offene Anfrage' : ' offene Anfragen') + '</span>' +
-          '<span>' + I.chev + '</span></button>';
-      }
-
-      if (d.friends.length) {
-        html += '<div class="sectionhead"><span class="t">Freunde</span></div>' +
-          '<div class="friendrow" id="friendAvas">' + d.friends.map(function (f) {
-            return '<button data-friend="' + f.userId + '">' +
-              avaHtml(f.avatarUrl, nameOf(f), '', '', badgeTypeFor(f.isAdmin, f.verifiedRole)) +
-              '<span class="fname">' + esc(nameOf(f)) + '</span></button>';
-          }).join('') + '</div>';
-      }
-
-      slot.innerHTML = html;
-
-      var inc = document.getElementById('btnIncoming');
-      if (inc) inc.addEventListener('click', function () { location.hash = 'menu/friends'; route(); });
-      Array.prototype.forEach.call(slot.querySelectorAll('[data-friend]'), function (el) {
-        el.addEventListener('click', function () {
-          location.hash = 'friend/' + el.getAttribute('data-friend'); route();
-        });
       });
     });
   }
@@ -2433,11 +2427,37 @@ var APP_VERSION = '0.21';
         .catch(function () { return false; });
     }
 
+    // Fuer die Golfplaetze-Liste auf der Startseite: ein Eintrag pro
+    // Club (nicht pro Platz wie verifiedCourses()), mit eingebetteten
+    // Plaetzen fuer die Kurzinfo ("2 Plaetze").
+    function verifiedClubsList() {
+      return db().from('golf_clubs')
+        .select('user_id,name,description,cover_image_url,golf_courses(id,name,holes)')
+        .eq('verified', true)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          return (r.data || []).map(function (c) {
+            return { id:c.user_id, name:c.name, description:c.description,
+                     coverImageUrl:c.cover_image_url, courses:c.golf_courses || [] };
+          });
+        })
+        .catch(function () { return []; });
+    }
+
+    // Fuer die Golfplatz-Profilseite (club/<id>): beliebige fremde,
+    // aber verifizierte Zeile lesen - gleiches RLS-Prinzip wie isVerified().
+    function clubById(id) {
+      return db().from('golf_clubs').select('*').eq('user_id', id).maybeSingle()
+        .then(function (r) { return r.data || null; })
+        .catch(function () { return null; });
+    }
+
     return { myClub:myClub, saveClub:saveClub, uploadMedia:uploadMedia,
              offersOf:offersOf, addOffer:addOffer, removeOffer:removeOffer,
              coursesOf:coursesOf, myCourses:myCourses, addCourse:addCourse,
              saveCourse:saveCourse, removeCourse:removeCourse,
-             verifiedCourses:verifiedCourses, isVerified:isVerified,
+             verifiedCourses:verifiedCourses, verifiedClubsList:verifiedClubsList,
+             clubById:clubById, isVerified:isVerified,
              myRequest:myRequest, submitRequest:submitRequest,
              pendingRequests:pendingRequests, approveRequest:approveRequest,
              rejectRequest:rejectRequest };
@@ -2764,6 +2784,64 @@ var APP_VERSION = '0.21';
             toast('Gelöscht.'); renderClubOffers();
           });
         });
+      });
+    });
+  }
+
+  // Golfplatz-Profil zum Durchstoebern (club/<id>) - rein lesend, fuer
+  // jeden erreichbar, der den Link hat (RLS zeigt ohnehin nur
+  // verifizierte Plaetze). Analog renderFriendRounds().
+  function renderClubProfile(id) {
+    brand.textContent = 'Golfplatz';
+    content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
+
+    Promise.all([Club.clubById(id), Club.coursesOf(id), Club.offersOf(id)]).then(function (res) {
+      var club = res[0], courses = res[1], offers = res[2];
+      if (!club) {
+        content.innerHTML = '<div class="empty"><b>Kein Zugriff</b>' +
+          'Dieser Golfplatz ist nicht (mehr) verfügbar.</div>';
+        return;
+      }
+
+      var html = '<div class="panel">' +
+        (club.cover_image_url
+          ? '<img src="' + esc(club.cover_image_url) + '" style="width:100%;border-radius:12px;margin-bottom:14px">'
+          : '') +
+        '<h3 style="margin-bottom:4px">' + esc(club.name || 'Golfplatz') + '</h3>' +
+        (club.description ? '<p>' + esc(club.description) + '</p>' : '') +
+        (club.address ? '<p class="hint" style="margin:0">' + esc(club.address) + '</p>' : '') +
+        (club.phone ? '<p class="hint" style="margin:0">' + esc(club.phone) + '</p>' : '') +
+        (club.website ? '<p class="hint" style="margin:0">' + esc(club.website) + '</p>' : '') +
+        (club.price_info ? '<p class="hint" style="margin-top:8px">' + esc(club.price_info) + '</p>' : '') +
+        '</div>';
+
+      html += '<div class="sectionhead"><span class="t">Plätze</span>' +
+        '<span class="c">' + courses.length + '</span></div>';
+      html += !courses.length
+        ? '<div class="empty"><b>Noch keine Plätze</b>Dieser Golfplatz hat noch keinen Platz angelegt.</div>'
+        : '<div class="list">' + courses.map(function (c) {
+            return '<div class="item static"><span class="meta"><span class="d">' +
+              esc(c.name || 'Platz') + '</span><span class="s">' + c.holes + ' Löcher</span></span></div>';
+          }).join('') + '</div>';
+
+      if (offers.length) {
+        html += '<div class="sectionhead"><span class="t">Angebote</span>' +
+          '<span class="c">' + offers.length + '</span></div><div class="list">';
+        offers.forEach(function (o) {
+          html += '<div class="event"><div class="eventtitle">' + esc(o.title) + '</div>' +
+            (o.description ? '<div class="eventloc">' + esc(o.description) + '</div>' : '') +
+            (o.price_info ? '<div class="eventwho">' + esc(o.price_info) + '</div>' : '') +
+            '</div>';
+        });
+        html += '</div>';
+      }
+
+      html += '<div class="actions"><button class="btn ghost" id="btnBackClub">' +
+        I.back + 'Zurück</button></div>';
+
+      content.innerHTML = html;
+      document.getElementById('btnBackClub').addEventListener('click', function () {
+        location.hash = ''; route();
       });
     });
   }
@@ -3465,7 +3543,10 @@ var APP_VERSION = '0.21';
         '<input type="number" id="mTotal" min="1" max="270" placeholder="Schl\u00e4ge gesamt">' +
         '<p class="hint" style="margin:0">Par wird dabei mit 4 pro Loch angenommen.</p>' +
         '</div>' +
-        '<div class="actions"><button class="btn" id="mNext">Weiter</button></div>' +
+        '<div class="actions">' +
+        '<button class="btn" id="mNext">Weiter</button>' +
+        '<button class="btn ghost" id="mLive" style="display:none">Live spielen</button>' +
+        '</div>' +
         '</div>';
 
       // Plaetze erst nachladen, Auswahl bleibt bis dahin auf "Kein Verein".
@@ -3483,17 +3564,23 @@ var APP_VERSION = '0.21';
           var holesSeg = document.getElementById('mHolesSeg');
           var modeSeg = document.getElementById('mModeSeg');
           var simpleBox = document.getElementById('mSimple');
+          var nextBtn = document.getElementById('mNext');
+          var liveBtn = document.getElementById('mLive');
           if (c) {
             holes = c.holes; clubPars = c.pars;
             mode = 'detail';
             holesSeg.style.display = 'none';
             modeSeg.style.display = 'none';
             simpleBox.style.display = 'none';
+            nextBtn.textContent = 'Ergebnisse eintragen';
+            liveBtn.style.display = '';
           } else {
             clubPars = null;
             holesSeg.style.display = '';
             modeSeg.style.display = '';
             simpleBox.style.display = (mode === 'simple') ? 'flex' : 'none';
+            nextBtn.textContent = 'Weiter';
+            liveBtn.style.display = 'none';
           }
         });
       });
@@ -3542,6 +3629,11 @@ var APP_VERSION = '0.21';
           startHoleWizard(dateCode, holes, clubPars);
         }
       });
+
+      document.getElementById('mLive').addEventListener('click', function () {
+        var dateCode = inputToCode(document.getElementById('mDate').value) || todayCode();
+        startHoleWizard(dateCode, holes, clubPars, 0);
+      });
     }
 
     // Loch fuer Loch, wie am Geraet selbst: ein Loch pro Bildschirm,
@@ -3549,10 +3641,15 @@ var APP_VERSION = '0.21';
     // unuebersichtlichen Raster mit allen Loechern auf einmal. Kommt ein
     // Verein zum Einsatz (fixedPars gesetzt), steht Par schon fest und
     // wird nur angezeigt statt per Stepper veraenderbar zu sein.
-    function startHoleWizard(dateCode, totalHoles, fixedPars) {
+    // startAt: Startwert des Schlaege-Zaehlers je Loch - 4 (Standard,
+    // "Ergebnisse eintragen") als plausible Schaetzung zum schnellen
+    // Nachjustieren, 0 ("Live spielen") zum tatsaechlichen Mitzaehlen
+    // waehrend der Runde, ein Tipp pro Schlag.
+    function startHoleWizard(dateCode, totalHoles, fixedPars, startAt) {
       var idx = 0;
       var acc = [];
-      var par = fixedPars ? fixedPars[0] : 4, sc = 4;
+      var startSc = (startAt != null) ? startAt : 4;
+      var par = fixedPars ? fixedPars[0] : 4, sc = startSc;
 
       function renderStep() {
         mobileEl.innerHTML =
@@ -3582,7 +3679,7 @@ var APP_VERSION = '0.21';
           });
         }
         document.getElementById('mScMinus').addEventListener('click', function () {
-          sc = Math.max(1, sc - 1); document.getElementById('mScVal').textContent = sc;
+          sc = Math.max(0, sc - 1); document.getElementById('mScVal').textContent = sc;
         });
         document.getElementById('mScPlus').addEventListener('click', function () {
           sc = Math.min(15, sc + 1); document.getElementById('mScVal').textContent = sc;
@@ -3593,7 +3690,7 @@ var APP_VERSION = '0.21';
           if (idx >= totalHoles) {
             finishManual(dateCode, acc);
           } else {
-            par = fixedPars ? fixedPars[idx] : 4; sc = 4;
+            par = fixedPars ? fixedPars[idx] : 4; sc = startSc;
             renderStep();
           }
         });
@@ -4159,6 +4256,7 @@ var APP_VERSION = '0.21';
     if (raw === 'rounds')      return 'home';
     if (raw === 'manual')      return 'scan';
     if (raw === 'menu/offers') return 'offers';
+    if (/^club\//.test(raw))  return 'home';
     if (parseCode(raw).holes.length) return 'home';   // eigene Runde direkt per Link
     return null;
   }
@@ -4261,6 +4359,9 @@ var APP_VERSION = '0.21';
       });
       return;
     }
+    // Golfplatz-Profil zum Durchstoebern: club/<id>
+    var cm = /^club\/([0-9a-f-]{36})$/.exec(raw);
+    if (cm) { renderClubProfile(cm[1]); return; }
     if (raw === 'menu/backup') { renderBackup();     return; }
     if (raw === 'menu/privacy'){ renderPrivacy();    return; }
     if (raw === 'menu/about')  { renderAbout();      return; }
