@@ -398,6 +398,12 @@
   .eventloc{color:var(--mut);font-size:13.5px;margin-top:3px}
   .eventwho{color:var(--mut);font-size:12.5px;margin-top:6px}
   .badge.ok{color:var(--lime);border-color:#a3e63544}
+  .rolebadge{display:inline-flex;align-items:center;justify-content:center;width:16px;
+             height:16px;border-radius:50%;flex:none;vertical-align:middle;margin-left:4px}
+  .rolebadge svg{width:10px;height:10px;fill:none;stroke:#0d1117;stroke-width:2.6;
+                 stroke-linecap:round;stroke-linejoin:round}
+  .rolebadge.admin{background:var(--lime)}
+  .rolebadge.club{background:#5ab4ff}
   .avarow{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
   .avachip{width:30px;height:30px;border-radius:999px;background:var(--bg);
            display:flex;align-items:center;justify-content:center;
@@ -599,7 +605,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.16';
+var APP_VERSION = '0.17';
 </script>
 
 <script>
@@ -1139,7 +1145,8 @@ var APP_VERSION = '0.16';
     cloud:'<svg viewBox="0 0 24 24"><path d="M17.5 19a4.5 4.5 0 0 0 .5-9 6 6 0 0 0-11.6-1.6A3.7 3.7 0 0 0 7 19z"/></svg>',
     x:'<svg viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>',
     down:'<svg viewBox="0 0 24 24"><path d="M12 3v13"/><path d="M7 12l5 5 5-5"/><path d="M4 21h16"/></svg>',
-    up:'<svg viewBox="0 0 24 24"><path d="M12 21V8"/><path d="M7 12l5-5 5 5"/><path d="M4 3h16"/></svg>'
+    up:'<svg viewBox="0 0 24 24"><path d="M12 21V8"/><path d="M7 12l5-5 5 5"/><path d="M4 3h16"/></svg>',
+    flag:'<svg viewBox="0 0 24 24"><path d="M8.88 19.2L8.88 11.04L15.12 7.92L8.88 4.8"/></svg>'
   };
 
   /* ---------- Menue ---------- */
@@ -2006,16 +2013,17 @@ var APP_VERSION = '0.16';
           var others = rows.map(function (f) {
             return f.requester === me ? f.addressee : f.requester;
           });
-          if (!others.length) return { rows:rows, names:{}, avatars:{} };
-          return db().from('profiles').select('user_id,display_name,avatar_url')
+          if (!others.length) return { rows:rows, names:{}, avatars:{}, admins:{} };
+          return db().from('profiles').select('user_id,display_name,avatar_url,is_admin')
             .in('user_id', others)
             .then(function (p) {
-              var names = {}, avatars = {};
+              var names = {}, avatars = {}, admins = {};
               (p.data || []).forEach(function (x) {
                 names[x.user_id] = x.display_name;
                 avatars[x.user_id] = x.avatar_url;
+                admins[x.user_id] = !!x.is_admin;
               });
-              return { rows:rows, names:names, avatars:avatars };
+              return { rows:rows, names:names, avatars:avatars, admins:admins };
             });
         })
         .then(function (res) {
@@ -2023,7 +2031,8 @@ var APP_VERSION = '0.16';
           res.rows.forEach(function (f) {
             var other = f.requester === me ? f.addressee : f.requester;
             var item = { id:f.id, userId:other, status:f.status,
-                         name:res.names[other] || '', avatarUrl:res.avatars[other] || null };
+                         name:res.names[other] || '', avatarUrl:res.avatars[other] || null,
+                         isAdmin:!!res.admins[other] };
             if (f.status === 'accepted') friends.push(item);
             else if (f.addressee === me) incoming.push(item);
             else outgoing.push(item);
@@ -2360,7 +2369,8 @@ var APP_VERSION = '0.16';
 
       var html = '<div class="panel">' +
         (club.verified
-          ? '<p class="hint" style="margin:0"><span class="badge ok">Freigeschaltet</span> ' +
+          ? '<p class="hint" style="margin:0">' + roleBadgeHtml(false, true) +
+            ' <span class="badge ok">Freigeschaltet</span> ' +
             'Dein Platz ist für Spieler sichtbar und auswählbar.</p>'
           : '<p class="hint" style="margin:0"><span class="badge">Noch nicht freigeschaltet</span> ' +
             'Sobald deine Angaben stehen, meld dich bei uns – wir schalten deinen Platz dann frei.</p>') +
@@ -2639,6 +2649,16 @@ var APP_VERSION = '0.16';
            esc((letter || '?').charAt(0).toUpperCase()) + '</span>';
   }
 
+  // Kleines Rollen-Abzeichen neben einem Namen: grüne Fahne (wie das
+  // Logo) für Admin-Konten, Haus-Symbol für verifizierte Golfplaetze.
+  // Weitere Rollen (Trainer, Influencer, ...) koennen hier spaeter einfach
+  // ergaenzt werden.
+  function roleBadgeHtml(isAdmin, isVerifiedClub) {
+    if (isAdmin) return '<span class="rolebadge admin" title="Admin">' + I.flag + '</span>';
+    if (isVerifiedClub) return '<span class="rolebadge club" title="Verifizierter Golfplatz">' + I.home + '</span>';
+    return '';
+  }
+
   function renderFriends() {
     brand.textContent = 'Freunde';
 
@@ -2667,7 +2687,7 @@ var APP_VERSION = '0.16';
                 '<span class="c">' + data.incoming.length + '</span></div><div class="list">' +
           data.incoming.map(function (f) {
             return '<div class="item static">' + avaHtml(f.avatarUrl, nameOf(f)) +
-              '<span class="meta"><span class="d">' + esc(nameOf(f)) + '</span>' +
+              '<span class="meta"><span class="d">' + esc(nameOf(f)) + roleBadgeHtml(f.isAdmin) + '</span>' +
               '<span class="s">m\u00f6chte sich verbinden</span></span>' +
               '<span class="btnrow">' +
               '<button class="mini ok" data-accept="' + f.id + '">' + I.check + '</button>' +
@@ -2686,7 +2706,7 @@ var APP_VERSION = '0.16';
         html += '<div class="list">' + data.friends.map(function (f) {
           return '<button class="item" data-friend="' + f.userId + '">' +
             avaHtml(f.avatarUrl, nameOf(f)) +
-            '<span class="meta"><span class="d">' + esc(nameOf(f)) + '</span>' +
+            '<span class="meta"><span class="d">' + esc(nameOf(f)) + roleBadgeHtml(f.isAdmin) + '</span>' +
             '<span class="s">Runden ansehen</span></span>' +
             '<span class="chev">' + I.chev + '</span></button>';
         }).join('') + '</div>';
@@ -3360,7 +3380,7 @@ var APP_VERSION = '0.16';
       var n = Store.all().length;
       content.innerHTML =
         '<div class="panel"><h3>Angemeldet</h3>' +
-        '<p>' + esc(Auth.email()) + '<br><br>' +
+        '<p>' + esc(Auth.email()) + '<span id="ownBadgeSlot"></span><br><br>' +
         'Deine Runden liegen in deinem Konto und sind auf jedem Ger\u00e4t da, ' +
         'auf dem du dich anmeldest. Aktuell gespeichert: ' + n +
         (n === 1 ? ' Runde.' : ' Runden.') + '</p>' +
@@ -3399,6 +3419,15 @@ var APP_VERSION = '0.16';
             avaHtml(p.avatar_url, p.display_name || Auth.email(), 'big');
         }
         renderClubRequestPanel(p);
+
+        var badgeSlot = document.getElementById('ownBadgeSlot');
+        if (p && p.is_admin) {
+          badgeSlot.innerHTML = roleBadgeHtml(true);
+        } else if (p && p.account_type === 'club') {
+          Club.myClub().then(function (club) {
+            if (badgeSlot) badgeSlot.innerHTML = roleBadgeHtml(false, club && club.verified);
+          });
+        }
       });
 
       document.getElementById('btnAvatarPick').addEventListener('click', function () {
