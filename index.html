@@ -144,20 +144,6 @@
   .profilehead .pname.link{color:var(--mut);font-weight:600;font-size:15px}
   .profilehead .psub{font-size:13px;color:var(--mut);margin-top:2px}
 
-  /* Freunde-Ausschnitt auf der Startseite */
-  .friendnudge{display:flex;align-items:center;gap:12px;background:var(--card);
-               border-radius:14px;padding:13px 16px;margin-bottom:12px;
-               cursor:pointer;border:0;width:100%;text-align:left;
-               color:inherit;font:inherit}
-  .friendnudge:active{background:var(--bar)}
-  .friendnudge .dot{width:9px;height:9px;border-radius:99px;background:var(--lime);flex:none}
-  .friendnudge span:last-child{color:var(--mut);flex:none}
-  .friendrow{display:flex;gap:12px;flex-wrap:wrap}
-  .friendrow button{background:transparent;border:0;padding:0;cursor:pointer;
-                    display:flex;flex-direction:column;align-items:center;gap:6px;
-                    color:inherit;font:inherit;width:58px}
-  .friendrow .fname{font-size:11.5px;color:var(--mut);text-align:center;
-                    max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* Freunde-Auswahl beim Termin anlegen: antippbare Avatare statt
      Abhak-Kaestchen, ausgewaehlt = gruener Kranz um das Bild. */
   .pickrow{display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 18px}
@@ -484,12 +470,12 @@
   }
   /* ---------- Dezente Animationen ---------- */
   /* Druckgefuehl auf allen antippbaren Elementen */
-  .btn,.iconbtn,.fab,.item,.mini,.menuitem,.friendnudge,.friendrow button,
+  .btn,.iconbtn,.fab,.item,.mini,.menuitem,
   .taction,.linkbtn,.datebtn,.linklike{
     transition:transform .12s ease, background-color .12s ease, opacity .12s ease;
   }
   .btn:active,.iconbtn:active,.fab:active,.item:active,.mini:active,
-  .menuitem:active,.friendnudge:active,.friendrow button:active,.datebtn:active{
+  .menuitem:active,.datebtn:active{
     transform:scale(.96);
   }
 
@@ -688,7 +674,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.23';
+var APP_VERSION = '0.24';
 </script>
 
 <script>
@@ -2432,22 +2418,6 @@ var APP_VERSION = '0.23';
       return db().from('golf_courses').delete().eq('id', id).eq('club_id', Auth.id());
     }
 
-    // Fuer die Kurs-Auswahl bei der manuellen Eingabe (nur Plaetze
-    // freigeschalteter Clubs) - ein Eintrag pro Platz, nicht mehr pro Club.
-    function verifiedCourses() {
-      return db().from('golf_courses')
-        .select('id,name,holes,pars,golf_clubs!inner(name,verified)')
-        .eq('golf_clubs.verified', true)
-        .then(function (r) {
-          if (r.error) throw r.error;
-          return (r.data || []).map(function (c) {
-            return { id:c.id, name:c.name, holes:c.holes, pars:c.pars,
-                     clubName:c.golf_clubs.name };
-          });
-        })
-        .catch(function () { return []; });
-    }
-
     // Fuer das Golfplatz-Abzeichen auf der Freund-Detailseite: RLS laesst
     // eine fremde Zeile nur lesen, wenn sie verified ist - kein Treffer
     // heisst also automatisch "kein Abzeichen".
@@ -2457,9 +2427,9 @@ var APP_VERSION = '0.23';
         .catch(function () { return false; });
     }
 
-    // Fuer die Golfplaetze-Liste auf der Startseite: ein Eintrag pro
-    // Club (nicht pro Platz wie verifiedCourses()), mit eingebetteten
-    // Plaetzen fuer die Kurzinfo ("2 Plaetze").
+    // Fuer die Golfplaetze-Suche im Menue: ein Eintrag pro Club (nicht
+    // pro Platz wie followedCourses()), mit eingebetteten Plaetzen fuer
+    // die Kurzinfo ("2 Plaetze").
     function verifiedClubsList() {
       return db().from('golf_clubs')
         .select('user_id,name,description,cover_image_url,golf_courses(id,name,holes)')
@@ -2532,7 +2502,7 @@ var APP_VERSION = '0.23';
     }
 
     // Fuer die Kursauswahl beim manuellen Eintragen: nur Kurse aus
-    // gefolgten Clubs (ersetzt verifiedCourses() dort).
+    // gefolgten Clubs.
     function followedCourses() {
       var uid = Auth.id();
       if (!uid) return Promise.resolve([]);
@@ -2559,7 +2529,7 @@ var APP_VERSION = '0.23';
              offersOf:offersOf, addOffer:addOffer, removeOffer:removeOffer,
              coursesOf:coursesOf, myCourses:myCourses, addCourse:addCourse,
              saveCourse:saveCourse, removeCourse:removeCourse,
-             verifiedCourses:verifiedCourses, verifiedClubsList:verifiedClubsList,
+             verifiedClubsList:verifiedClubsList,
              clubById:clubById, isVerified:isVerified,
              myFollows:myFollows, isFollowing:isFollowing, follow:follow, unfollow:unfollow,
              followedClubs:followedClubs, followedCourses:followedCourses,
@@ -3030,8 +3000,9 @@ var APP_VERSION = '0.23';
       html += !courses.length
         ? '<div class="empty"><b>Noch keine Plätze</b>Dieser Golfplatz hat noch keinen Platz angelegt.</div>'
         : '<div class="list">' + courses.map(function (c) {
-            return '<div class="item static"><span class="meta"><span class="d">' +
-              esc(c.name || 'Platz') + '</span><span class="s">' + c.holes + ' Löcher</span></span></div>';
+            return '<button class="item" data-course="' + c.id + '"><span class="meta"><span class="d">' +
+              esc(c.name || 'Platz') + '</span><span class="s">' + c.holes + ' Löcher</span></span>' +
+              '<span class="chev">' + I.chev + '</span></button>';
           }).join('') + '</div>';
 
       if (offers.length) {
@@ -3061,6 +3032,12 @@ var APP_VERSION = '0.23';
           if (r.error) { toast('Hat nicht geklappt.', true); return; }
           following = !following;
           btn.textContent = following ? 'Folgt' : 'Folgen';
+        });
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-course]'), function (el) {
+        el.addEventListener('click', function () {
+          location.hash = 'manual/' + id + '/' + el.getAttribute('data-course');
+          route();
         });
       });
     });
@@ -3724,7 +3701,7 @@ var APP_VERSION = '0.23';
     }).join('');
   }
 
-  function renderManualEntry() {
+  function renderManualEntry(preselect) {
     brand.textContent = 'Manuell eintragen';
     var todayInput = codeToInput(todayCode());
     var holes = 9;
@@ -3734,21 +3711,49 @@ var APP_VERSION = '0.23';
     // Mobil (Schritt-fuer-Schritt-Assistent, siehe renderSetup()/
     // startHoleWizard() unten) und Desktop (renderDesktopEntry(), volle
     // Lochtabelle auf einen Blick) stehen gleichzeitig im DOM, per CSS-
-    // Klasse ein-/ausgeblendet - eine Anfrage an Club.followedCourses()
-    // reicht fuer beide. Bewusst nur gefolgte Plaetze (nicht alle
-    // verifizierten), sonst waechst die Auswahl unuebersichtlich - suchen/
-    // folgen passiert im Menue unter "Golfplaetze".
+    // Klasse ein-/ausgeblendet - eine Anfrage reicht fuer beide. Ohne
+    // preselect (normaler Menue-Aufruf) bewusst nur gefolgte Plaetze
+    // (nicht alle verifizierten), sonst waechst die Auswahl unueber-
+    // sichtlich - suchen/folgen passiert im Menue unter "Golfplaetze".
+    // Mit preselect (Platz im Golfplatz-Profil angeklickt, siehe route()
+    // 'manual/<clubId>/<courseId>') wird gezielt genau dieser eine Platz
+    // geladen, egal ob gefolgt oder nicht - man steht ja schon auf dessen
+    // Profilseite. Gleiche Ergebnis-Form ({id,name,holes,pars,clubName})
+    // wie followedCourses(), damit renderSetup()/renderDesktopEntry()
+    // unten nicht wissen muessen, welcher Fall gerade vorliegt.
     content.innerHTML =
       '<div class="mobile-only" id="manualMobile"></div>' +
       '<div class="desktop-only" id="manualDesktop"></div>';
     var mobileEl = document.getElementById('manualMobile');
     var desktopEl = document.getElementById('manualDesktop');
-    var coursesPromise = Club.followedCourses();
+    var coursesPromise = preselect
+      ? Promise.all([Club.clubById(preselect.clubId), Club.coursesOf(preselect.clubId)])
+          .then(function (res) {
+            var club = res[0], list = res[1] || [];
+            var c = list.filter(function (x) { return x.id === preselect.courseId; })[0];
+            return (club && c)
+              ? [{ id: c.id, name: c.name, holes: c.holes, pars: c.pars, clubName: club.name }]
+              : [];
+          })
+          .catch(function () { return []; })
+      : Club.followedCourses();
+    if (preselect) {
+      coursesPromise.then(function (courses) {
+        // location.hash = ...; route(); loest zusaetzlich das native
+        // hashchange-Ereignis aus, das route() (und damit
+        // renderManualEntry()) ein zweites Mal aufruft - document.body.
+        // contains() erkennt hier, ob genau DIESER Aufruf noch der
+        // aktuell sichtbare ist, bevor global adressierte IDs
+        // (mClubWrap/mdClubWrap/...) angefasst werden.
+        if (!document.body.contains(mobileEl)) return;
+        if (!courses.length) toast('Platz nicht gefunden.', true);
+      });
+    }
 
     function renderSetup() {
       mobileEl.innerHTML =
         '<div class="panel"><h3>Runde eintragen</h3>' +
-        '<div class="form" style="margin-bottom:14px">' +
+        '<div class="form" style="margin-bottom:14px" id="mClubWrap">' +
         '<select id="mClub"><option value="">Kein Verein / Loch für Loch selbst wählen</option></select>' +
         '</div>' +
         '<div class="datewrap" style="margin-bottom:14px">' +
@@ -3771,10 +3776,46 @@ var APP_VERSION = '0.23';
         '</div>' +
         '</div>';
 
+      function applyCourse(c) {
+        var holesSeg = document.getElementById('mHolesSeg');
+        var modeSeg = document.getElementById('mModeSeg');
+        var simpleBox = document.getElementById('mSimple');
+        var nextBtn = document.getElementById('mNext');
+        var liveBtn = document.getElementById('mLive');
+        if (c) {
+          holes = c.holes; clubPars = c.pars;
+          mode = 'detail';
+          holesSeg.style.display = 'none';
+          modeSeg.style.display = 'none';
+          simpleBox.style.display = 'none';
+          nextBtn.textContent = 'Ergebnisse eintragen';
+          liveBtn.style.display = '';
+        } else {
+          clubPars = null;
+          holesSeg.style.display = '';
+          modeSeg.style.display = '';
+          simpleBox.style.display = (mode === 'simple') ? 'flex' : 'none';
+          nextBtn.textContent = 'Weiter';
+          liveBtn.style.display = 'none';
+        }
+      }
+
       // Plaetze erst nachladen, Auswahl bleibt bis dahin auf "Kein Verein".
+      // Bei preselect (genau ein Platz von der Golfplatz-Profilseite)
+      // ersetzt ein fester Hinweistext das Auswahlfeld, statt es nur
+      // vorauszuwaehlen - man hat den Platz ja schon bewusst angeklickt.
       coursesPromise.then(function (courses) {
+        if (!document.body.contains(mobileEl)) return;
         var sel = document.getElementById('mClub');
-        if (!sel || !courses.length) return;
+        if (!sel) return;
+        if (preselect && courses.length === 1) {
+          var pc = courses[0];
+          document.getElementById('mClubWrap').innerHTML =
+            '<p class="hint" style="margin:0">Platz: ' + esc(pc.clubName) + ' – ' + esc(pc.name || 'Platz') + '</p>';
+          applyCourse(pc);
+          return;
+        }
+        if (!courses.length) return;
         courses.forEach(function (c) {
           var o = document.createElement('option');
           o.value = c.id;
@@ -3782,28 +3823,7 @@ var APP_VERSION = '0.23';
           sel.appendChild(o);
         });
         sel.addEventListener('change', function () {
-          var c = courses.filter(function (x) { return x.id === sel.value; })[0];
-          var holesSeg = document.getElementById('mHolesSeg');
-          var modeSeg = document.getElementById('mModeSeg');
-          var simpleBox = document.getElementById('mSimple');
-          var nextBtn = document.getElementById('mNext');
-          var liveBtn = document.getElementById('mLive');
-          if (c) {
-            holes = c.holes; clubPars = c.pars;
-            mode = 'detail';
-            holesSeg.style.display = 'none';
-            modeSeg.style.display = 'none';
-            simpleBox.style.display = 'none';
-            nextBtn.textContent = 'Ergebnisse eintragen';
-            liveBtn.style.display = '';
-          } else {
-            clubPars = null;
-            holesSeg.style.display = '';
-            modeSeg.style.display = '';
-            simpleBox.style.display = (mode === 'simple') ? 'flex' : 'none';
-            nextBtn.textContent = 'Weiter';
-            liveBtn.style.display = 'none';
-          }
+          applyCourse(courses.filter(function (x) { return x.id === sel.value; })[0]);
         });
       });
 
@@ -3958,7 +3978,7 @@ var APP_VERSION = '0.23';
         desktopEl.innerHTML =
           '<div class="panel"><h3>Runde eintragen</h3>' +
           '<div class="form" style="margin-bottom:14px">' +
-          '<select id="mdClub"><option value="">Kein Verein / Par selbst wählen</option></select>' +
+          '<span id="mdClubWrap"><select id="mdClub"><option value="">Kein Verein / Par selbst wählen</option></select></span>' +
           '<input type="date" id="mdDate" value="' + todayInput + '">' +
           '</div>' +
           '<div class="seg" id="mdHolesSeg">' +
@@ -3970,8 +3990,19 @@ var APP_VERSION = '0.23';
           '</div>';
 
         coursesPromise.then(function (courses) {
+          if (!document.body.contains(desktopEl)) return;
           var sel = document.getElementById('mdClub');
-          if (!sel || !courses.length) return;
+          if (!sel) return;
+          if (preselect && courses.length === 1) {
+            var pc = courses[0];
+            mdHoles = pc.holes; mdClubPars = pc.pars;
+            document.getElementById('mdClubWrap').innerHTML =
+              '<span class="hint">Platz: ' + esc(pc.clubName) + ' – ' + esc(pc.name || 'Platz') + '</span>';
+            document.getElementById('mdHolesSeg').style.display = 'none';
+            document.getElementById('mdGrid').innerHTML = gridHtml(mdHoles, mdClubPars);
+            return;
+          }
+          if (!courses.length) return;
           courses.forEach(function (c) {
             var o = document.createElement('option');
             o.value = c.id;
@@ -4476,6 +4507,7 @@ var APP_VERSION = '0.23';
     if (raw === 'menu/plan')   return 'cal';
     if (/^friend\//.test(raw)) return 'friends';
     if (raw === 'rounds')      return 'home';
+    if (/^manual\//.test(raw)) return 'scan';
     if (raw === 'manual')      return 'scan';
     if (raw === 'menu/offers') return 'offers';
     if (/^club\//.test(raw))  return 'home';
@@ -4521,7 +4553,7 @@ var APP_VERSION = '0.23';
     // Navigation-Lektion). Greift erst, sobald das Profil einmal geladen
     // wurde (Friends.isClub() ist bis dahin false, gleiche Einschraenkung
     // wie bei Friends.isAdmin()).
-    var CLUB_BLOCKED_HASHES = ['manual', 'menu/stats', 'menu/friends', 'menu/addfriend', 'menu/plan', 'rounds'];
+    var CLUB_BLOCKED_HASHES = ['manual', 'menu/stats', 'menu/friends', 'menu/addfriend', 'menu/plan', 'menu/clubs', 'menu/backup', 'rounds'];
     if (Friends.isClub() && (CLUB_BLOCKED_HASHES.indexOf(raw) >= 0 || parseCode(raw).holes.length)) {
       location.hash = ''; route(); return;
     }
@@ -4543,6 +4575,11 @@ var APP_VERSION = '0.23';
     if (raw === 'menu/addfriend'){ renderAddFriend(); return; }
     if (raw === 'menu/stats')  { renderStats(); return; }
     if (raw === 'rounds')      { renderAllRounds(); return; }
+    // Runde direkt aus einem Golfplatz-Profil starten (Platz angeklickt):
+    // manual/<clubId>/<courseId>, vor der einfachen 'manual'-Zeile geprueft,
+    // damit die spezifischere Route zuerst greift.
+    var mc = /^manual\/([0-9a-f-]{36})\/([0-9a-f-]{36})$/.exec(raw);
+    if (mc) { renderManualEntry({ clubId: mc[1], courseId: mc[2] }); return; }
     if (raw === 'manual')      { renderManualEntry(); return; }
     if (raw === 'menu/plan')   { renderPlan(); return; }
 
