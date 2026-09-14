@@ -748,7 +748,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.28';
+var APP_VERSION = '0.29';
 </script>
 
 <script>
@@ -3896,24 +3896,37 @@ var APP_VERSION = '0.28';
           })
           .catch(function () { return []; })
       : Club.followedCourses();
-    if (preselect) {
-      coursesPromise.then(function (courses) {
-        // location.hash = ...; route(); loest zusaetzlich das native
-        // hashchange-Ereignis aus, das route() (und damit
-        // renderManualEntry()) ein zweites Mal aufruft - document.body.
-        // contains() erkennt hier, ob genau DIESER Aufruf noch der
-        // aktuell sichtbare ist, bevor global adressierte IDs
-        // (mClubWrap/mdClubWrap/...) angefasst werden.
-        if (!document.body.contains(mobileEl)) return;
-        if (!courses.length) toast('Platz nicht gefunden.', true);
-      });
-    }
+    // Der "Platz nicht gefunden."-Hinweis wird direkt in renderSetup()
+    // (Zeile mit "buildForm(courses[0] || null)") ausgeloest, sobald
+    // coursesPromise aufgeloest ist - nicht hier zusaetzlich, sonst
+    // erscheint der Toast doppelt.
 
     function renderSetup() {
+      // Bei preselect (Platz von der Golfplatz-Profilseite gewaehlt) erst
+      // einen schlichten Ladezustand zeigen und mit dem Formular warten,
+      // bis der Kurs geladen ist - sonst sieht man kurz die allgemeine
+      // "Kein Verein"-Auswahl aufblitzen, bevor der feste Platz-Hinweis
+      // sie ersetzt (auf einer langsameren Verbindung gut sichtbar).
+      if (preselect) {
+        mobileEl.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
+        coursesPromise.then(function (courses) {
+          if (!document.body.contains(mobileEl)) return;
+          if (!courses.length) toast('Platz nicht gefunden.', true);
+          buildForm(courses[0] || null);
+        });
+        return;
+      }
+      buildForm(null);
+    }
+
+    function buildForm(preselectedCourse) {
       mobileEl.innerHTML =
         '<div class="panel"><h3>Runde eintragen</h3>' +
         '<div class="form" style="margin-bottom:14px" id="mClubWrap">' +
-        '<select id="mClub"><option value="">Kein Verein / Loch für Loch selbst wählen</option></select>' +
+        (preselectedCourse
+          ? '<p class="hint" style="margin:0">Platz: ' + esc(preselectedCourse.clubName) + ' – ' +
+            esc(preselectedCourse.name || 'Platz') + '</p>'
+          : '<select id="mClub"><option value="">Kein Verein / Loch für Loch selbst wählen</option></select>') +
         '</div>' +
         '<div class="datewrap" style="margin-bottom:14px">' +
         '<button type="button" class="datebtn" id="mDateBtn">' + I.cal +
@@ -3962,32 +3975,27 @@ var APP_VERSION = '0.28';
         }
       }
 
-      // Plaetze erst nachladen, Auswahl bleibt bis dahin auf "Kein Verein".
-      // Bei preselect (genau ein Platz von der Golfplatz-Profilseite)
-      // ersetzt ein fester Hinweistext das Auswahlfeld, statt es nur
-      // vorauszuwaehlen - man hat den Platz ja schon bewusst angeklickt.
-      coursesPromise.then(function (courses) {
-        if (!document.body.contains(mobileEl)) return;
-        var sel = document.getElementById('mClub');
-        if (!sel) return;
-        if (preselect && courses.length === 1) {
-          var pc = courses[0];
-          document.getElementById('mClubWrap').innerHTML =
-            '<p class="hint" style="margin:0">Platz: ' + esc(pc.clubName) + ' – ' + esc(pc.name || 'Platz') + '</p>';
-          applyCourse(pc);
-          return;
-        }
-        if (!courses.length) return;
-        courses.forEach(function (c) {
-          var o = document.createElement('option');
-          o.value = c.id;
-          o.textContent = c.clubName + ' – ' + (c.name || 'Platz');
-          sel.appendChild(o);
+      if (preselectedCourse) {
+        applyCourse(preselectedCourse);
+      } else if (!preselect) {
+        // Nur im normalen (nicht-preselect) Fall: Plaetze nachladen und
+        // ins Auswahlfeld eintragen, Auswahl bleibt bis dahin auf
+        // "Kein Verein".
+        coursesPromise.then(function (courses) {
+          if (!document.body.contains(mobileEl)) return;
+          var sel = document.getElementById('mClub');
+          if (!sel || !courses.length) return;
+          courses.forEach(function (c) {
+            var o = document.createElement('option');
+            o.value = c.id;
+            o.textContent = c.clubName + ' – ' + (c.name || 'Platz');
+            sel.appendChild(o);
+          });
+          sel.addEventListener('change', function () {
+            applyCourse(courses.filter(function (x) { return x.id === sel.value; })[0]);
+          });
         });
-        sel.addEventListener('change', function () {
-          applyCourse(courses.filter(function (x) { return x.id === sel.value; })[0]);
-        });
-      });
+      }
 
       var mDateInput = document.getElementById('mDate');
       document.getElementById('mDateBtn').addEventListener('click', function () {
@@ -4197,14 +4205,20 @@ var APP_VERSION = '0.28';
         return rows;
       }
 
-      function render() {
+      function render(preselectedCourse) {
+        if (preselectedCourse) { mdHoles = preselectedCourse.holes; mdClubPars = preselectedCourse.pars; }
         desktopEl.innerHTML =
           '<div class="panel"><h3>Runde eintragen</h3>' +
           '<div class="form" style="margin-bottom:14px">' +
-          '<span id="mdClubWrap"><select id="mdClub"><option value="">Kein Verein / Par selbst wählen</option></select></span>' +
+          '<span id="mdClubWrap">' +
+          (preselectedCourse
+            ? '<span class="hint">Platz: ' + esc(preselectedCourse.clubName) + ' – ' +
+              esc(preselectedCourse.name || 'Platz') + '</span>'
+            : '<select id="mdClub"><option value="">Kein Verein / Par selbst wählen</option></select>') +
+          '</span>' +
           '<input type="date" id="mdDate" value="' + todayInput + '">' +
           '</div>' +
-          '<div class="seg" id="mdHolesSeg">' +
+          '<div class="seg" id="mdHolesSeg"' + (preselectedCourse ? ' style="display:none"' : '') + '>' +
           '<button type="button" class="' + (mdHoles === 9 ? 'on' : '') + '" data-holes="9">9 Löcher</button>' +
           '<button type="button" class="' + (mdHoles === 18 ? 'on' : '') + '" data-holes="18">18 Löcher</button>' +
           '</div>' +
@@ -4212,39 +4226,31 @@ var APP_VERSION = '0.28';
           '<div class="actions"><button class="btn" id="mdSave">Runde speichern</button></div>' +
           '</div>';
 
-        coursesPromise.then(function (courses) {
-          if (!document.body.contains(desktopEl)) return;
-          var sel = document.getElementById('mdClub');
-          if (!sel) return;
-          if (preselect && courses.length === 1) {
-            var pc = courses[0];
-            mdHoles = pc.holes; mdClubPars = pc.pars;
-            document.getElementById('mdClubWrap').innerHTML =
-              '<span class="hint">Platz: ' + esc(pc.clubName) + ' – ' + esc(pc.name || 'Platz') + '</span>';
-            document.getElementById('mdHolesSeg').style.display = 'none';
-            document.getElementById('mdGrid').innerHTML = gridHtml(mdHoles, mdClubPars);
-            return;
-          }
-          if (!courses.length) return;
-          courses.forEach(function (c) {
-            var o = document.createElement('option');
-            o.value = c.id;
-            o.textContent = c.clubName + ' – ' + (c.name || 'Platz');
-            sel.appendChild(o);
+        if (!preselectedCourse && !preselect) {
+          coursesPromise.then(function (courses) {
+            if (!document.body.contains(desktopEl)) return;
+            var sel = document.getElementById('mdClub');
+            if (!sel || !courses.length) return;
+            courses.forEach(function (c) {
+              var o = document.createElement('option');
+              o.value = c.id;
+              o.textContent = c.clubName + ' – ' + (c.name || 'Platz');
+              sel.appendChild(o);
+            });
+            sel.addEventListener('change', function () {
+              var c = courses.filter(function (x) { return x.id === sel.value; })[0];
+              var holesSeg = document.getElementById('mdHolesSeg');
+              if (c) {
+                mdHoles = c.holes; mdClubPars = c.pars;
+                holesSeg.style.display = 'none';
+              } else {
+                mdClubPars = null;
+                holesSeg.style.display = '';
+              }
+              document.getElementById('mdGrid').innerHTML = gridHtml(mdHoles, mdClubPars);
+            });
           });
-          sel.addEventListener('change', function () {
-            var c = courses.filter(function (x) { return x.id === sel.value; })[0];
-            var holesSeg = document.getElementById('mdHolesSeg');
-            if (c) {
-              mdHoles = c.holes; mdClubPars = c.pars;
-              holesSeg.style.display = 'none';
-            } else {
-              mdClubPars = null;
-              holesSeg.style.display = '';
-            }
-            document.getElementById('mdGrid').innerHTML = gridHtml(mdHoles, mdClubPars);
-          });
-        });
+        }
 
         Array.prototype.forEach.call(document.querySelectorAll('#mdHolesSeg button'), function (b) {
           b.addEventListener('click', function () {
@@ -4275,7 +4281,15 @@ var APP_VERSION = '0.28';
         });
       }
 
-      render();
+      if (preselect) {
+        desktopEl.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
+        coursesPromise.then(function (courses) {
+          if (!document.body.contains(desktopEl)) return;
+          render(courses[0] || null);
+        });
+        return;
+      }
+      render(null);
     }
 
     renderSetup();
