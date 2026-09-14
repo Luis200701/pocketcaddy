@@ -323,6 +323,16 @@
   .pars-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));
              gap:10px;margin:12px 0}
   .pars-grid label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--mut)}
+  /* Golfplatz-Verwaltung: eine Zeile pro Loch (Par + optionale
+     Herren-/Damen-Entfernung), statt eines reinen Par-Rasters. */
+  .holeinfo-list{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+  .holeinfo-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .holeinfo-num{font-size:12.5px;color:var(--mut);width:52px;flex:none}
+  .holeinfo-row select{background:var(--bg);border:1px solid var(--line);border-radius:10px;
+                        color:var(--txt);font:inherit;font-size:13.5px;padding:9px 6px;flex:1 1 90px}
+  .holeinfo-row input[type="number"]{background:var(--bg);border:1px solid var(--line);
+                        border-radius:10px;color:var(--txt);font:inherit;font-size:13.5px;
+                        padding:9px 8px;width:0;flex:1 1 90px}
   /* Desktop-Seite "Runde eintragen": alle Loecher auf einen Blick statt
      Schritt-fuer-Schritt-Assistent (siehe .mobile-only/.desktop-only). */
   .holegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
@@ -352,8 +362,15 @@
        display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
   .stepper span{min-width:30px;text-align:center;font-size:20px;font-weight:700;color:var(--lime)}
   .holeprogress{font-size:12.5px;color:var(--mut);text-align:center;margin:-6px 0 16px}
-  .wizardpanel{position:relative}
-  .wizardclose{position:absolute;top:14px;right:14px}
+  /* Kopfzeile des Loch-fuer-Loch-Wizards: Schliessen/Name/Info im
+     normalen Fluss (kein position:absolute mehr) - das sass vorher
+     relativ zum vertikal zentrierten .wizardpanel und landete dadurch
+     nicht in der echten Bildschirmecke, sondern irgendwo mittig. */
+  .wizardtop{display:flex;align-items:center;justify-content:space-between;
+             gap:10px;margin-bottom:6px}
+  .wizardcoursename{flex:1;text-align:center;font-size:14px;font-weight:600;
+                     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wizardscore{text-align:center;font-size:32px;font-weight:800;margin:2px 0 10px}
 
   /* Live spielen: Kopf-/Fussleiste weg, Loch-fuer-Loch-Zaehler nutzt die
      volle Flaeche mit deutlich groesseren Bedienelementen - unterwegs auf
@@ -366,16 +383,26 @@
      #content zuvor sein .fadein entfernt bekommt - siehe Kommentar dort. */
   body.wizard-fullscreen #manualMobile{
     position:fixed;inset:0;z-index:20;background:var(--bg);
-    display:flex;flex-direction:column;justify-content:center;padding:24px;
+    display:flex;flex-direction:column;padding:28px;
     box-sizing:border-box}
-  body.wizard-fullscreen #manualMobile .panel{background:transparent;padding:0;margin:0}
-  body.wizard-fullscreen .stepperrow{padding:28px 4px}
-  body.wizard-fullscreen .steppertitle{font-size:18px}
-  body.wizard-fullscreen .stepper{gap:28px}
-  body.wizard-fullscreen .stepper button{width:56px;height:56px;font-size:28px}
-  body.wizard-fullscreen .stepper span{font-size:34px}
-  body.wizard-fullscreen .holeprogress{font-size:15px}
-  body.wizard-fullscreen .actions .btn{flex:1;padding:18px;font-size:17px}
+  /* .panel selbst wird ein hoher Flex-Container (Kopfzeile oben, Knopf
+     unten fest, .wizardmid dazwischen nimmt den Rest ein und zentriert
+     die Stepper darin) - so nutzt die Ansicht wirklich die ganze
+     Bildschirmhoehe statt einer kleinen, mittig schwebenden Karte. */
+  body.wizard-fullscreen #manualMobile .panel{background:transparent;padding:0;margin:0;
+    flex:1;display:flex;flex-direction:column;min-height:0}
+  body.wizard-fullscreen .wizardmid{flex:1;display:flex;flex-direction:column;
+    justify-content:center;min-height:0}
+  body.wizard-fullscreen .wizardcoursename{font-size:17px}
+  body.wizard-fullscreen .wizardscore{font-size:52px;margin:6px 0 18px}
+  body.wizard-fullscreen .stepperrow{padding:32px 4px}
+  body.wizard-fullscreen .steppertitle{font-size:19px}
+  body.wizard-fullscreen .stepper{gap:30px}
+  body.wizard-fullscreen .stepper button{width:60px;height:60px;font-size:30px}
+  body.wizard-fullscreen .stepper span{font-size:38px}
+  body.wizard-fullscreen .holeprogress{font-size:16px;margin:0 0 6px}
+  body.wizard-fullscreen .actions{margin-top:28px}
+  body.wizard-fullscreen .actions .btn{flex:1;padding:20px;font-size:18px}
   .warn{margin:14px 0 0;font-size:12.5px;color:var(--mut);line-height:1.7}
   button.btn.google{width:100%;background:#fff;color:#1f1f1f;justify-content:center;
                     margin-bottom:16px;box-shadow:0 1px 2px #0000004d}
@@ -422,6 +449,21 @@
                      border:3px solid var(--card);flex:none}
   .clubheadrow .namewrap{display:flex;flex-direction:column;gap:6px;padding-bottom:2px}
   .clubheadrow .btn{padding:6px 16px;font-size:13px}
+  /* Adresse/Telefon/Website als eigene, direkt anklickbare Zeilen (Karte,
+     Anruf, Webseite) statt gestauchter Textzeilen - oben im Profil, vor
+     Beschreibung/Preis. */
+  .contactlist{display:flex;flex-direction:column;gap:8px;padding:16px 16px 0}
+  .contactbtn{display:flex;align-items:center;gap:12px;background:var(--bg);
+              border-radius:12px;padding:11px 14px;color:inherit;
+              text-decoration:none}
+  .contactbtn:active{background:var(--bar)}
+  .contactbtn .ic{width:34px;height:34px;border-radius:999px;background:var(--card);
+                   display:flex;align-items:center;justify-content:center;
+                   flex:none;color:var(--lime)}
+  .contactbtn .ic svg{width:16px;height:16px;fill:none;stroke:currentColor;
+                       stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .contactbtn .txt{font-size:13.5px;flex:1;min-width:0;overflow:hidden;
+                    text-overflow:ellipsis;white-space:nowrap}
 
   /* Statistik */
   .distlist{display:flex;flex-direction:column;gap:11px}
@@ -667,6 +709,11 @@
   </div>
 </div>
 
+<div class="sheetbg" id="holeInfoBg"></div>
+<div class="sheet" id="holeInfoSheet"><div class="grip"></div>
+  <div id="holeInfoContent" style="padding:4px 8px 6px"></div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <div class="scanview" id="scanview">
@@ -700,7 +747,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.25';
+var APP_VERSION = '0.27';
 </script>
 
 <script>
@@ -1221,6 +1268,12 @@ var APP_VERSION = '0.25';
   function colorOf(n){ return n < 0 ? 'var(--good)' : (n > 0 ? 'var(--bad)' : 'var(--txt)'); }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  // Golfplatz-Website wird frei eingetippt (z.B. "www.platz.de" ohne
+  // Protokoll) - als Link braucht sie eins, sonst haengt der Browser sie
+  // an die aktuelle Seite an statt extern zu oeffnen.
+  function normalizeUrl(u){
+    return /^https?:\/\//i.test(u) ? u : 'https://' + u;
+  }
 
   var I = {
     save:'<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>',
@@ -1242,7 +1295,10 @@ var APP_VERSION = '0.25';
     down:'<svg viewBox="0 0 24 24"><path d="M12 3v13"/><path d="M7 12l5 5 5-5"/><path d="M4 21h16"/></svg>',
     up:'<svg viewBox="0 0 24 24"><path d="M12 21V8"/><path d="M7 12l5-5 5 5"/><path d="M4 3h16"/></svg>',
     flag:'<svg viewBox="0 0 24 24"><path d="M8.88 19.2L8.88 11.04L15.12 7.92L8.88 4.8"/></svg>',
-    edit:'<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>'
+    edit:'<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>',
+    phone:'<svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+    pin:'<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+    globe:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
   };
 
   /* ---------- Menue ---------- */
@@ -1435,6 +1491,15 @@ var APP_VERSION = '0.25';
   function openScanChoice()  { closeMenu(); scanChoiceSheet.classList.add('on'); scanChoiceBg.classList.add('on'); }
   function closeScanChoice() { scanChoiceSheet.classList.remove('on'); scanChoiceBg.classList.remove('on'); }
 
+  // Loch-Zusatzinfos (Distanz Herren-/Damenabschlag) beim Live-Zaehlen,
+  // gleiches Sheet-Muster wie oben - Inhalt wird von startHoleWizard()
+  // pro Loch neu befuellt, bevor das Sheet geoeffnet wird.
+  var holeInfoSheet = document.getElementById('holeInfoSheet');
+  var holeInfoBg    = document.getElementById('holeInfoBg');
+  function openHoleInfo()  { holeInfoSheet.classList.add('on'); holeInfoBg.classList.add('on'); }
+  function closeHoleInfo() { holeInfoSheet.classList.remove('on'); holeInfoBg.classList.remove('on'); }
+  holeInfoBg.addEventListener('click', closeHoleInfo);
+
   document.getElementById('btnScanNav').addEventListener('click', function () {
     // Einzige bewusste JS-seitige Breakpoint-Pruefung im ganzen File: QR-Scan
     // ergibt am Rechner keinen Sinn, daher direkt zur manuellen Eingabe statt
@@ -1597,6 +1662,7 @@ var APP_VERSION = '0.25';
         Array.prototype.forEach.call(slot.querySelectorAll('[data-unfollow]'), function (el) {
           el.addEventListener('click', function (e) {
             e.stopPropagation();
+            if (!confirm('Diesem Golfplatz wirklich entfolgen?')) return;
             Club.unfollow(el.getAttribute('data-unfollow')).then(function (r) {
               if (r.error) { toast('Hat nicht geklappt.', true); return; }
               renderHome();
@@ -2543,7 +2609,7 @@ var APP_VERSION = '0.25';
       var uid = Auth.id();
       if (!uid) return Promise.resolve([]);
       return db().from('club_follows')
-        .select('golf_clubs(name,golf_courses(id,name,holes,pars))')
+        .select('golf_clubs(name,golf_courses(id,name,holes,pars,dist_men,dist_women))')
         .eq('user_id', uid)
         .then(function (r) {
           if (r.error) throw r.error;
@@ -2553,7 +2619,8 @@ var APP_VERSION = '0.25';
             if (!c) return;
             (c.golf_courses || []).forEach(function (course) {
               out.push({ id:course.id, name:course.name, holes:course.holes,
-                         pars:course.pars, clubName:c.name });
+                         pars:course.pars, distMen:course.dist_men || [],
+                         distWomen:course.dist_women || [], clubName:c.name });
             });
           });
           return out;
@@ -2619,13 +2686,24 @@ var APP_VERSION = '0.25';
     var a = []; for (var i = 0; i < holes; i++) a.push(4); return a;
   }
 
-  function parsGridHtml(pars) {
+  // Eine Zeile pro Loch: Par-Auswahl wie bisher, dazu zwei optionale
+  // Entfernungsangaben (Meter) vom Herren-/Damenabschlag - Vorbereitung
+  // fuer den i-Knopf beim Live-Zaehlen (siehe startHoleWizard()).
+  // distMen/distWomen duerfen kuerzer als pars sein oder leere
+  // Eintraege haben, das heisst schlicht "keine Angabe fuer dieses Loch".
+  function holeInfoRowsHtml(pars, distMen, distWomen) {
     return pars.map(function (p, i) {
-      return '<label>Loch ' + (i + 1) +
+      var dm = distMen[i], dw = distWomen[i];
+      return '<div class="holeinfo-row"><span class="holeinfo-num">Loch ' + (i + 1) + '</span>' +
         '<select data-par-idx="' + i + '">' +
         [3,4,5,6].map(function (v) {
-          return '<option value="' + v + '"' + (v === p ? ' selected' : '') + '>' + v + '</option>';
-        }).join('') + '</select></label>';
+          return '<option value="' + v + '"' + (v === p ? ' selected' : '') + '>Par ' + v + '</option>';
+        }).join('') + '</select>' +
+        '<input type="number" min="0" data-distmen-idx="' + i + '" placeholder="Herren m"' +
+        (dm != null ? ' value="' + dm + '"' : '') + '>' +
+        '<input type="number" min="0" data-distwomen-idx="' + i + '" placeholder="Damen m"' +
+        (dw != null ? ' value="' + dw + '"' : '') + '>' +
+        '</div>';
     }).join('');
   }
 
@@ -2721,6 +2799,8 @@ var APP_VERSION = '0.25';
       function courseCardHtml(c) {
         var id = c.id || 'new';
         var pars = (c.pars && c.pars.length === c.holes) ? c.pars : parDefaults(c.holes);
+        var distMen = c.dist_men || [];
+        var distWomen = c.dist_women || [];
         if (expandedCourse !== id) {
           return '<div class="item static" data-course="' + id + '">' +
             '<span class="meta"><span class="d">' + esc(c.name || 'Platz') + '</span>' +
@@ -2736,7 +2816,10 @@ var APP_VERSION = '0.25';
             return '<button type="button" data-holes="' + n + '" class="' +
               (c.holes === n ? 'on' : '') + '">' + n + ' Löcher</button>';
           }).join('') + '</div>' +
-          '<div class="pars-grid" data-course-pars-grid>' + parsGridHtml(pars) + '</div>' +
+          '<p class="hint" style="margin:10px 2px 6px">Par + optional Entfernung zum Loch' +
+          ' (Herren-/Damenabschlag, in Metern)</p>' +
+          '<div class="holeinfo-list" data-course-pars-grid>' +
+          holeInfoRowsHtml(pars, distMen, distWomen) + '</div>' +
           '<div class="actions">' +
           '<button class="btn" data-save-course="' + id + '">Speichern</button>' +
           (c.id ? '<button class="btn ghost" data-delete-course="' + id + '">Löschen</button>' : '') +
@@ -2776,7 +2859,8 @@ var APP_VERSION = '0.25';
             Array.prototype.forEach.call(wrap.querySelectorAll('[data-course-holes-seg] button'), function (x) {
               x.classList.toggle('on', x === b);
             });
-            wrap.querySelector('[data-course-pars-grid]').innerHTML = parsGridHtml(parDefaults(n));
+            wrap.querySelector('[data-course-pars-grid]').innerHTML =
+              holeInfoRowsHtml(parDefaults(n), [], []);
           });
         });
         Array.prototype.forEach.call(document.querySelectorAll('[data-save-course]'), function (btn) {
@@ -2786,7 +2870,13 @@ var APP_VERSION = '0.25';
             var name = wrap.querySelector('[data-course-name]').value.trim();
             var selects = wrap.querySelectorAll('[data-course-pars-grid] select');
             var pars = Array.prototype.map.call(selects, function (s) { return parseInt(s.value, 10); });
-            var fields = { name:name, holes:pars.length, pars:pars };
+            var distMen = Array.prototype.map.call(
+              wrap.querySelectorAll('[data-course-pars-grid] [data-distmen-idx]'),
+              function (i) { return i.value.trim() === '' ? null : parseInt(i.value, 10); });
+            var distWomen = Array.prototype.map.call(
+              wrap.querySelectorAll('[data-course-pars-grid] [data-distwomen-idx]'),
+              function (i) { return i.value.trim() === '' ? null : parseInt(i.value, 10); });
+            var fields = { name:name, holes:pars.length, pars:pars, dist_men:distMen, dist_women:distWomen };
             toast('Speichere …');
             var op = (id === 'new') ? Club.addCourse(fields) : Club.saveCourse(id, fields);
             op.then(function (r) {
@@ -2967,6 +3057,7 @@ var APP_VERSION = '0.25';
             if (!Auth.id()) { toast('Bitte zuerst anmelden.', true); return; }
             var id = btn.getAttribute('data-follow');
             var following = follows.indexOf(id) >= 0;
+            if (following && !confirm('Diesem Golfplatz wirklich entfolgen?')) return;
             var op = following ? Club.unfollow(id) : Club.follow(id);
             op.then(function (r) {
               if (r.error) { toast('Hat nicht geklappt.', true); return; }
@@ -3014,6 +3105,23 @@ var APP_VERSION = '0.25';
       // Banner (Titelbild) + darueber ragendes Profilbild, bewusst anders
       // aufgebaut als .profilehead/.friendhead, damit ein Golfplatz-Profil
       // optisch klar kein normales Spieler-/Freund-Profil ist.
+      // Adresse/Telefon/Website als eigene anklickbare Zeilen (Karte,
+      // Anruf, Webseite) statt gestauchter Textzeilen untereinander.
+      var contactHtml = '';
+      if (club.address) {
+        contactHtml += '<a class="contactbtn" href="https://www.google.com/maps/search/?api=1&query=' +
+          encodeURIComponent(club.address) + '" target="_blank" rel="noopener">' +
+          '<span class="ic">' + I.pin + '</span><span class="txt">' + esc(club.address) + '</span></a>';
+      }
+      if (club.phone) {
+        contactHtml += '<a class="contactbtn" href="tel:' + esc(club.phone.replace(/\s+/g, '')) + '">' +
+          '<span class="ic">' + I.phone + '</span><span class="txt">' + esc(club.phone) + '</span></a>';
+      }
+      if (club.website) {
+        contactHtml += '<a class="contactbtn" href="' + esc(normalizeUrl(club.website)) + '" target="_blank" rel="noopener">' +
+          '<span class="ic">' + I.globe + '</span><span class="txt">' + esc(club.website) + '</span></a>';
+      }
+
       var html = '<div class="panel" style="padding:0;overflow:hidden">' +
         '<div class="clubbanner"' +
         (club.cover_image_url ? ' style="background-image:url(\'' + esc(club.cover_image_url) + '\')"' : '') +
@@ -3023,13 +3131,14 @@ var APP_VERSION = '0.25';
         '<div class="namewrap"><h3 style="margin:0">' + esc(club.name || 'Golfplatz') + '</h3>' +
         '<button class="btn ghost" id="btnFollowClub">' + (following ? 'Folgt' : 'Folgen') + '</button>' +
         '</div></div>' +
-        '<div style="padding:16px">' +
-        (club.description ? '<p>' + esc(club.description) + '</p>' : '') +
-        (club.address ? '<p class="hint" style="margin:0">' + esc(club.address) + '</p>' : '') +
-        (club.phone ? '<p class="hint" style="margin:0">' + esc(club.phone) + '</p>' : '') +
-        (club.website ? '<p class="hint" style="margin:0">' + esc(club.website) + '</p>' : '') +
-        (club.price_info ? '<p class="hint" style="margin-top:8px">' + esc(club.price_info) + '</p>' : '') +
-        '</div></div>';
+        (contactHtml ? '<div class="contactlist">' + contactHtml + '</div>' : '') +
+        (club.description || club.price_info
+          ? '<div style="padding:16px 16px 0">' +
+            (club.description ? '<p style="margin-top:0">' + esc(club.description) + '</p>' : '') +
+            (club.price_info ? '<p class="hint" style="margin-top:8px">' + esc(club.price_info) + '</p>' : '') +
+            '</div>'
+          : '') +
+        '<div style="height:16px"></div></div>';
 
       html += '<div class="sectionhead"><span class="t">Plätze</span>' +
         '<span class="c">' + courses.length + '</span></div>';
@@ -3042,7 +3151,7 @@ var APP_VERSION = '0.25';
           }).join('') + '</div>';
 
       if (offers.length) {
-        html += '<div class="sectionhead"><span class="t">Angebote</span>' +
+        html += '<div class="sectionhead" style="margin-top:22px"><span class="t">Angebote</span>' +
           '<span class="c">' + offers.length + '</span></div><div class="list">';
         offers.forEach(function (o) {
           html += '<div class="event"><div class="eventtitle">' + esc(o.title) + '</div>' +
@@ -3062,6 +3171,7 @@ var APP_VERSION = '0.25';
       });
       document.getElementById('btnFollowClub').addEventListener('click', function () {
         if (!Auth.id()) { toast('Bitte zuerst anmelden.', true); return; }
+        if (following && !confirm('Diesem Golfplatz wirklich entfolgen?')) return;
         var btn = document.getElementById('btnFollowClub');
         var op = following ? Club.unfollow(id) : Club.follow(id);
         op.then(function (r) {
@@ -3778,7 +3888,9 @@ var APP_VERSION = '0.25';
             var club = res[0], list = res[1] || [];
             var c = list.filter(function (x) { return x.id === preselect.courseId; })[0];
             return (club && c)
-              ? [{ id: c.id, name: c.name, holes: c.holes, pars: c.pars, clubName: club.name }]
+              ? [{ id: c.id, name: c.name, holes: c.holes, pars: c.pars,
+                   distMen: c.dist_men || [], distWomen: c.dist_women || [],
+                   clubName: club.name }]
               : [];
           })
           .catch(function () { return []; })
@@ -3822,12 +3934,15 @@ var APP_VERSION = '0.25';
         '</div>' +
         '</div>';
 
+      var selectedCourse = null;   // volles Kurs-Objekt (fuer Name/Distanzen im Wizard), oder null
+
       function applyCourse(c) {
         var holesSeg = document.getElementById('mHolesSeg');
         var modeSeg = document.getElementById('mModeSeg');
         var simpleBox = document.getElementById('mSimple');
         var nextBtn = document.getElementById('mNext');
         var liveBtn = document.getElementById('mLive');
+        selectedCourse = c || null;
         if (c) {
           holes = c.holes; clubPars = c.pars;
           mode = 'detail';
@@ -3914,13 +4029,13 @@ var APP_VERSION = '0.25';
           for (var j = 0; j < holes; j++) holesArr.push({ par:4, sc: base + (j < rest ? 1 : 0) });
           finishManual(dateCode, holesArr);
         } else {
-          startHoleWizard(dateCode, holes, clubPars);
+          startHoleWizard(dateCode, holes, clubPars, 4, selectedCourse);
         }
       });
 
       document.getElementById('mLive').addEventListener('click', function () {
         var dateCode = inputToCode(document.getElementById('mDate').value) || todayCode();
-        startHoleWizard(dateCode, holes, clubPars, 0);
+        startHoleWizard(dateCode, holes, clubPars, 0, selectedCourse);
       });
     }
 
@@ -3933,11 +4048,15 @@ var APP_VERSION = '0.25';
     // "Ergebnisse eintragen") als plausible Schaetzung zum schnellen
     // Nachjustieren, 0 ("Live spielen") zum tatsaechlichen Mitzaehlen
     // waehrend der Runde, ein Tipp pro Schlag.
-    function startHoleWizard(dateCode, totalHoles, fixedPars, startAt) {
+    // course: das volle gewaehlte Kurs-Objekt (clubName/name/distMen/
+    // distWomen) fuer Namensanzeige + i-Knopf, oder null bei freier
+    // Eingabe ohne Verein - dann bleiben Kopfzeile-Name und i-Knopf weg.
+    function startHoleWizard(dateCode, totalHoles, fixedPars, startAt, course) {
       var idx = 0;
       var acc = [];
       var startSc = (startAt != null) ? startAt : 4;
       var par = fixedPars ? fixedPars[0] : 4, sc = startSc;
+      var courseLabel = course ? (course.clubName + ' – ' + (course.name || 'Platz')) : '';
 
       // Live spielen (startAt=0) laeuft unterwegs auf dem Platz - dafuer
       // Kopf-/Fussleiste per body-Klasse ausblenden und die volle Flaeche
@@ -3956,10 +4075,25 @@ var APP_VERSION = '0.25';
         content.classList.remove('fadein');
       }
 
+      function currentDiff() {
+        var sumPar = 0, sumSc = 0;
+        acc.forEach(function (h) { sumPar += h.par; sumSc += h.sc; });
+        return sumSc - sumPar;
+      }
+
       function renderStep() {
+        var diff = currentDiff();
         mobileEl.innerHTML =
           '<div class="panel wizardpanel">' +
-          '<button type="button" class="mini no wizardclose" id="mWizardClose" title="Abbrechen">' + I.x + '</button>' +
+          '<div class="wizardtop">' +
+          '<button type="button" class="mini no" id="mWizardClose" title="Abbrechen">' + I.x + '</button>' +
+          (courseLabel ? '<span class="wizardcoursename">' + esc(courseLabel) + '</span>' : '') +
+          (course ? '<button type="button" class="mini" id="mWizardInfo" title="Loch-Info">' + I.info + '</button>' : '') +
+          '</div>' +
+          (startAt === 0
+            ? '<div class="wizardscore" style="color:' + colorOf(diff) + '">' + sign(diff) + '</div>'
+            : '') +
+          '<div class="wizardmid">' +
           '<div class="holeprogress">Loch ' + (idx + 1) + ' von ' + totalHoles + '</div>' +
           '<div class="stepperrow"><span class="steppertitle">Par</span>' +
           (fixedPars
@@ -3972,6 +4106,7 @@ var APP_VERSION = '0.25';
           '<div class="stepper"><button type="button" id="mScMinus">\u2212</button>' +
           '<span id="mScVal">' + sc + '</span>' +
           '<button type="button" id="mScPlus">+</button></div></div>' +
+          '</div>' +
           '<div class="actions"><button class="btn" id="mHoleNext">' +
           (idx === totalHoles - 1 ? 'Speichern' : 'N\u00e4chstes Loch') + '</button></div>' +
           '</div>';
@@ -3994,6 +4129,25 @@ var APP_VERSION = '0.25';
           if (idx > 0 && !confirm('Laufende Runde verwerfen?')) return;
           location.hash = ''; route();
         });
+        var infoBtn = document.getElementById('mWizardInfo');
+        if (infoBtn) {
+          infoBtn.addEventListener('click', function () {
+            var dm = (course.distMen || [])[idx];
+            var dw = (course.distWomen || [])[idx];
+            var hasInfo = dm != null || dw != null;
+            document.getElementById('holeInfoContent').innerHTML =
+              '<h3 style="margin-top:0">Loch ' + (idx + 1) + '</h3>' +
+              (hasInfo
+                ? '<div class="list">' +
+                  (dm != null ? '<div class="item static"><span class="meta"><span class="d">Herrenabschlag</span>' +
+                    '<span class="s">' + dm + ' m bis zum Loch</span></span></div>' : '') +
+                  (dw != null ? '<div class="item static"><span class="meta"><span class="d">Damenabschlag</span>' +
+                    '<span class="s">' + dw + ' m bis zum Loch</span></span></div>' : '') +
+                  '</div>'
+                : '<p class="hint" style="margin:0">Keine Zusatzinfos für dieses Loch hinterlegt.</p>');
+            openHoleInfo();
+          });
+        }
         document.getElementById('mHoleNext').addEventListener('click', function () {
           acc.push({ par:par, sc:sc });
           idx++;
@@ -4611,7 +4765,7 @@ var APP_VERSION = '0.25';
   }
 
   function route() {
-    closeMenu(); closeScanChoice(); window.scrollTo(0,0);
+    closeMenu(); closeScanChoice(); closeHoleInfo(); window.scrollTo(0,0);
     document.body.classList.remove('wizard-fullscreen');
     updateSidebarProfile();
     var raw = (location.hash || '').replace(/^#/, '');
