@@ -63,6 +63,18 @@
     -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;
     font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     padding:0 0 calc(96px + env(safe-area-inset-bottom));
+    /* Kurze Seiten (wenig Inhalt, kein Scrollen noetig) lassen mobile
+       Browser wie iOS Safari ihre Adressleiste eingeblendet, was die
+       untere Leiste (position:fixed) sichtbar mit Abstand zum echten
+       Bildschirmrand "zu hoch" wirken laesst - auf laengeren,
+       scrollbaren Seiten (z.B. der vollere Startseite) blendet die
+       Adressleiste beim Laden/Scrollen aus, dort sitzt sie richtig.
+       min-height:100dvh (dynamische Sichtfenster-Hoehe, mit 100vh als
+       Fallback fuer aeltere Browser) sorgt dafuer, dass auch kurze
+       Seiten mindestens so hoch wie das aktuell sichtbare Fenster sind
+       - das gleicht das Verhalten zwischen kurzen und langen Seiten an. */
+    min-height:100vh;
+    min-height:100dvh;
   }
   .wrap{max-width:520px;margin:0 auto;padding:0 16px}
 
@@ -443,7 +455,7 @@
      Anmeldung soll zu sehen sein (siehe route()). */
   body.loginscreen .topbar,
   body.loginscreen .bottomnav{display:none}
-  body.loginscreen{padding-bottom:0;min-height:100vh;
+  body.loginscreen{padding-bottom:0;min-height:100vh;min-height:100dvh;
                     display:flex;flex-direction:column}
   body.loginscreen .wrap{flex:1;width:100%;
                           display:flex;flex-direction:column;justify-content:center}
@@ -839,7 +851,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.31';
+var APP_VERSION = '0.32';
 </script>
 
 <script>
