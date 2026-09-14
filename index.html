@@ -383,7 +383,8 @@
      #content zuvor sein .fadein entfernt bekommt - siehe Kommentar dort. */
   body.wizard-fullscreen #manualMobile{
     position:fixed;inset:0;z-index:20;background:var(--bg);
-    display:flex;flex-direction:column;padding:28px;
+    display:flex;flex-direction:column;
+    padding:calc(28px + env(safe-area-inset-top)) 28px calc(28px + env(safe-area-inset-bottom));
     box-sizing:border-box}
   /* .panel selbst wird ein hoher Flex-Container (Kopfzeile oben, Knopf
      unten fest, .wizardmid dazwischen nimmt den Rest ein und zentriert
@@ -747,7 +748,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.27';
+var APP_VERSION = '0.28';
 </script>
 
 <script>
@@ -1638,13 +1639,13 @@ var APP_VERSION = '0.27';
         if (!slot) return;
         if (!clubs.length) {
           slot.innerHTML =
-            '<div class="sectionhead"><span class="t">Golfplätze</span></div>' +
+            '<div class="sectionhead" style="margin-top:22px"><span class="t">Golfplätze</span></div>' +
             '<p class="hint" style="margin:0">Noch keinen Golfplätzen gefolgt – ' +
             'im Menü unter &bdquo;Golfplätze&ldquo; suchen.</p>';
           return;
         }
         slot.innerHTML =
-          '<div class="sectionhead"><span class="t">Golfplätze</span></div>' +
+          '<div class="sectionhead" style="margin-top:22px"><span class="t">Golfplätze</span></div>' +
           '<div class="clubgrid">' + clubs.slice(0, 6).map(function (c) {
             var n = c.courses.length;
             return '<div class="clubcard" data-club="' + c.id + '">' +
@@ -4764,11 +4765,26 @@ var APP_VERSION = '0.27';
     });
   }
 
-  function route() {
+  // route() wird ueber location.hash='X'; route(); direkt aufgerufen UND
+  // (weil das Setzen von location.hash zusaetzlich ein natives
+  // hashchange-Ereignis ausloest) kurz danach ein zweites Mal als
+  // hashchange-Listener - fuer die meisten Seiten nur doppelte Arbeit,
+  // bei Seiten mit eigenem asynchronem Nachladen (z.B. renderManualEntry()
+  // mit vorausgewaehltem Platz) aber ein sichtbares Zuruecksetzen auf den
+  // leeren Ausgangszustand, bevor der zweite Durchlauf erneut laedt. Ein
+  // Listener bekommt automatisch das Event-Objekt als Parameter, ein
+  // direkter Aufruf im Code dagegen nie - damit laesst sich genau das
+  // native Echo eines gerade erst verarbeiteten Hashs erkennen und
+  // ueberspringen, ohne echte Navigationen (anderer Hash) oder bewusste
+  // direkte route()-Aufrufe (kein Event-Argument) zu beeintraechtigen.
+  var lastRoutedRaw;
+  function route(e) {
+    var raw = (location.hash || '').replace(/^#/, '');
+    if (e && raw === lastRoutedRaw) return;
+    lastRoutedRaw = raw;
     closeMenu(); closeScanChoice(); closeHoleInfo(); window.scrollTo(0,0);
     document.body.classList.remove('wizard-fullscreen');
     updateSidebarProfile();
-    var raw = (location.hash || '').replace(/^#/, '');
 
     // Golfplatz-Konten sehen keine Spieler-Seiten (Statistik, Runde
     // eintragen, Freunde, Planen, eigene Runden) - reiner UX-Schutz vor
