@@ -182,24 +182,44 @@
      Abstaende zwischen den Aufprall-Punkten (27%/44%/58%) werden bewusst
      enger, das ergibt den "schnelle Treffer, dann Ruhe"-Rhythmus. Basis-
      position des <circle> bleibt die Lochposition (Endzustand), animiert
-     wird nur relativ dazu per translate/scale. */
-  #bootBall{transform-box:fill-box;transform-origin:center;
-            opacity:0;animation:bootBallFall 1.55s .5s cubic-bezier(.33,.66,.4,1) forwards}
+     wird nur relativ dazu per translate/scale.
+     Fester transform-origin (statt transform-box:fill-box) - erspart dem
+     Browser, bei jedem Frame die Bounding-Box neu zu berechnen, was auf
+     schwaecheren Geraeten zu sichtbarem Ruckeln fuehren kann; der Punkt
+     ist ohnehin exakt der Kreismittelpunkt, also keine optische Aenderung.
+     Jede Sprung-Phase bekommt ihre EIGENE Easing-Funktion (fallen =
+     beschleunigend/ease-in, hochspringen = abbremsend/ease-out) statt
+     einer einzigen globalen Kurve fuer die ganze Animation - eine globale
+     Kurve macht zwar das Gesamt-Tempo ungleichmaessig, interpoliert aber
+     JEDEN einzelnen Sprungabschnitt weiterhin linear (= abrupte
+     Richtungswechsel an jedem Aufprallpunkt), genau das wirkte ruckelig. */
+  #bootBall{transform-origin:81.28px 148px;
+            opacity:0;animation:bootBallFall 1.55s .5s linear forwards}
   @keyframes bootFlagIn{
     0%{opacity:0;transform:scale(.6)}
     100%{opacity:1;transform:scale(1)}
   }
   @keyframes bootBallFall{
-    0%  {opacity:0;transform:translate(150px,-20px) scaleX(1) scaleY(1)}
-    5%  {opacity:1;transform:translate(150px,-20px) scaleX(1) scaleY(1)}
-    20% {transform:translate(95px,-6px) scaleX(1) scaleY(1)}
-    27% {transform:translate(85px,0) scaleX(1.18) scaleY(.72)}
-    36% {transform:translate(70px,-10px) scaleX(.94) scaleY(1.06)}
-    44% {transform:translate(58px,0) scaleX(1.14) scaleY(.78)}
-    50% {transform:translate(50px,-4px) scaleX(1) scaleY(1)}
-    58% {transform:translate(42px,0) scaleX(1.08) scaleY(.88)}
-    74% {transform:translate(14px,0) scaleX(1) scaleY(1)}
-    90% {opacity:1;transform:translate(0,0) scaleX(1) scaleY(1)}
+    0%  {opacity:0;transform:translate(150px,-20px) scaleX(1) scaleY(1);
+         animation-timing-function:cubic-bezier(.55,0,1,.45)}
+    5%  {opacity:1;transform:translate(150px,-20px) scaleX(1) scaleY(1);
+         animation-timing-function:cubic-bezier(.55,0,1,.45)}
+    20% {transform:translate(95px,-6px) scaleX(1) scaleY(1);
+         animation-timing-function:cubic-bezier(.55,0,1,.45)}
+    27% {transform:translate(85px,0) scaleX(1.18) scaleY(.72);
+         animation-timing-function:cubic-bezier(0,.55,.45,1)}
+    36% {transform:translate(70px,-10px) scaleX(.94) scaleY(1.06);
+         animation-timing-function:cubic-bezier(.55,0,1,.45)}
+    44% {transform:translate(58px,0) scaleX(1.14) scaleY(.78);
+         animation-timing-function:cubic-bezier(0,.55,.45,1)}
+    50% {transform:translate(50px,-4px) scaleX(1) scaleY(1);
+         animation-timing-function:cubic-bezier(.55,0,1,.45)}
+    58% {transform:translate(42px,0) scaleX(1.08) scaleY(.88);
+         animation-timing-function:ease-out}
+    74% {transform:translate(14px,0) scaleX(1) scaleY(1);
+         animation-timing-function:ease-in}
+    90% {opacity:1;transform:translate(0,0) scaleX(1) scaleY(1);
+         animation-timing-function:ease-in}
     100%{opacity:0;transform:translate(0,4px) scaleX(.15) scaleY(.15)}
   }
   .scantop{position:relative;z-index:2;display:flex;justify-content:space-between;
@@ -423,7 +443,10 @@
      Anmeldung soll zu sehen sein (siehe route()). */
   body.loginscreen .topbar,
   body.loginscreen .bottomnav{display:none}
-  body.loginscreen{padding-bottom:0}
+  body.loginscreen{padding-bottom:0;min-height:100vh;
+                    display:flex;flex-direction:column}
+  body.loginscreen .wrap{flex:1;width:100%;
+                          display:flex;flex-direction:column;justify-content:center}
   /* #manualMobile wird per JS (startHoleWizard()) erst dann zuverlaessig
      zum echten Containing-Block-freien position:fixed-Element, wenn
      #content zuvor sein .fadein entfernt bekommt - siehe Kommentar dort. */
