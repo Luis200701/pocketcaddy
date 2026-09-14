@@ -177,19 +177,30 @@
   #bootScreen.out{opacity:0;pointer-events:none}
   #bootFlagPath{transform-box:fill-box;transform-origin:center;
                 opacity:0;animation:bootFlagIn .5s .15s ease forwards}
+  /* Ball fliegt von rechts ein, prallt zweimal auf (Stauchung per
+     scaleX/scaleY), rollt kurz, faellt am Fahnenfuss ins Loch - die
+     Abstaende zwischen den Aufprall-Punkten (27%/44%/58%) werden bewusst
+     enger, das ergibt den "schnelle Treffer, dann Ruhe"-Rhythmus. Basis-
+     position des <circle> bleibt die Lochposition (Endzustand), animiert
+     wird nur relativ dazu per translate/scale. */
   #bootBall{transform-box:fill-box;transform-origin:center;
-            opacity:0;animation:bootBallFall 1.3s .55s ease-in forwards}
+            opacity:0;animation:bootBallFall 1.55s .5s cubic-bezier(.33,.66,.4,1) forwards}
   @keyframes bootFlagIn{
     0%{opacity:0;transform:scale(.6)}
     100%{opacity:1;transform:scale(1)}
   }
   @keyframes bootBallFall{
-    0%{opacity:0;transform:translateY(0) scale(1)}
-    8%{opacity:1}
-    62%{opacity:1;transform:translateY(132px) scale(1)}
-    78%{opacity:1;transform:translateY(132px) scale(1)}
-    92%{opacity:0;transform:translateY(132px) scale(.1)}
-    100%{opacity:0;transform:translateY(132px) scale(.1)}
+    0%  {opacity:0;transform:translate(150px,-45px) scaleX(1) scaleY(1)}
+    5%  {opacity:1;transform:translate(150px,-45px) scaleX(1) scaleY(1)}
+    20% {transform:translate(92px,-8px) scaleX(1) scaleY(1)}
+    27% {transform:translate(85px,0) scaleX(1.18) scaleY(.72)}
+    36% {transform:translate(70px,-15px) scaleX(.94) scaleY(1.06)}
+    44% {transform:translate(58px,0) scaleX(1.14) scaleY(.78)}
+    50% {transform:translate(50px,-5px) scaleX(1) scaleY(1)}
+    58% {transform:translate(42px,0) scaleX(1.08) scaleY(.88)}
+    74% {transform:translate(14px,0) scaleX(1) scaleY(1)}
+    90% {opacity:1;transform:translate(0,0) scaleX(1) scaleY(1)}
+    100%{opacity:0;transform:translate(0,4px) scaleX(.15) scaleY(.15)}
   }
   .scantop{position:relative;z-index:2;display:flex;justify-content:space-between;
            align-items:center;padding:calc(14px + env(safe-area-inset-top)) 16px 14px}
@@ -407,6 +418,12 @@
   body.wizard-fullscreen .topbar,
   body.wizard-fullscreen .bottomnav{display:none}
   body.wizard-fullscreen{padding-bottom:0}
+  /* Anmelde-Bildschirm: obere und untere Leiste fuehren ohne Konto
+     sowieso nirgends hin, also weg damit - nur die eigentliche
+     Anmeldung soll zu sehen sein (siehe route()). */
+  body.loginscreen .topbar,
+  body.loginscreen .bottomnav{display:none}
+  body.loginscreen{padding-bottom:0}
   /* #manualMobile wird per JS (startHoleWizard()) erst dann zuverlaessig
      zum echten Containing-Block-freien position:fixed-Element, wenn
      #content zuvor sein .fadein entfernt bekommt - siehe Kommentar dort. */
@@ -799,7 +816,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.30';
+var APP_VERSION = '0.31';
 </script>
 
 <script>
@@ -4654,7 +4671,12 @@ var APP_VERSION = '0.30';
       'Passwort vergessen?</button></div>' +
       '<p class="warn">Die Mail kommt von Supabase und landet erfahrungs' +
       'gem\u00e4\u00df oft im Spam-Ordner. Schau dort nach, falls nichts ' +
-      'ankommt.</p></div>';
+      'ankommt.</p>' +
+      '<div class="linkrow">' +
+      '<button class="linkbtn" id="btnLoginPrivacy">Datenschutz</button>' +
+      '&nbsp;\u00b7&nbsp;' +
+      '<button class="linkbtn" id="btnLoginAbout">\u00dcber</button>' +
+      '</div></div>';
 
     function creds() {
       var e = document.getElementById('fEmail').value.trim();
@@ -4720,6 +4742,13 @@ var APP_VERSION = '0.30';
         // dieser Adresse ueberhaupt ein Konto gibt.
         toast('Falls es ein Konto gibt, ist die Mail unterwegs. Auch im Spam schauen.');
       });
+    });
+
+    document.getElementById('btnLoginPrivacy').addEventListener('click', function () {
+      location.hash = 'menu/privacy'; route();
+    });
+    document.getElementById('btnLoginAbout').addEventListener('click', function () {
+      location.hash = 'menu/about'; route();
     });
 
   }
@@ -4884,6 +4913,9 @@ var APP_VERSION = '0.30';
     if (!Auth.id() && LOGIN_EXEMPT_HASHES.indexOf(raw) < 0) {
       location.hash = 'menu/login'; route(); return;
     }
+    // Nur auf der eigentlichen Anmeldeseite (nicht auch auf Datenschutz/
+    // Ueber) obere und untere Leiste ausblenden - siehe body.loginscreen-CSS.
+    document.body.classList.toggle('loginscreen', !Auth.id() && raw === 'menu/login');
 
     // eintragen, Freunde, Planen, eigene Runden) - reiner UX-Schutz vor
     // alten/falschen Links, keine Sicherheitsmassnahme (siehe Golfplatz-
@@ -5012,7 +5044,7 @@ var APP_VERSION = '0.30';
     bootScreen.classList.add('out');
     setTimeout(function () { if (bootScreen) { bootScreen.remove(); bootScreen = null; } }, 400);
   }
-  setTimeout(function () { bootAnimDone = true; maybeHideBoot(); }, 1900);
+  setTimeout(function () { bootAnimDone = true; maybeHideBoot(); }, 2050);
 
   Auth.init(function () {
     buildMenu();
