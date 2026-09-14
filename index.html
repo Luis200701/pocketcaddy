@@ -162,6 +162,35 @@
             opacity:0;pointer-events:none;transition:opacity .2s}
   .scanview.on{opacity:1;pointer-events:auto}
   .scanview video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  /* Profilbild antippen zum Vergroessern */
+  .avazoom{position:fixed;inset:0;background:#000d;z-index:45;
+           display:flex;align-items:center;justify-content:center;
+           opacity:0;pointer-events:none;transition:opacity .2s}
+  .avazoom.on{opacity:1;pointer-events:auto}
+  .avazoom img{max-width:90vw;max-height:90vh;border-radius:16px;object-fit:contain}
+  .ava img{cursor:zoom-in}
+
+  /* Boot-Screen (siehe Markup ganz am Anfang von <body>) */
+  #bootScreen{position:fixed;inset:0;z-index:9999;background:#101217;
+              display:flex;align-items:center;justify-content:center;
+              transition:opacity .35s ease}
+  #bootScreen.out{opacity:0;pointer-events:none}
+  #bootFlagPath{transform-box:fill-box;transform-origin:center;
+                opacity:0;animation:bootFlagIn .5s .15s ease forwards}
+  #bootBall{transform-box:fill-box;transform-origin:center;
+            opacity:0;animation:bootBallFall 1.3s .55s ease-in forwards}
+  @keyframes bootFlagIn{
+    0%{opacity:0;transform:scale(.6)}
+    100%{opacity:1;transform:scale(1)}
+  }
+  @keyframes bootBallFall{
+    0%{opacity:0;transform:translateY(0) scale(1)}
+    8%{opacity:1}
+    62%{opacity:1;transform:translateY(132px) scale(1)}
+    78%{opacity:1;transform:translateY(132px) scale(1)}
+    92%{opacity:0;transform:translateY(132px) scale(.1)}
+    100%{opacity:0;transform:translateY(132px) scale(.1)}
+  }
   .scantop{position:relative;z-index:2;display:flex;justify-content:space-between;
            align-items:center;padding:calc(14px + env(safe-area-inset-top)) 16px 14px}
   .scantop .close{background:#00000080;border:0;color:#fff;width:40px;height:40px;
@@ -635,6 +664,23 @@
 </head>
 <body>
 
+<!-- Boot-Screen: steht von Anfang an im statischen HTML (kein JS noetig
+     zum Anzeigen), verdeckt dadurch auch die Wartezeit auf Auth.init()
+     unten (in der #content bewusst leer bleibt, siehe Kommentar dort).
+     Fahne blendet ein, danach faellt der Ball ins Loch - Pfad-Koordinaten
+     sind direkt in 200x200-Einheiten umgerechnet (kein separates SVG-
+     transform-Attribut auf dem Pfad, das wuerde sich mit der CSS-
+     Animation unten beissen), damit die CSS-Animation sauber greift. -->
+<div id="bootScreen">
+  <svg viewBox="0 0 200 200" width="140" height="140" overflow="visible">
+    <ellipse cx="81.28" cy="148" rx="16" ry="5" fill="#ffffff14"/>
+    <path id="bootFlagPath" d="M81.28 143.2L81.28 94.24L118.72 75.52L81.28 56.8"
+      fill="none" stroke="#a3e635" stroke-width="2.2"
+      stroke-linecap="round" stroke-linejoin="round"/>
+    <circle id="bootBall" cx="81.28" cy="16" r="7" fill="#a3e635"/>
+  </svg>
+</div>
+
 <div class="topbar">
   <span class="topleft">
     <button class="iconbtn back" id="btnTopBack" aria-label="Zur\u00fcck zur Startseite">
@@ -715,6 +761,11 @@
   <div id="holeInfoContent" style="padding:4px 8px 6px"></div>
 </div>
 
+<!-- Profilbild antippen zum Vergroessern - randloses Vollbild-Overlay
+     wie .scanview, statt der Karten-Optik von .sheet, da hier nur ein
+     Bild gezeigt wird. -->
+<div class="avazoom" id="avaZoom"><img id="avaZoomImg" alt=""></div>
+
 <div class="toast" id="toast"></div>
 
 <div class="scanview" id="scanview">
@@ -748,7 +799,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.29';
+var APP_VERSION = '0.30';
 </script>
 
 <script>
@@ -1501,6 +1552,23 @@ var APP_VERSION = '0.29';
   function closeHoleInfo() { holeInfoSheet.classList.remove('on'); holeInfoBg.classList.remove('on'); }
   holeInfoBg.addEventListener('click', closeHoleInfo);
 
+  // Profilbild antippen zum Vergroessern - EIN delegierter Listener statt
+  // Einzel-Handler an den ~15 Stellen, die avaHtml() aufrufen. Reagiert nur
+  // auf ein <img> innerhalb von .ava (Buchstaben-Platzhalter ohne Bild
+  // haben keins), stopPropagation() noetig, weil ein Profilbild oft in
+  // einer selbst schon anklickbaren Zeile steckt (z.B. Freund-Liste).
+  var avaZoom = document.getElementById('avaZoom');
+  var avaZoomImg = document.getElementById('avaZoomImg');
+  function closeAvaZoom() { avaZoom.classList.remove('on'); }
+  avaZoom.addEventListener('click', closeAvaZoom);
+  document.addEventListener('click', function (e) {
+    var img = e.target.closest && e.target.closest('.ava img');
+    if (!img) return;
+    e.stopPropagation();
+    avaZoomImg.src = img.src;
+    avaZoom.classList.add('on');
+  }, true);
+
   document.getElementById('btnScanNav').addEventListener('click', function () {
     // Einzige bewusste JS-seitige Breakpoint-Pruefung im ganzen File: QR-Scan
     // ergibt am Rechner keinen Sinn, daher direkt zur manuellen Eingabe statt
@@ -2162,7 +2230,7 @@ var APP_VERSION = '0.29';
     function setAvatar(file) {
       var uid = Auth.id();
       var oldUrl = myProfile && myProfile.avatar_url;
-      return resizeImageToJpeg(file, 400).then(function (blob) {
+      return resizeImageToJpeg(file, 800).then(function (blob) {
         var path = uid + '/' + Date.now() + '.jpg';
         return db().storage.from('avatars').upload(path, blob, { contentType: 'image/jpeg' })
           .then(function (up) {
@@ -2297,8 +2365,11 @@ var APP_VERSION = '0.29';
       return db().from('rounds')
         .update({ confirmed:true, updated_at:new Date().toISOString() })
         .eq('id', roundId)
-        .then(function (r) { return !r.error; })
-        .catch(function () { return false; });
+        .then(function (r) {
+          if (r.error) { console.error('confirmRound', r.error); return false; }
+          return true;
+        })
+        .catch(function (e) { console.error('confirmRound', e); return false; });
     }
 
     return { loadProfile:loadProfile, setName:setName, setAvatar:setAvatar, list:list,
@@ -2916,7 +2987,7 @@ var APP_VERSION = '0.29';
         var file = e.target.files && e.target.files[0]; e.target.value = '';
         if (!file) return;
         toast('Lade Bild hoch …');
-        Club.uploadMedia(file, 400, 400).then(function (url) {
+        Club.uploadMedia(file, 800, 800).then(function (url) {
           return Club.saveClub({ avatar_url: url });
         }).then(function () { toast('Profilbild gespeichert.'); renderClub(); })
           .catch(function (e) { toast('Hochladen fehlgeschlagen: ' + (e && e.message || ''), true); });
@@ -4559,8 +4630,10 @@ var APP_VERSION = '0.29';
 
     content.innerHTML =
       '<div class="panel"><h3>Anmelden</h3>' +
-      '<p>Mit einem Konto liegen deine Runden nicht nur auf diesem Ger\u00e4t. ' +
-      'Ohne Anmeldung funktioniert alles wie bisher, nur eben lokal.</p>' +
+      '<p>Mit einem Konto liegen deine Runden nicht nur auf diesem Ger\u00e4t, ' +
+      'sondern auch sicher in der Cloud - und du kannst Freunde hinzuf\u00fcgen ' +
+      'und Golfpl\u00e4tzen folgen. Eine Anmeldung ist daher f\u00fcr die Nutzung der ' +
+      'App n\u00f6tig.</p>' +
 
       '<button class="btn google" id="btnGoogle">' +
       '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>' +
@@ -4685,12 +4758,13 @@ var APP_VERSION = '0.29';
       '</p></div>' +
 
       '<div class="panel"><h3>Welche Daten gespeichert werden</h3><p>' +
-      'Ohne Anmeldung bleibt alles ausschließlich lokal auf deinem Gerät ' +
-      '(Browser-Speicher), es geht nichts an einen Server.<br><br>' +
-      'Mit Anmeldung zusätzlich in der Datenbank: deine E-Mail-Adresse, ' +
-      'optional ein selbst gewählter Anzeigename, deine Golf-Runden ' +
-      '(Datum, Par und Schläge je Loch), sowie – falls genutzt – ' +
-      'Freundschaftsverbindungen zu anderen Konten.' +
+      'Die Nutzung der App setzt ein Konto voraus. Dabei gespeichert ' +
+      'werden: deine E-Mail-Adresse, optional ein selbst gewählter ' +
+      'Anzeigename, deine Golf-Runden (Datum, Par und Schläge je Loch), ' +
+      'sowie – falls genutzt – Freundschaftsverbindungen zu anderen ' +
+      'Konten. Zusätzlich behält dein Gerät eine lokale Kopie deiner ' +
+      'Runden im Browser-Speicher, damit die App auch ohne ' +
+      'Internetverbindung funktioniert.' +
       '</p></div>' +
 
       '<div class="panel"><h3>Google-Anmeldung</h3><p>' +
@@ -4801,6 +4875,16 @@ var APP_VERSION = '0.29';
     updateSidebarProfile();
 
     // Golfplatz-Konten sehen keine Spieler-Seiten (Statistik, Runde
+    // Ohne Konto kommt man nicht in die App - einzige Ausnahmen sind die
+    // Anmeldeseite selbst (deckt auch Registrierung und "neues Passwort
+    // setzen" intern ab, siehe renderLogin()/Auth.isRecovery()) sowie
+    // Datenschutz und "Ueber", die auch vor einer Registrierung lesbar
+    // bleiben sollen. Greift bewusst ganz oben, vor jeder anderen Weiche.
+    var LOGIN_EXEMPT_HASHES = ['menu/login', 'menu/privacy', 'menu/about'];
+    if (!Auth.id() && LOGIN_EXEMPT_HASHES.indexOf(raw) < 0) {
+      location.hash = 'menu/login'; route(); return;
+    }
+
     // eintragen, Freunde, Planen, eigene Runden) - reiner UX-Schutz vor
     // alten/falschen Links, keine Sicherheitsmassnahme (siehe Golfplatz-
     // Navigation-Lektion). Greift erst, sobald das Profil einmal geladen
@@ -4916,12 +5000,28 @@ var APP_VERSION = '0.29';
   // Ablage ohne Anmeldung angezeigt und danach umspringen.
   Auth.onChange(function () { buildMenu(); route(); });
 
+  // Boot-Screen erst wieder wegnehmen, wenn BEIDES fertig ist: die feste
+  // Animationsdauer (unten, Timeout) UND der Auth-Kontostand (hier) - je
+  // nachdem was laenger dauert. Verhindert sowohl ein abruptes Abschneiden
+  // der Animation als auch (bei langsamem Netz) eine sichtbare Luecke
+  // danach.
+  var bootScreen = document.getElementById('bootScreen');
+  var bootAnimDone = false, bootAuthDone = false;
+  function maybeHideBoot() {
+    if (!bootAnimDone || !bootAuthDone || !bootScreen) return;
+    bootScreen.classList.add('out');
+    setTimeout(function () { if (bootScreen) { bootScreen.remove(); bootScreen = null; } }, 400);
+  }
+  setTimeout(function () { bootAnimDone = true; maybeHideBoot(); }, 1900);
+
   Auth.init(function () {
     buildMenu();
     route();
     if (Auth.id()) {
       Store.sync().then(function (r) { if (r && r.ok) route(); });
     }
+    bootAuthDone = true;
+    maybeHideBoot();
   });
 
   window.addEventListener('hashchange', route);
