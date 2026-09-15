@@ -322,6 +322,28 @@
   tfoot td{background:var(--bar);font-weight:700;border-top:2px solid #ffffff1a}
 
   .actions{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  /* "Nächstes Loch" beim Live-Mitzählen: Wisch-Leiste statt Antipp-Button
+     (wie das alte iPhone-Entsperren) - der Griff muss bewusst bis fast ans
+     Ende gezogen werden, ein einfaches Antippen loest nichts aus. Siehe
+     startHoleWizard()/advanceHole() fuer die Pointer-Event-Logik. */
+  .slidewrap{position:relative;width:100%;height:60px;border-radius:999px;
+    background:#ffffff10;box-shadow:inset 0 0 0 1px #ffffff1a;
+    overflow:hidden;display:flex;align-items:center;touch-action:pan-y}
+  .slidefill{position:absolute;left:0;top:0;bottom:0;width:52px;
+    background:var(--lime);opacity:.28;border-radius:999px 0 0 999px}
+  .slidelabel{position:absolute;left:0;right:0;text-align:center;
+    font-size:15px;font-weight:600;color:var(--mut);pointer-events:none}
+  .slidethumb{position:absolute;left:4px;top:4px;width:52px;height:52px;
+    border-radius:999px;background:var(--lime);display:flex;
+    align-items:center;justify-content:center;box-shadow:0 4px 12px #0006;
+    touch-action:none;cursor:grab}
+  .slidethumb svg{width:24px;height:24px;color:#0d1117;fill:none;
+    stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+  body.wizard-fullscreen .slidewrap{height:72px}
+  body.wizard-fullscreen .slidefill,
+  body.wizard-fullscreen .slidethumb{width:64px;height:64px}
+  body.wizard-fullscreen .slidethumb{top:4px}
+  body.wizard-fullscreen .slidelabel{font-size:17px}
   button.btn{font:600 15px/1 inherit;font-family:inherit;color:#0d1117;background:var(--lime);
     border:0;border-radius:999px;padding:14px 24px;cursor:pointer;
     display:inline-flex;align-items:center;gap:9px}
@@ -851,7 +873,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.32';
+var APP_VERSION = '0.33';
 </script>
 
 <script>
@@ -1605,16 +1627,19 @@ var APP_VERSION = '0.32';
   holeInfoBg.addEventListener('click', closeHoleInfo);
 
   // Profilbild antippen zum Vergroessern - EIN delegierter Listener statt
-  // Einzel-Handler an den ~15 Stellen, die avaHtml() aufrufen. Reagiert nur
-  // auf ein <img> innerhalb von .ava (Buchstaben-Platzhalter ohne Bild
-  // haben keins), stopPropagation() noetig, weil ein Profilbild oft in
-  // einer selbst schon anklickbaren Zeile steckt (z.B. Freund-Liste).
+  // Einzel-Handler an den ~15 Stellen, die avaHtml() aufrufen. Reagiert NUR
+  // auf ein <img> innerhalb von .ava.zoomable - bewusst opt-in statt global:
+  // an Stellen, wo der Avatar-Klick selbst schon etwas bedeutet (Freund-Zeile
+  // navigiert, .pickava togglet eine Auswahl beim Termin anlegen, ...) darf
+  // stopPropagation() dort NICHT dazwischenfunken. .zoomable wird nur an den
+  // Aufrufstellen von avaHtml() gesetzt, die rein zur Anzeige da sind
+  // (eigenes Profil, Freund-/Club-Profilseite).
   var avaZoom = document.getElementById('avaZoom');
   var avaZoomImg = document.getElementById('avaZoomImg');
   function closeAvaZoom() { avaZoom.classList.remove('on'); }
   avaZoom.addEventListener('click', closeAvaZoom);
   document.addEventListener('click', function (e) {
-    var img = e.target.closest && e.target.closest('.ava img');
+    var img = e.target.closest && e.target.closest('.ava.zoomable img');
     if (!img) return;
     e.stopPropagation();
     avaZoomImg.src = img.src;
@@ -1813,7 +1838,7 @@ var APP_VERSION = '0.32';
       var name = prof && prof.display_name;
       if (prof) {
         head.querySelector('.ava').outerHTML =
-          avaHtml(prof.avatar_url, name || Auth.email(), '', '', badgeTypeFor(prof.is_admin, prof.verified_role));
+          avaHtml(prof.avatar_url, name || Auth.email(), 'zoomable', '', badgeTypeFor(prof.is_admin, prof.verified_role));
       }
       head.querySelector('.pname').outerHTML = name
         ? '<div class="pname">' + esc(name) + '</div>'
@@ -2630,18 +2655,22 @@ var APP_VERSION = '0.32';
       if (!uid) return Promise.resolve([]);
       return coursesOf(uid);
     }
-    function addCourse(fields) {
-      var payload = { club_id: Auth.id() };
+    // clubId optional - Vorgabe Auth.id() (Club pflegt seinen eigenen
+    // Platz), von der Admin-Platzpflege aber explizit mit der Ziel-
+    // Club-ID aufgerufen (siehe renderAdminClubCourses()). Serverseitig
+    // greift dafuer die Admin-Bypass-Policy aus 13_admin_kurse.sql.
+    function addCourse(fields, clubId) {
+      var payload = { club_id: clubId || Auth.id() };
       for (var k in fields) payload[k] = fields[k];
       return db().from('golf_courses').insert(payload);
     }
-    function saveCourse(id, fields) {
+    function saveCourse(id, fields, clubId) {
       var payload = { updated_at: new Date().toISOString() };
       for (var k in fields) payload[k] = fields[k];
-      return db().from('golf_courses').update(payload).eq('id', id).eq('club_id', Auth.id());
+      return db().from('golf_courses').update(payload).eq('id', id).eq('club_id', clubId || Auth.id());
     }
-    function removeCourse(id) {
-      return db().from('golf_courses').delete().eq('id', id).eq('club_id', Auth.id());
+    function removeCourse(id, clubId) {
+      return db().from('golf_courses').delete().eq('id', id).eq('club_id', clubId || Auth.id());
     }
 
     // Fuer das Golfplatz-Abzeichen auf der Freund-Detailseite: RLS laesst
@@ -2831,6 +2860,132 @@ var APP_VERSION = '0.32';
     }).join('');
   }
 
+  // Wiederverwendbare Plaetze-Verwaltung (Karten-Liste mit Loch/Par/
+  // Distanz-Formular) - von renderClub() fuer den eigenen Platz UND von
+  // renderAdminClubCourses() fuer einen fremden Platz genutzt (dann mit
+  // expliziter clubId statt Auth.id()), damit das Formular nicht doppelt
+  // gepflegt werden muss. courses wird als Referenz uebergeben und intern
+  // neu zugewiesen (courses = ...), das wirkt sich nicht auf den Aufrufer
+  // aus - der uebergibt die Liste ohnehin nur einmal beim Aufbau.
+  function mountCoursesEditor(listEl, addBtn, courses, clubId) {
+    clubId = clubId || Auth.id();
+    var expandedCourse = null;   // id des gerade aufgeklappten Platzes, 'new' fuer einen neuen
+
+    // Ein Platz als Karte: eingeklappt nur Name/Lochzahl mit Stift-Symbol,
+    // aufgeklappt (expandedCourse === diese id) das volle Formular mit
+    // Name/9-18-Umschalter/Par-Raster - alles per data-course="<id>"
+    // sauber pro Karte gescoped, da mehrere Plaetze gleichzeitig existieren.
+    function courseCardHtml(c) {
+      var id = c.id || 'new';
+      var pars = (c.pars && c.pars.length === c.holes) ? c.pars : parDefaults(c.holes);
+      var distMen = c.dist_men || [];
+      var distWomen = c.dist_women || [];
+      if (expandedCourse !== id) {
+        return '<div class="item static" data-course="' + id + '">' +
+          '<span class="meta"><span class="d">' + esc(c.name || 'Platz') + '</span>' +
+          '<span class="s">' + c.holes + ' Löcher</span></span>' +
+          '<button class="mini" data-edit-course="' + id + '">' + I.edit + '</button>' +
+          '</div>';
+      }
+      return '<div class="panel" data-course="' + id + '" style="margin-bottom:10px">' +
+        '<div class="form"><input type="text" data-course-name value="' + esc(c.name || '') +
+        '" placeholder="Name des Platzes (z.B. Hauptplatz)"></div>' +
+        '<div class="seg" data-course-holes-seg>' +
+        [9, 18].map(function (n) {
+          return '<button type="button" data-holes="' + n + '" class="' +
+            (c.holes === n ? 'on' : '') + '">' + n + ' Löcher</button>';
+        }).join('') + '</div>' +
+        '<p class="hint" style="margin:10px 2px 6px">Par + optional Entfernung zum Loch' +
+        ' (Herren-/Damenabschlag, in Metern)</p>' +
+        '<div class="holeinfo-list" data-course-pars-grid>' +
+        holeInfoRowsHtml(pars, distMen, distWomen) + '</div>' +
+        '<div class="actions">' +
+        '<button class="btn" data-save-course="' + id + '">Speichern</button>' +
+        (c.id ? '<button class="btn ghost" data-delete-course="' + id + '">Löschen</button>' : '') +
+        '<button class="btn ghost" data-cancel-course="' + id + '">Abbrechen</button>' +
+        '</div></div>';
+    }
+
+    function renderCourses() {
+      listEl.innerHTML = courses.length
+        ? '<div class="list">' + courses.map(courseCardHtml).join('') + '</div>'
+        : '<p class="hint" style="margin:0">Noch kein Platz angelegt.</p>';
+      wireCourseCardEvents();
+    }
+
+    function wireCourseCardEvents() {
+      Array.prototype.forEach.call(listEl.querySelectorAll('[data-edit-course]'), function (btn) {
+        btn.addEventListener('click', function () {
+          expandedCourse = btn.getAttribute('data-edit-course');
+          renderCourses();
+        });
+      });
+      Array.prototype.forEach.call(listEl.querySelectorAll('[data-cancel-course]'), function (btn) {
+        btn.addEventListener('click', function () {
+          if (btn.getAttribute('data-cancel-course') === 'new') {
+            courses = courses.filter(function (c) { return c.id; });
+          }
+          expandedCourse = null;
+          renderCourses();
+        });
+      });
+      Array.prototype.forEach.call(listEl.querySelectorAll('[data-course-holes-seg] button'), function (b) {
+        b.addEventListener('click', function () {
+          var wrap = b.closest('[data-course]');
+          var n = parseInt(b.getAttribute('data-holes'), 10);
+          Array.prototype.forEach.call(wrap.querySelectorAll('[data-course-holes-seg] button'), function (x) {
+            x.classList.toggle('on', x === b);
+          });
+          wrap.querySelector('[data-course-pars-grid]').innerHTML =
+            holeInfoRowsHtml(parDefaults(n), [], []);
+        });
+      });
+      Array.prototype.forEach.call(listEl.querySelectorAll('[data-save-course]'), function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.getAttribute('data-save-course');
+          var wrap = btn.closest('[data-course]');
+          var name = wrap.querySelector('[data-course-name]').value.trim();
+          var selects = wrap.querySelectorAll('[data-course-pars-grid] select');
+          var pars = Array.prototype.map.call(selects, function (s) { return parseInt(s.value, 10); });
+          var distMen = Array.prototype.map.call(
+            wrap.querySelectorAll('[data-course-pars-grid] [data-distmen-idx]'),
+            function (i) { return i.value.trim() === '' ? null : parseInt(i.value, 10); });
+          var distWomen = Array.prototype.map.call(
+            wrap.querySelectorAll('[data-course-pars-grid] [data-distwomen-idx]'),
+            function (i) { return i.value.trim() === '' ? null : parseInt(i.value, 10); });
+          var fields = { name:name, holes:pars.length, pars:pars, dist_men:distMen, dist_women:distWomen };
+          toast('Speichere …');
+          var op = (id === 'new') ? Club.addCourse(fields, clubId) : Club.saveCourse(id, fields, clubId);
+          op.then(function (r) {
+            if (r.error) { toast('Hat nicht geklappt.', true); return; }
+            toast('Gespeichert.');
+            expandedCourse = null;
+            Club.coursesOf(clubId).then(function (fresh) { courses = fresh; renderCourses(); });
+          });
+        });
+      });
+      Array.prototype.forEach.call(listEl.querySelectorAll('[data-delete-course]'), function (btn) {
+        btn.addEventListener('click', function () {
+          if (!confirm('Diesen Platz wirklich löschen?')) return;
+          var id = btn.getAttribute('data-delete-course');
+          Club.removeCourse(id, clubId).then(function () {
+            toast('Gelöscht.');
+            expandedCourse = null;
+            Club.coursesOf(clubId).then(function (fresh) { courses = fresh; renderCourses(); });
+          });
+        });
+      });
+    }
+
+    addBtn.addEventListener('click', function () {
+      courses.push({ name:'', holes:18, pars:parDefaults(18) });
+      expandedCourse = 'new';
+      renderCourses();
+    });
+
+    renderCourses();
+  }
+
   // Golfplatz-Verwaltung: ersetzt fuer Konten mit account_type='club'
   // die normale Startseite (siehe renderHome()). Bewusst auf jeder
   // Bildschirmbreite nutzbar, auch wenn Golfplaetze das in der Praxis
@@ -2847,7 +3002,6 @@ var APP_VERSION = '0.32';
         return;
       }
       var courses = res[1];
-      var expandedCourse = null;   // id des gerade aufgeklappten Platzes, 'new' fuer einen neuen
 
       var html = '<div class="panel">' +
         (club.verified
@@ -2877,7 +3031,7 @@ var APP_VERSION = '0.32';
         '<p class="hint" style="margin-top:0">Profilbild' +
         (club.avatar_url ? '' : ' (noch keins hochgeladen)') + '</p>' +
         '<div style="display:flex;align-items:center;gap:16px;margin-bottom:14px">' +
-        '<span id="cAvatarPreview">' + avaHtml(club.avatar_url, club.name) + '</span>' +
+        '<span id="cAvatarPreview">' + avaHtml(club.avatar_url, club.name, 'zoomable') + '</span>' +
         '<button class="btn ghost" id="btnAvatarPick" style="margin:0">Profilbild wählen</button>' +
         '</div>' +
         '<input type="file" id="fClubAvatar" accept="image/*" style="display:none">' +
@@ -2916,121 +3070,8 @@ var APP_VERSION = '0.32';
         });
       });
 
-      // Ein Platz als Karte: eingeklappt nur Name/Lochzahl mit Stift-Symbol,
-      // aufgeklappt (expandedCourse === diese id) das volle Formular mit
-      // Name/9-18-Umschalter/Par-Raster - alles per data-course="<id>"
-      // sauber pro Karte gescoped, da mehrere Plaetze gleichzeitig existieren.
-      function courseCardHtml(c) {
-        var id = c.id || 'new';
-        var pars = (c.pars && c.pars.length === c.holes) ? c.pars : parDefaults(c.holes);
-        var distMen = c.dist_men || [];
-        var distWomen = c.dist_women || [];
-        if (expandedCourse !== id) {
-          return '<div class="item static" data-course="' + id + '">' +
-            '<span class="meta"><span class="d">' + esc(c.name || 'Platz') + '</span>' +
-            '<span class="s">' + c.holes + ' Löcher</span></span>' +
-            '<button class="mini" data-edit-course="' + id + '">' + I.edit + '</button>' +
-            '</div>';
-        }
-        return '<div class="panel" data-course="' + id + '" style="margin-bottom:10px">' +
-          '<div class="form"><input type="text" data-course-name value="' + esc(c.name || '') +
-          '" placeholder="Name des Platzes (z.B. Hauptplatz)"></div>' +
-          '<div class="seg" data-course-holes-seg>' +
-          [9, 18].map(function (n) {
-            return '<button type="button" data-holes="' + n + '" class="' +
-              (c.holes === n ? 'on' : '') + '">' + n + ' Löcher</button>';
-          }).join('') + '</div>' +
-          '<p class="hint" style="margin:10px 2px 6px">Par + optional Entfernung zum Loch' +
-          ' (Herren-/Damenabschlag, in Metern)</p>' +
-          '<div class="holeinfo-list" data-course-pars-grid>' +
-          holeInfoRowsHtml(pars, distMen, distWomen) + '</div>' +
-          '<div class="actions">' +
-          '<button class="btn" data-save-course="' + id + '">Speichern</button>' +
-          (c.id ? '<button class="btn ghost" data-delete-course="' + id + '">Löschen</button>' : '') +
-          '<button class="btn ghost" data-cancel-course="' + id + '">Abbrechen</button>' +
-          '</div></div>';
-      }
-
-      function renderCourses() {
-        var listEl = document.getElementById('clubCoursesList');
-        if (!listEl) return;
-        listEl.innerHTML = courses.length
-          ? '<div class="list">' + courses.map(courseCardHtml).join('') + '</div>'
-          : '<p class="hint" style="margin:0">Noch kein Platz angelegt.</p>';
-        wireCourseCardEvents();
-      }
-
-      function wireCourseCardEvents() {
-        Array.prototype.forEach.call(document.querySelectorAll('[data-edit-course]'), function (btn) {
-          btn.addEventListener('click', function () {
-            expandedCourse = btn.getAttribute('data-edit-course');
-            renderCourses();
-          });
-        });
-        Array.prototype.forEach.call(document.querySelectorAll('[data-cancel-course]'), function (btn) {
-          btn.addEventListener('click', function () {
-            if (btn.getAttribute('data-cancel-course') === 'new') {
-              courses = courses.filter(function (c) { return c.id; });
-            }
-            expandedCourse = null;
-            renderCourses();
-          });
-        });
-        Array.prototype.forEach.call(document.querySelectorAll('[data-course-holes-seg] button'), function (b) {
-          b.addEventListener('click', function () {
-            var wrap = b.closest('[data-course]');
-            var n = parseInt(b.getAttribute('data-holes'), 10);
-            Array.prototype.forEach.call(wrap.querySelectorAll('[data-course-holes-seg] button'), function (x) {
-              x.classList.toggle('on', x === b);
-            });
-            wrap.querySelector('[data-course-pars-grid]').innerHTML =
-              holeInfoRowsHtml(parDefaults(n), [], []);
-          });
-        });
-        Array.prototype.forEach.call(document.querySelectorAll('[data-save-course]'), function (btn) {
-          btn.addEventListener('click', function () {
-            var id = btn.getAttribute('data-save-course');
-            var wrap = btn.closest('[data-course]');
-            var name = wrap.querySelector('[data-course-name]').value.trim();
-            var selects = wrap.querySelectorAll('[data-course-pars-grid] select');
-            var pars = Array.prototype.map.call(selects, function (s) { return parseInt(s.value, 10); });
-            var distMen = Array.prototype.map.call(
-              wrap.querySelectorAll('[data-course-pars-grid] [data-distmen-idx]'),
-              function (i) { return i.value.trim() === '' ? null : parseInt(i.value, 10); });
-            var distWomen = Array.prototype.map.call(
-              wrap.querySelectorAll('[data-course-pars-grid] [data-distwomen-idx]'),
-              function (i) { return i.value.trim() === '' ? null : parseInt(i.value, 10); });
-            var fields = { name:name, holes:pars.length, pars:pars, dist_men:distMen, dist_women:distWomen };
-            toast('Speichere …');
-            var op = (id === 'new') ? Club.addCourse(fields) : Club.saveCourse(id, fields);
-            op.then(function (r) {
-              if (r.error) { toast('Hat nicht geklappt.', true); return; }
-              toast('Gespeichert.');
-              expandedCourse = null;
-              Club.myCourses().then(function (fresh) { courses = fresh; renderCourses(); });
-            });
-          });
-        });
-        Array.prototype.forEach.call(document.querySelectorAll('[data-delete-course]'), function (btn) {
-          btn.addEventListener('click', function () {
-            if (!confirm('Diesen Platz wirklich löschen?')) return;
-            var id = btn.getAttribute('data-delete-course');
-            Club.removeCourse(id).then(function () {
-              toast('Gelöscht.');
-              expandedCourse = null;
-              Club.myCourses().then(function (fresh) { courses = fresh; renderCourses(); });
-            });
-          });
-        });
-      }
-
-      document.getElementById('btnAddCourse').addEventListener('click', function () {
-        courses.push({ name:'', holes:18, pars:parDefaults(18) });
-        expandedCourse = 'new';
-        renderCourses();
-      });
-
-      renderCourses();
+      mountCoursesEditor(document.getElementById('clubCoursesList'),
+        document.getElementById('btnAddCourse'), courses, Auth.id());
 
       document.getElementById('btnAvatarPick').addEventListener('click', function () {
         document.getElementById('fClubAvatar').click();
@@ -3251,7 +3292,7 @@ var APP_VERSION = '0.32';
         (club.cover_image_url ? ' style="background-image:url(\'' + esc(club.cover_image_url) + '\')"' : '') +
         '></div>' +
         '<div class="clubheadrow">' +
-        avaHtml(club.avatar_url, club.name) +
+        avaHtml(club.avatar_url, club.name, 'zoomable') +
         '<div class="namewrap"><h3 style="margin:0">' + esc(club.name || 'Golfplatz') + '</h3>' +
         '<button class="btn ghost" id="btnFollowClub">' + (following ? 'Folgt' : 'Folgen') + '</button>' +
         '</div></div>' +
@@ -3313,6 +3354,35 @@ var APP_VERSION = '0.32';
     });
   }
 
+  // Admin-Platzpflege: dieselbe Loch/Par/Distanz-Verwaltung wie im
+  // Golfplatz-eigenen renderClub(), nur fuer einen FREMDEN Platz - die
+  // eigentliche Absicherung passiert serverseitig ueber die Admin-Bypass-
+  // Policies in datenbank/13_admin_kurse.sql, hier nur der Einstieg dazu
+  // (nur erreichbar, wenn Friends.isAdmin() den Menuepunkt ueberhaupt zeigt).
+  function renderAdminClubCourses(clubId) {
+    brand.textContent = 'Golfplatz-Kurse';
+    content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
+
+    Promise.all([Club.clubById(clubId), Club.coursesOf(clubId)]).then(function (res) {
+      var club = res[0], courses = res[1];
+      if (!club) {
+        content.innerHTML = '<div class="empty"><b>Golfplatz nicht gefunden</b></div>';
+        return;
+      }
+      content.innerHTML =
+        '<div class="panel"><h3>' + esc(club.name || 'Golfplatz') + '</h3>' +
+        '<p class="hint" style="margin:0">Als Admin bearbeitest du hier Löcher, Par und ' +
+        'Distanzen dieses Golfplatzes - Name/Adresse/Kontakt bleiben Sache des Golfplatz-' +
+        'Kontos selbst.</p></div>' +
+        '<div class="panel"><h3>Plätze</h3><div id="adminCoursesList"></div>' +
+        '<div class="actions"><button class="btn ghost" id="btnAdminAddCourse">' +
+        '+ Neuen Platz anlegen</button></div></div>';
+
+      mountCoursesEditor(document.getElementById('adminCoursesList'),
+        document.getElementById('btnAdminAddCourse'), courses, clubId);
+    });
+  }
+
   // Nur erreichbar, wenn Friends.isAdmin() den Menuepunkt ueberhaupt
   // anzeigt - die eigentliche Absicherung passiert aber serverseitig in
   // approve_club_request()/reject_club_request() (siehe 05_golfplaetze.sql),
@@ -3321,13 +3391,56 @@ var APP_VERSION = '0.32';
     brand.textContent = 'Admin';
     content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
 
-    Promise.all([Club.pendingRequests(), Verify.pendingRequests()]).then(function (res) {
-      var clubReqs = res[0], roleReqs = res[1];
+    // "Golfplaetze verwalten" (Loch/Par/Distanzen fuer JEDEN Platz, siehe
+    // renderAdminClubCourses()) steht IMMER da, unabhaengig von offenen
+    // Anfragen - anders als die zwei Anfrage-Listen darunter, die ganz
+    // wegfallen koennen, wenn gerade nichts offen ist.
+    function clubManagementHtml() {
+      return '<div class="sectionhead"><span class="t">Golfplätze verwalten</span></div>' +
+        '<div class="form" style="margin-bottom:14px">' +
+        '<input type="text" id="adminClubSearch" placeholder="Golfplatz suchen …"></div>' +
+        '<div id="adminClubList"></div>';
+    }
+    function wireClubManagement(clubs) {
+      function rowHtml(c) {
+        var n = c.courses.length;
+        return '<div class="item" data-admin-club="' + c.id + '">' +
+          avaHtml(c.avatarUrl || c.coverImageUrl, c.name, '', '', 'club') +
+          '<span class="meta"><span class="d">' + esc(c.name || 'Golfplatz') + '</span>' +
+          '<span class="s">' + (n ? (n + (n === 1 ? ' Platz' : ' Plätze')) : 'Noch keine Plätze') +
+          '</span></span></div>';
+      }
+      function renderList(filtered) {
+        var listEl = document.getElementById('adminClubList');
+        if (!listEl) return;
+        listEl.innerHTML = filtered.length
+          ? '<div class="list">' + filtered.map(rowHtml).join('') + '</div>'
+          : '<div class="empty"><b>Nichts gefunden</b>Versuch einen anderen Suchbegriff.</div>';
+        Array.prototype.forEach.call(listEl.querySelectorAll('[data-admin-club]'), function (el) {
+          el.addEventListener('click', function () {
+            location.hash = 'menu/admin/club/' + el.getAttribute('data-admin-club'); route();
+          });
+        });
+      }
+      renderList(clubs);
+      var searchEl = document.getElementById('adminClubSearch');
+      if (searchEl) {
+        searchEl.addEventListener('input', function (e) {
+          var q = e.target.value.trim().toLowerCase();
+          renderList(!q ? clubs : clubs.filter(function (c) {
+            return (c.name || '').toLowerCase().indexOf(q) >= 0;
+          }));
+        });
+      }
+    }
+
+    Promise.all([Club.pendingRequests(), Verify.pendingRequests(), Club.verifiedClubsList()])
+      .then(function (res) {
+      var clubReqs = res[0], roleReqs = res[1], clubs = res[2];
 
       if (!clubReqs.length && !roleReqs.length) {
-        content.innerHTML = '<div class="empty"><b>Keine offenen Anfragen</b>' +
-          'Golfplatz- und Verifizierungs-Anfragen aus den Konto-Einstellungen ' +
-          'erscheinen hier.</div>';
+        content.innerHTML = clubManagementHtml();
+        wireClubManagement(clubs);
         return;
       }
 
@@ -3373,7 +3486,9 @@ var APP_VERSION = '0.32';
             html += '</div>';
           }
 
+          html += clubManagementHtml();
           content.innerHTML = html;
+          wireClubManagement(clubs);
 
           Array.prototype.forEach.call(document.querySelectorAll('[data-approve-club]'), function (el) {
             el.addEventListener('click', function () {
@@ -3890,7 +4005,7 @@ var APP_VERSION = '0.32';
 
       var badgeType = badgeTypeFor(f.isAdmin, f.verifiedRole);
       var roleText = f.verifiedRole ? roleLabel(f.verifiedRole) : '';
-      var head = '<div class="friendhead" id="friendHead">' + avaHtml(f.avatarUrl, nameOf(f), 'big', '', badgeType) +
+      var head = '<div class="friendhead" id="friendHead">' + avaHtml(f.avatarUrl, nameOf(f), 'big zoomable', '', badgeType) +
                  '<div class="namewrap"><span class="fname">' + esc(nameOf(f)) + '</span>' +
                  (roleText ? '<div class="roletag">' + esc(roleText) + '</div>' : '') +
                  '</div></div>';
@@ -3904,7 +4019,7 @@ var APP_VERSION = '0.32';
           if (!verified) return;
           var wrap = document.getElementById('friendHead');
           if (wrap) {
-            wrap.querySelector('.ava').outerHTML = avaHtml(f.avatarUrl, nameOf(f), 'big', '', 'club');
+            wrap.querySelector('.ava').outerHTML = avaHtml(f.avatarUrl, nameOf(f), 'big zoomable', '', 'club');
           }
         });
       }
@@ -4239,8 +4354,15 @@ var APP_VERSION = '0.32';
           '<span id="mScVal">' + sc + '</span>' +
           '<button type="button" id="mScPlus">+</button></div></div>' +
           '</div>' +
-          '<div class="actions"><button class="btn" id="mHoleNext">' +
-          (idx === totalHoles - 1 ? 'Speichern' : 'N\u00e4chstes Loch') + '</button></div>' +
+          '<div class="actions">' +
+          '<div class="slidewrap" id="mHoleNextWrap">' +
+          '<div class="slidefill" id="mHoleNextFill"></div>' +
+          '<span class="slidelabel">' +
+          (idx === totalHoles - 1 ? 'Zum Speichern durchziehen' : 'Zum n\u00e4chsten Loch durchziehen') +
+          '</span>' +
+          '<div class="slidethumb" id="mHoleNextThumb">' +
+          '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>' +
+          '</div></div></div>' +
           '</div>';
 
         if (!fixedPars) {
@@ -4280,16 +4402,76 @@ var APP_VERSION = '0.32';
             openHoleInfo();
           });
         }
-        document.getElementById('mHoleNext').addEventListener('click', function () {
-          acc.push({ par:par, sc:sc });
-          idx++;
-          if (idx >= totalHoles) {
-            finishManual(dateCode, acc);
-          } else {
-            par = fixedPars ? fixedPars[idx] : 4; sc = startSc;
-            renderStep();
+        setupSlideToAdvance();
+      }
+
+      // Wird nur aufgerufen, wenn der Griff bis fast ans Ende gezogen
+      // wurde (siehe setupSlideToAdvance()) - der bisherige Ablauf aus dem
+      // frueheren Klick-Handler ist unveraendert, nur der Ausloeser hat
+      // sich geaendert.
+      function advanceHole() {
+        acc.push({ par:par, sc:sc });
+        idx++;
+        if (idx >= totalHoles) {
+          finishManual(dateCode, acc);
+        } else {
+          par = fixedPars ? fixedPars[idx] : 4; sc = startSc;
+          renderStep();
+        }
+      }
+
+      // "Nächstes Loch" per Wisch-Geste statt Antippen (wie das alte
+      // iPhone-Entsperren) - bewusst nur der GRIFF selbst reagiert, nicht
+      // die ganze Leiste, ein Antippen daneben loest also nichts aus.
+      // Pointer Events statt separater touch-/mouse-Handler, da sie beides
+      // einheitlich abdecken; setPointerCapture haelt den Griff auch dann
+      // "im Griff", wenn der Finger schneller ist als der Redraw. Da
+      // renderStep() bei jedem Loch das komplette Markup neu aufbaut, steht
+      // der Griff automatisch wieder bei Null - kein eigener Reset noetig.
+      function setupSlideToAdvance() {
+        var wrap = document.getElementById('mHoleNextWrap');
+        var thumb = document.getElementById('mHoleNextThumb');
+        var fill = document.getElementById('mHoleNextFill');
+        var dragging = false, startX = 0, maxX = 0, done = false;
+
+        function thumbW() { return thumb.offsetWidth; }
+        function setX(x) {
+          x = Math.max(0, Math.min(maxX, x));
+          thumb.style.transform = 'translateX(' + x + 'px)';
+          fill.style.width = (x + thumbW()) + 'px';
+          return x;
+        }
+        function snapBack() {
+          thumb.style.transition = 'transform .25s ease';
+          fill.style.transition = 'width .25s ease';
+          setX(0);
+          setTimeout(function () { thumb.style.transition = ''; fill.style.transition = ''; }, 260);
+        }
+
+        thumb.addEventListener('pointerdown', function (e) {
+          if (done) return;
+          dragging = true;
+          maxX = wrap.getBoundingClientRect().width - thumbW() - 8;
+          startX = e.clientX;
+          thumb.style.transition = ''; fill.style.transition = '';
+          thumb.setPointerCapture(e.pointerId);
+        });
+        thumb.addEventListener('pointermove', function (e) {
+          if (!dragging) return;
+          var x = setX(e.clientX - startX);
+          if (x >= maxX * 0.9) {
+            dragging = false; done = true;
+            setX(maxX);
+            advanceHole();
           }
         });
+        function endDrag() {
+          if (!dragging) return;
+          dragging = false;
+          snapBack();
+        }
+        thumb.addEventListener('pointerup', endDrag);
+        thumb.addEventListener('pointercancel', endDrag);
       }
       renderStep();
     }
@@ -4569,7 +4751,7 @@ var APP_VERSION = '0.32';
         '<div class="panel"><h3>Profilbild</h3>' +
         '<p>Erscheint überall dort, wo dich deine Freunde sehen.</p>' +
         '<div style="display:flex;align-items:center;gap:16px">' +
-        '<span id="avPreviewSlot">' + avaHtml(null, Auth.email(), 'big') + '</span>' +
+        '<span id="avPreviewSlot">' + avaHtml(null, Auth.email(), 'big zoomable') + '</span>' +
         '<button class="btn ghost" id="btnAvatarPick" style="margin:0">Bild auswählen</button>' +
         '</div>' +
         '<input type="file" id="fAvatar" accept="image/*" style="display:none"></div>' +
@@ -4593,7 +4775,7 @@ var APP_VERSION = '0.32';
       function applyOwnAvatar(p) {
         var slot = document.getElementById('avPreviewSlot');
         if (slot) {
-          slot.innerHTML = avaHtml(p.avatar_url, p.display_name || Auth.email(), 'big', '', ownBadgeType);
+          slot.innerHTML = avaHtml(p.avatar_url, p.display_name || Auth.email(), 'big zoomable', '', ownBadgeType);
         }
         var textSlot = document.getElementById('ownBadgeSlot');
         if (textSlot) {
@@ -4633,7 +4815,7 @@ var APP_VERSION = '0.32';
         toast('Lade Bild hoch …');
         Friends.setAvatar(file).then(function (r) {
           if (!r.ok) { toast('Hochladen fehlgeschlagen: ' + (r.message || 'unbekannt'), true); return; }
-          document.getElementById('avPreviewSlot').innerHTML = avaHtml(r.url, Auth.email(), 'big', '', ownBadgeType);
+          document.getElementById('avPreviewSlot').innerHTML = avaHtml(r.url, Auth.email(), 'big zoomable', '', ownBadgeType);
           toast('Profilbild gespeichert.');
           buildMenu();
           updateSidebarProfile();
@@ -5006,6 +5188,8 @@ var APP_VERSION = '0.32';
     // Golfplatz-Profil zum Durchstoebern: club/<id>
     var cm = /^club\/([0-9a-f-]{36})$/.exec(raw);
     if (cm) { renderClubProfile(cm[1]); return; }
+    var acm = /^menu\/admin\/club\/([0-9a-f-]{36})$/.exec(raw);
+    if (acm) { renderAdminClubCourses(acm[1]); return; }
     if (raw === 'menu/backup') { renderBackup();     return; }
     if (raw === 'menu/privacy'){ renderPrivacy();    return; }
     if (raw === 'menu/about')  { renderAbout();      return; }
