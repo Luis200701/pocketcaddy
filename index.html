@@ -877,7 +877,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.34';
+var APP_VERSION = '0.35';
 </script>
 
 <script>
@@ -1006,6 +1006,25 @@ var APP_VERSION = '0.34';
       db: function () { return client; }
     };
   })();
+
+  // Ruft eine Supabase Edge Function auf und sorgt dafuer, dass bei einem
+  // Fehler die ECHTE Fehlermeldung der Funktion in r.error.message landet.
+  // supabase-js liefert bei einem Nicht-2xx-Status sonst immer nur das
+  // generische "Edge Function returned a non-2xx status code" - die
+  // eigentliche JSON-Antwort der Funktion steckt unangetastet in
+  // error.context (der rohen, noch nicht gelesenen Response).
+  function invokeEdgeFunction(name, body) {
+    return Auth.db().functions.invoke(name, body ? { body: body } : undefined)
+      .then(function (r) {
+        if (r.error && r.error.context && typeof r.error.context.json === 'function') {
+          return r.error.context.json().then(function (parsed) {
+            if (parsed && parsed.error) r.error.message = parsed.error;
+            return r;
+          }).catch(function () { return r; });
+        }
+        return r;
+      });
+  }
 
   /* ==========================================================
      Speicherschicht
@@ -2624,7 +2643,7 @@ var APP_VERSION = '0.34';
     // im Browser landen). fields: {name (Pflicht), description,
     // address, phone, website, price_info}.
     function createClubAsAdmin(fields) {
-      return db().functions.invoke('admin-create-club', { body: fields });
+      return invokeEdgeFunction('admin-create-club', fields);
     }
 
     // Laedt ein Foto hoch (immer neuer Dateiname, siehe Lektion bei den
@@ -4958,7 +4977,7 @@ var APP_VERSION = '0.34';
       document.getElementById('btnDeleteAccount').addEventListener('click', function () {
         if (!confirm('Konto und alle Runden wirklich unwiderruflich löschen?')) return;
         toast('Lösche Konto …');
-        Auth.db().functions.invoke('delete-account').then(function (r) {
+        invokeEdgeFunction('delete-account').then(function (r) {
           if (r.error) { toast('Löschen fehlgeschlagen: ' + r.error.message, true); return; }
           Friends.reset();
           Auth.signOut().then(function () {
