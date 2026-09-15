@@ -329,7 +329,12 @@
   .slidewrap{position:relative;width:100%;height:60px;border-radius:999px;
     background:#ffffff10;box-shadow:inset 0 0 0 1px #ffffff1a;
     overflow:hidden;display:flex;align-items:center;touch-action:pan-y}
-  .slidefill{position:absolute;left:0;top:0;bottom:0;width:52px;
+  /* top/bottom (statt height) auf .slidefill, exakt dieselben 4px Inset
+     wie beim Griff - vorher stand hier top:0;bottom:0 (volle Leisten-
+     hoehe), waehrend der Griff 4px eingerueckt und dadurch 8px flacher
+     war: das liess das durchscheinende Gruen oben/unten sichtbar unter
+     dem Griff hervorschauen statt exakt dahinter zu liegen. */
+  .slidefill{position:absolute;left:0;top:4px;bottom:4px;width:52px;
     background:var(--lime);opacity:.28;border-radius:999px 0 0 999px}
   .slidelabel{position:absolute;left:0;right:0;text-align:center;
     font-size:15px;font-weight:600;color:var(--mut);pointer-events:none}
@@ -340,9 +345,8 @@
   .slidethumb svg{width:24px;height:24px;color:#0d1117;fill:none;
     stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
   body.wizard-fullscreen .slidewrap{height:72px}
-  body.wizard-fullscreen .slidefill,
-  body.wizard-fullscreen .slidethumb{width:64px;height:64px}
-  body.wizard-fullscreen .slidethumb{top:4px}
+  body.wizard-fullscreen .slidefill{width:64px}
+  body.wizard-fullscreen .slidethumb{width:64px;height:64px;top:4px}
   body.wizard-fullscreen .slidelabel{font-size:17px}
   button.btn{font:600 15px/1 inherit;font-family:inherit;color:#0d1117;background:var(--lime);
     border:0;border-radius:999px;padding:14px 24px;cursor:pointer;
@@ -873,7 +877,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.33';
+var APP_VERSION = '0.34';
 </script>
 
 <script>
@@ -2604,10 +2608,23 @@ var APP_VERSION = '0.33';
     function approveRequest(uid) { return db().rpc('approve_club_request', { target_user: uid }); }
     function rejectRequest(uid)  { return db().rpc('reject_club_request', { target_user: uid }); }
 
-    function saveClub(fields) {
+    // clubId optional - Vorgabe Auth.id() (Club pflegt sich selbst),
+    // von der Admin-Platzpflege aber explizit mit der Ziel-Club-ID
+    // aufgerufen (siehe renderAdminClubEdit()). Serverseitig greift
+    // dafuer die Admin-Bypass-Policy aus 14_admin_golfplaetze.sql.
+    function saveClub(fields, clubId) {
       var payload = { updated_at: new Date().toISOString() };
       for (var k in fields) payload[k] = fields[k];
-      return db().from('golf_clubs').update(payload).eq('user_id', Auth.id());
+      return db().from('golf_clubs').update(payload).eq('user_id', clubId || Auth.id());
+    }
+
+    // Legt einen komplett neuen Golfplatz an, ohne dass sich vorher
+    // jemand mit einer echten E-Mail registrieren muss - laeuft ueber
+    // die Edge Function admin-create-club (Service-Role-Key, darf nie
+    // im Browser landen). fields: {name (Pflicht), description,
+    // address, phone, website, price_info}.
+    function createClubAsAdmin(fields) {
+      return db().functions.invoke('admin-create-club', { body: fields });
     }
 
     // Laedt ein Foto hoch (immer neuer Dateiname, siehe Lektion bei den
@@ -2657,7 +2674,7 @@ var APP_VERSION = '0.33';
     }
     // clubId optional - Vorgabe Auth.id() (Club pflegt seinen eigenen
     // Platz), von der Admin-Platzpflege aber explizit mit der Ziel-
-    // Club-ID aufgerufen (siehe renderAdminClubCourses()). Serverseitig
+    // Club-ID aufgerufen (siehe renderAdminClubEdit()). Serverseitig
     // greift dafuer die Admin-Bypass-Policy aus 13_admin_kurse.sql.
     function addCourse(fields, clubId) {
       var payload = { club_id: clubId || Auth.id() };
@@ -2694,6 +2711,24 @@ var APP_VERSION = '0.33';
           return (r.data || []).map(function (c) {
             return { id:c.user_id, name:c.name, description:c.description,
                      coverImageUrl:c.cover_image_url, courses:c.golf_courses || [] };
+          });
+        })
+        .catch(function () { return []; });
+    }
+
+    // Fuer die Admin-Platzverwaltung: wie verifiedClubsList(), aber OHNE
+    // den verified=true-Filter (per admin platz lesen()-Policy aus
+    // 14_admin_golfplaetze.sql fuer Admins ohnehin lesbar) - ein frisch
+    // angelegter, noch unverifizierter Platz muss hier auffindbar bleiben.
+    function allClubsList() {
+      return db().from('golf_clubs')
+        .select('user_id,name,description,cover_image_url,verified,golf_courses(id,name,holes)')
+        .then(function (r) {
+          if (r.error) throw r.error;
+          return (r.data || []).map(function (c) {
+            return { id:c.user_id, name:c.name, description:c.description,
+                     coverImageUrl:c.cover_image_url, verified:c.verified,
+                     courses:c.golf_courses || [] };
           });
         })
         .catch(function () { return []; });
@@ -2781,11 +2816,11 @@ var APP_VERSION = '0.33';
         .catch(function () { return []; });
     }
 
-    return { myClub:myClub, saveClub:saveClub, uploadMedia:uploadMedia,
+    return { myClub:myClub, saveClub:saveClub, createClubAsAdmin:createClubAsAdmin, uploadMedia:uploadMedia,
              offersOf:offersOf, addOffer:addOffer, removeOffer:removeOffer,
              coursesOf:coursesOf, myCourses:myCourses, addCourse:addCourse,
              saveCourse:saveCourse, removeCourse:removeCourse,
-             verifiedClubsList:verifiedClubsList,
+             verifiedClubsList:verifiedClubsList, allClubsList:allClubsList,
              clubById:clubById, isVerified:isVerified,
              myFollows:myFollows, isFollowing:isFollowing, follow:follow, unfollow:unfollow,
              followedClubs:followedClubs, followedCourses:followedCourses,
@@ -2862,7 +2897,7 @@ var APP_VERSION = '0.33';
 
   // Wiederverwendbare Plaetze-Verwaltung (Karten-Liste mit Loch/Par/
   // Distanz-Formular) - von renderClub() fuer den eigenen Platz UND von
-  // renderAdminClubCourses() fuer einen fremden Platz genutzt (dann mit
+  // renderAdminClubEdit() fuer einen fremden Platz genutzt (dann mit
   // expliziter clubId statt Auth.id()), damit das Formular nicht doppelt
   // gepflegt werden muss. courses wird als Referenz uebergeben und intern
   // neu zugewiesen (courses = ...), das wirkt sich nicht auf den Aufrufer
@@ -3354,13 +3389,16 @@ var APP_VERSION = '0.33';
     });
   }
 
-  // Admin-Platzpflege: dieselbe Loch/Par/Distanz-Verwaltung wie im
-  // Golfplatz-eigenen renderClub(), nur fuer einen FREMDEN Platz - die
-  // eigentliche Absicherung passiert serverseitig ueber die Admin-Bypass-
-  // Policies in datenbank/13_admin_kurse.sql, hier nur der Einstieg dazu
-  // (nur erreichbar, wenn Friends.isAdmin() den Menuepunkt ueberhaupt zeigt).
-  function renderAdminClubCourses(clubId) {
-    brand.textContent = 'Golfplatz-Kurse';
+  // Admin-Platzpflege: Stammdaten + dieselbe Loch/Par/Distanz-Verwaltung
+  // wie im Golfplatz-eigenen renderClub(), nur fuer einen FREMDEN Platz -
+  // die eigentliche Absicherung passiert serverseitig ueber die Admin-
+  // Bypass-Policies in datenbank/13_admin_kurse.sql/14_admin_golfplaetze.sql,
+  // hier nur der Einstieg dazu (nur erreichbar, wenn Friends.isAdmin() den
+  // Menuepunkt ueberhaupt zeigt). Bewusst ohne Bild-Upload (Club.uploadMedia()
+  // nutzt Auth.id() als Speicherordner, das braeuchte eine eigene Storage-
+  // Policy-Aenderung - kann eine spaetere Runde sein).
+  function renderAdminClubEdit(clubId) {
+    brand.textContent = 'Golfplatz bearbeiten';
     content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
 
     Promise.all([Club.clubById(clubId), Club.coursesOf(clubId)]).then(function (res) {
@@ -3370,13 +3408,36 @@ var APP_VERSION = '0.33';
         return;
       }
       content.innerHTML =
-        '<div class="panel"><h3>' + esc(club.name || 'Golfplatz') + '</h3>' +
-        '<p class="hint" style="margin:0">Als Admin bearbeitest du hier Löcher, Par und ' +
-        'Distanzen dieses Golfplatzes - Name/Adresse/Kontakt bleiben Sache des Golfplatz-' +
-        'Kontos selbst.</p></div>' +
+        '<div class="panel"><h3>Stammdaten</h3><div class="form">' +
+        '<input type="text" id="cAdminName" placeholder="Name des Platzes" value="' + esc(club.name || '') + '">' +
+        '<textarea id="cAdminDesc" placeholder="Beschreibung" rows="3">' + esc(club.description || '') + '</textarea>' +
+        '<input type="text" id="cAdminAddress" placeholder="Adresse" value="' + esc(club.address || '') + '">' +
+        '<input type="text" id="cAdminPhone" placeholder="Telefon" value="' + esc(club.phone || '') + '">' +
+        '<input type="text" id="cAdminWebsite" placeholder="Website" value="' + esc(club.website || '') + '">' +
+        '<input type="text" id="cAdminPrice" placeholder="Preise (z.B. Greenfee 45€, Wochenende 55€)" ' +
+        'value="' + esc(club.price_info || '') + '">' +
+        '</div>' +
+        '<label class="switchrow"><input type="checkbox" id="cAdminVerified"' +
+        (club.verified ? ' checked' : '') + '> Für Spieler sichtbar (freigeschaltet)</label>' +
+        '<div class="actions"><button class="btn" id="btnSaveAdminClub">Speichern</button></div></div>' +
         '<div class="panel"><h3>Plätze</h3><div id="adminCoursesList"></div>' +
         '<div class="actions"><button class="btn ghost" id="btnAdminAddCourse">' +
         '+ Neuen Platz anlegen</button></div></div>';
+
+      document.getElementById('btnSaveAdminClub').addEventListener('click', function () {
+        toast('Speichere …');
+        Club.saveClub({
+          name: document.getElementById('cAdminName').value.trim(),
+          description: document.getElementById('cAdminDesc').value.trim(),
+          address: document.getElementById('cAdminAddress').value.trim(),
+          phone: document.getElementById('cAdminPhone').value.trim(),
+          website: document.getElementById('cAdminWebsite').value.trim(),
+          price_info: document.getElementById('cAdminPrice').value.trim(),
+          verified: document.getElementById('cAdminVerified').checked
+        }, clubId).then(function (r) {
+          toast(r.error ? 'Hat nicht geklappt.' : 'Gespeichert.', !!r.error);
+        });
+      });
 
       mountCoursesEditor(document.getElementById('adminCoursesList'),
         document.getElementById('btnAdminAddCourse'), courses, clubId);
@@ -3392,21 +3453,40 @@ var APP_VERSION = '0.33';
     content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
 
     // "Golfplaetze verwalten" (Loch/Par/Distanzen fuer JEDEN Platz, siehe
-    // renderAdminClubCourses()) steht IMMER da, unabhaengig von offenen
+    // renderAdminClubEdit()) steht IMMER da, unabhaengig von offenen
     // Anfragen - anders als die zwei Anfrage-Listen darunter, die ganz
     // wegfallen koennen, wenn gerade nichts offen ist.
     function clubManagementHtml() {
       return '<div class="sectionhead"><span class="t">Golfplätze verwalten</span></div>' +
         '<div class="form" style="margin-bottom:14px">' +
         '<input type="text" id="adminClubSearch" placeholder="Golfplatz suchen …"></div>' +
-        '<div id="adminClubList"></div>';
+        '<div id="adminClubList"></div>' +
+        '<div class="actions"><button class="btn ghost" id="btnAdminNewClub">' +
+        '+ Neuen Golfplatz anlegen</button></div>' +
+        '<div class="panel" id="adminNewClubForm" style="display:none;margin-top:10px">' +
+        '<div class="form">' +
+        '<input type="text" id="ncName" placeholder="Name des Platzes (Pflicht)">' +
+        '<textarea id="ncDesc" placeholder="Beschreibung" rows="2"></textarea>' +
+        '<input type="text" id="ncAddress" placeholder="Adresse">' +
+        '<input type="text" id="ncPhone" placeholder="Telefon">' +
+        '<input type="text" id="ncWebsite" placeholder="Website">' +
+        '<input type="text" id="ncPrice" placeholder="Preise (optional)">' +
+        '</div>' +
+        '<p class="hint">Legt ein neues Golfplatz-Konto an, ohne dass sich vorher jemand ' +
+        'registrieren muss - Löcher/Par und der Freischalt-Status lassen sich direkt danach ' +
+        'auf der neuen Platzseite eintragen.</p>' +
+        '<div class="actions">' +
+        '<button class="btn" id="btnCreateClub">Anlegen</button>' +
+        '<button class="btn ghost" id="btnCancelNewClub">Abbrechen</button>' +
+        '</div></div>';
     }
     function wireClubManagement(clubs) {
       function rowHtml(c) {
         var n = c.courses.length;
         return '<div class="item" data-admin-club="' + c.id + '">' +
           avaHtml(c.avatarUrl || c.coverImageUrl, c.name, '', '', 'club') +
-          '<span class="meta"><span class="d">' + esc(c.name || 'Golfplatz') + '</span>' +
+          '<span class="meta"><span class="d">' + esc(c.name || 'Golfplatz') +
+          (c.verified === false ? ' <span class="badge">nicht freigeschaltet</span>' : '') + '</span>' +
           '<span class="s">' + (n ? (n + (n === 1 ? ' Platz' : ' Plätze')) : 'Noch keine Plätze') +
           '</span></span></div>';
       }
@@ -3432,9 +3512,37 @@ var APP_VERSION = '0.33';
           }));
         });
       }
+
+      var formEl = document.getElementById('adminNewClubForm');
+      document.getElementById('btnAdminNewClub').addEventListener('click', function () {
+        formEl.style.display = '';
+      });
+      document.getElementById('btnCancelNewClub').addEventListener('click', function () {
+        formEl.style.display = 'none';
+      });
+      document.getElementById('btnCreateClub').addEventListener('click', function () {
+        var name = document.getElementById('ncName').value.trim();
+        if (!name) { toast('Bitte einen Namen eintragen.', true); return; }
+        toast('Lege an …');
+        Club.createClubAsAdmin({
+          name: name,
+          description: document.getElementById('ncDesc').value.trim(),
+          address: document.getElementById('ncAddress').value.trim(),
+          phone: document.getElementById('ncPhone').value.trim(),
+          website: document.getElementById('ncWebsite').value.trim(),
+          price_info: document.getElementById('ncPrice').value.trim()
+        }).then(function (r) {
+          if (r.error || !r.data || !r.data.ok) {
+            toast('Hat nicht geklappt: ' + (r.error ? r.error.message : 'unbekannt'), true);
+            return;
+          }
+          toast('Golfplatz angelegt.');
+          location.hash = 'menu/admin/club/' + r.data.id; route();
+        });
+      });
     }
 
-    Promise.all([Club.pendingRequests(), Verify.pendingRequests(), Club.verifiedClubsList()])
+    Promise.all([Club.pendingRequests(), Verify.pendingRequests(), Club.allClubsList()])
       .then(function (res) {
       var clubReqs = res[0], roleReqs = res[1], clubs = res[2];
 
@@ -4358,7 +4466,7 @@ var APP_VERSION = '0.33';
           '<div class="slidewrap" id="mHoleNextWrap">' +
           '<div class="slidefill" id="mHoleNextFill"></div>' +
           '<span class="slidelabel">' +
-          (idx === totalHoles - 1 ? 'Zum Speichern durchziehen' : 'Zum n\u00e4chsten Loch durchziehen') +
+          (idx === totalHoles - 1 ? 'Speichern' : 'Zum n\u00e4chsten Loch') +
           '</span>' +
           '<div class="slidethumb" id="mHoleNextThumb">' +
           '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>' +
@@ -5189,7 +5297,7 @@ var APP_VERSION = '0.33';
     var cm = /^club\/([0-9a-f-]{36})$/.exec(raw);
     if (cm) { renderClubProfile(cm[1]); return; }
     var acm = /^menu\/admin\/club\/([0-9a-f-]{36})$/.exec(raw);
-    if (acm) { renderAdminClubCourses(acm[1]); return; }
+    if (acm) { renderAdminClubEdit(acm[1]); return; }
     if (raw === 'menu/backup') { renderBackup();     return; }
     if (raw === 'menu/privacy'){ renderPrivacy();    return; }
     if (raw === 'menu/about')  { renderAbout();      return; }
