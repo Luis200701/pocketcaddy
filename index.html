@@ -473,10 +473,14 @@
              gap:10px;margin-bottom:6px}
   /* Ueberblendung beim Wechsel zum naechsten Loch statt eines schlagartigen
      Inhalts-Austauschs (renderStep() ersetzt sonst das komplette Markup
-     ohne jeden Uebergang) - siehe advanceHole()/renderStep(). */
-  .wizardpanel{transition:opacity .22s ease, transform .22s ease}
-  .wizardpanel.stepenter{opacity:0;transform:translateY(8px)}
-  .wizardpanel.stepexit{opacity:0;transform:translateY(-8px)}
+     ohne jeden Uebergang) - siehe advanceHole()/renderStep(). Bewusst nur
+     auf .wizardfade (Kopfzeile + Par/Schlaege), NICHT auf die Wisch-Leiste
+     selbst (.actions bleibt aussen vor) - die Leiste hat mit dem Griff-
+     Zuruecksprung schon ihre eigene Animation und soll sonst unveraendert,
+     dauerhaft an derselben Stelle stehen bleiben statt mit auszublenden. */
+  .wizardfade{transition:opacity .22s ease, transform .22s ease}
+  .wizardfade.stepenter{opacity:0;transform:translateY(8px)}
+  .wizardfade.stepexit{opacity:0;transform:translateY(-8px)}
   .wizardcoursename{flex:1;text-align:center;font-size:14px;font-weight:600;
                      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .wizardscore{text-align:center;font-size:32px;font-weight:800;margin:2px 0 10px}
@@ -507,9 +511,15 @@
   /* .panel selbst wird ein hoher Flex-Container (Kopfzeile oben, Knopf
      unten fest, .wizardmid dazwischen nimmt den Rest ein und zentriert
      die Stepper darin) - so nutzt die Ansicht wirklich die ganze
-     Bildschirmhoehe statt einer kleinen, mittig schwebenden Karte. */
+     Bildschirmhoehe statt einer kleinen, mittig schwebenden Karte.
+     .wizardfade (Kopfzeile+Mitte, siehe Ueberblend-Kommentar oben bei
+     .wizardfade) muss den Flex-Fluss von .panel unveraendert an
+     .wizardmid durchreichen, sonst faellt .wizardmid auf seine
+     Inhaltshoehe zusammen - .actions/die Wisch-Leiste bleibt bewusst
+     ausserhalb von .wizardfade ein direktes Flex-Kind von .panel. */
   body.wizard-fullscreen #manualMobile .panel{background:transparent;padding:0;margin:0;
     flex:1;display:flex;flex-direction:column;min-height:0}
+  body.wizard-fullscreen .wizardfade{flex:1;display:flex;flex-direction:column;min-height:0}
   body.wizard-fullscreen .wizardmid{flex:1;display:flex;flex-direction:column;
     justify-content:center;min-height:0}
   body.wizard-fullscreen .wizardcoursename{font-size:17px}
@@ -888,7 +898,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.37';
+var APP_VERSION = '0.38';
 </script>
 
 <script>
@@ -4443,10 +4453,14 @@ var APP_VERSION = '0.37';
       var par = fixedPars ? fixedPars[0] : 4, sc = startSc;
       var courseLabel = course ? (course.clubName + ' – ' + (course.name || 'Platz')) : '';
 
-      // Live spielen (startAt=0) laeuft unterwegs auf dem Platz - dafuer
-      // Kopf-/Fussleiste per body-Klasse ausblenden und die volle Flaeche
-      // nutzen (CSS body.wizard-fullscreen). Aufgeraeumt wird zentral in
-      // route(), nicht hier - greift dadurch auch bei Browser-Zurueck.
+      // Der Loch-fuer-Loch-Assistent laeuft immer im Vollbild - egal ob
+      // live auf dem Platz (startAt=0) oder nachtraeglich per "Ergebnisse
+      // eintragen" (startAt=4), beide sollen dieselbe grosszuegige Ansicht
+      // bekommen statt einer kleinen, im normalen Seitenfluss eingebetteten
+      // Karte. Dafuer Kopf-/Fussleiste per body-Klasse ausblenden und die
+      // volle Flaeche nutzen (CSS body.wizard-fullscreen). Aufgeraeumt wird
+      // zentral in route(), nicht hier - greift dadurch auch bei Browser-
+      // Zurueck.
       // Wichtige Lektion: #content behaelt von seiner .fadein-Eintritts-
       // animation (siehe MutationObserver weiter unten) einen technisch
       // noch "laufenden" transform-Animationsbezug, auch lange nachdem
@@ -4455,10 +4469,8 @@ var APP_VERSION = '0.37';
       // #contents (kollabierte) Innenmasse statt den echten Bildschirm
       // begrenzen. Die Klasse einmalig entfernen behebt das zuverlaessig
       // (ein reines CSS transform:none reicht dafuer NICHT).
-      if (startAt === 0) {
-        document.body.classList.add('wizard-fullscreen');
-        content.classList.remove('fadein');
-      }
+      document.body.classList.add('wizard-fullscreen');
+      content.classList.remove('fadein');
 
       function currentDiff() {
         var sumPar = 0, sumSc = 0;
@@ -4469,7 +4481,8 @@ var APP_VERSION = '0.37';
       function renderStep(animateIn) {
         var diff = currentDiff();
         mobileEl.innerHTML =
-          '<div class="panel wizardpanel' + (animateIn ? ' stepenter' : '') + '">' +
+          '<div class="panel wizardpanel">' +
+          '<div class="wizardfade' + (animateIn ? ' stepenter' : '') + '">' +
           '<div class="wizardtop">' +
           '<button type="button" class="mini no" id="mWizardClose" title="Abbrechen">' + I.x + '</button>' +
           (courseLabel ? '<span class="wizardcoursename">' + esc(courseLabel) + '</span>' : '') +
@@ -4491,6 +4504,7 @@ var APP_VERSION = '0.37';
           '<div class="stepper"><button type="button" id="mScMinus">\u2212</button>' +
           '<span id="mScVal">' + sc + '</span>' +
           '<button type="button" id="mScPlus">+</button></div></div>' +
+          '</div>' +
           '</div>' +
           '<div class="actions">' +
           '<div class="slidewrap" id="mHoleNextWrap">' +
@@ -4542,12 +4556,12 @@ var APP_VERSION = '0.37';
         }
         setupSlideToAdvance();
         if (animateIn) {
-          var panelEl = mobileEl.querySelector('.wizardpanel');
+          var fadeEl = mobileEl.querySelector('.wizardfade');
           // Erst im naechsten Frame die Klasse wegnehmen, sonst startet
           // der Browser direkt im Endzustand und die CSS-Transition (siehe
-          // .wizardpanel in <style>) hat nichts mehr zu animieren.
+          // .wizardfade in <style>) hat nichts mehr zu animieren.
           requestAnimationFrame(function () {
-            requestAnimationFrame(function () { panelEl.classList.remove('stepenter'); });
+            requestAnimationFrame(function () { fadeEl.classList.remove('stepenter'); });
           });
         }
       }
@@ -4599,17 +4613,20 @@ var APP_VERSION = '0.37';
         }
         // Beim erfolgreichen Wisch faellt der Griff sichtbar mit einem
         // kleinen Aufprall-Nachwippen nach links zurueck (Ueberschwinger-
-        // Kurve statt linearem Zuruecksetzen), waehrend die restliche
-        // Karte gleichzeitig ausblendet - statt schlagartig direkt zum
-        // naechsten Loch umzuschalten. Erst danach baut renderStep(true)
-        // die neue Karte auf und blendet sie ein (siehe dort).
+        // Kurve statt linearem Zuruecksetzen), waehrend Kopfzeile+Mitte
+        // gleichzeitig ausblenden - statt schlagartig direkt zum naechsten
+        // Loch umzuschalten. Die Wisch-Leiste selbst (.actions) blendet
+        // bewusst NICHT mit aus, sie bleibt dauerhaft an derselben Stelle
+        // stehen - nur der Griff/Balken bekommt seine eigene Animation.
+        // Erst danach baut renderStep(true) die neue Karte auf und blendet
+        // .wizardfade wieder ein (siehe dort).
         function playAdvanceAnimation() {
           thumb.style.transition = 'transform .5s cubic-bezier(.34,1.56,.64,1)';
           fill.style.transition = 'width .35s ease, opacity .3s ease';
           fill.style.opacity = '0';
           setX(0);
-          var panelEl = wrap.closest('.wizardpanel');
-          if (panelEl) panelEl.classList.add('stepexit');
+          var fadeEl = mobileEl.querySelector('.wizardfade');
+          if (fadeEl) fadeEl.classList.add('stepexit');
           setTimeout(advanceHole, 260);
         }
 
