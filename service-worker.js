@@ -3,7 +3,7 @@
 // eine leere Seite zu zeigen. Runden-Daten von Supabase laufen weiterhin
 // normal ueber das Netz, die werden hier bewusst nicht angefasst.
 
-const CACHE_NAME = 'pocketcaddy-v51';
+const CACHE_NAME = 'pocketcaddy-v52';
 const APP_SHELL = [
   './',
   './index.html',
@@ -35,6 +35,27 @@ self.addEventListener('fetch', (event) => {
   // alles andere normal durchlassen, damit dort immer aktuelle Daten
   // ankommen statt veralteter Zwischenspeicher-Inhalte.
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) {
+    return;
+  }
+
+  // Die Seite selbst (Navigation zu index.html) bewusst Netz-zuerst statt
+  // Zwischenspeicher-zuerst: sonst zeigt ein frischer Deploy trotz neuer
+  // CACHE_NAME erst beim ZWEITEN Neuladen die Aenderung - der erste Aufruf
+  // bekommt noch die alte, gecachte index.html ausgeliefert, bevor der neue
+  // Service Worker ueberhaupt aktiv ist. Nur bei fehlendem Netz faellt das
+  // auf den Zwischenspeicher zurueck (Offline-Fall bleibt erhalten).
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
     return;
   }
 
