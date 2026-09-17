@@ -583,7 +583,8 @@
                padding:0 16px;margin-top:-28px}
   .clubheadrow .ava{width:64px;height:64px;font-size:24px;
                      border:3px solid var(--card);flex:none}
-  .clubheadrow .namewrap{display:flex;flex-direction:column;gap:6px;padding-bottom:2px}
+  .clubheadrow .namewrap{flex:1;min-width:0;padding-bottom:2px}
+  .clubheadrow #btnFollowClub{margin-bottom:2px}
   /* Adresse/Telefon/Website als eigene, direkt anklickbare Zeilen (Karte,
      Anruf, Webseite) statt gestauchter Textzeilen - oben im Profil, vor
      Beschreibung/Preis. */
@@ -949,7 +950,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.40';
+var APP_VERSION = '0.41';
 </script>
 
 <script>
@@ -1503,7 +1504,7 @@ var APP_VERSION = '0.40';
 
   var I = {
     save:'<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>',
-    check:'<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>',
+    check:'<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" transform="translate(0,0.5)"/></svg>',
     share:'<svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>',
     back:'<svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>',
     chev:'<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
@@ -3579,10 +3580,10 @@ var APP_VERSION = '0.40';
         '></div>' +
         '<div class="clubheadrow">' +
         avaHtml(club.avatar_url, club.name, 'zoomable') +
-        '<div class="namewrap"><h3 style="margin:0">' + esc(club.name || 'Golfplatz') + '</h3>' +
+        '<div class="namewrap"><h3 style="margin:0">' + esc(club.name || 'Golfplatz') + '</h3></div>' +
         '<button class="mini' + (following ? ' ok' : '') + '" id="btnFollowClub" title="' +
         (following ? 'Entfolgen' : 'Folgen') + '">' + (following ? I.check : '+') + '</button>' +
-        '</div></div>' +
+        '</div>' +
         (contactHtml ? '<div class="contactlist">' + contactHtml + '</div>' : '') +
         (club.description || club.price_info
           ? '<div style="padding:16px 16px 0">' +
@@ -3644,8 +3645,16 @@ var APP_VERSION = '0.40';
       });
       Array.prototype.forEach.call(document.querySelectorAll('[data-course]'), function (el) {
         el.addEventListener('click', function () {
-          location.hash = 'manual/' + id + '/' + el.getAttribute('data-course');
-          route();
+          var courseId = el.getAttribute('data-course');
+          var c = courses.filter(function (x) { return x.id === courseId; })[0];
+          var label = (club.name || 'Golfplatz') + ' – ' + (c && c.name || 'Platz');
+          openCourseChoice(label, function () {
+            location.hash = 'manual/' + id + '/' + courseId + '/live';
+            route();
+          }, function () {
+            location.hash = 'manual/' + id + '/' + courseId;
+            route();
+          });
         });
       });
     });
@@ -3996,7 +4005,7 @@ var APP_VERSION = '0.40';
       }
 
       if (data.incoming.length) {
-        html += '<div class="sectionhead"><span class="t">Offene Anfragen</span>' +
+        html += '<div class="sectionhead" style="margin-top:22px"><span class="t">Offene Anfragen</span>' +
                 '<span class="c">' + data.incoming.length + '</span></div><div class="list">' +
           data.incoming.map(function (f) {
             return '<div class="item static">' +
@@ -4010,7 +4019,7 @@ var APP_VERSION = '0.40';
           }).join('') + '</div>';
       }
 
-      html += '<div class="sectionhead"><span class="t">Freunde</span>' +
+      html += '<div class="sectionhead" style="margin-top:22px"><span class="t">Freunde</span>' +
               '<span class="c">' + data.friends.length + '</span></div>';
 
       if (!data.friends.length) {
@@ -4027,7 +4036,7 @@ var APP_VERSION = '0.40';
       }
 
       if (data.outgoing.length) {
-        html += '<div class="sectionhead"><span class="t">Gesendet</span>' +
+        html += '<div class="sectionhead" style="margin-top:22px"><span class="t">Gesendet</span>' +
                 '<span class="c">' + data.outgoing.length + '</span></div><div class="list">' +
           data.outgoing.map(function (f) {
             return '<div class="item static">' +
@@ -4169,6 +4178,8 @@ var APP_VERSION = '0.40';
       '<div class="dtcol"><label class="dtlabel" for="fTime">Uhrzeit</label>' +
       '<input type="time" id="fTime" class="dtinput"></div>' +
       '</div>' +
+      '<div class="form"><select id="fClub"><option value="">Kein Verein</option></select></div>' +
+      '<div class="form hidden" id="fCourseWrap"><select id="fCourse"></select></div>' +
       '<div class="form"><input type="text" id="fWhere" placeholder="Ort (optional)" autocomplete="off"></div>';
 
     if (!friends.length) {
@@ -4192,6 +4203,57 @@ var APP_VERSION = '0.40';
     var timeInput = slot.querySelector('#fTime');
     [dateInput, timeInput].forEach(function (el) {
       el.addEventListener('input', function () { el.classList.toggle('has-value', !!el.value); });
+    });
+
+    // Verein auswaehlen -> beim "Aufklappen" (= sobald ein Verein gewaehlt
+    // ist) erscheint darunter die Platzauswahl dieses Vereins. Kein neues
+    // DB-Feld noetig: die Wahl fuellt nur das schon vorhandene Freitext-
+    // Ortsfeld aus (gleiches Prinzip wie location bei den Runden - der
+    // Text bleibt historisch stabil, auch wenn ein Kurs spaeter umbenannt
+    // wird), bleibt danach aber ganz normal editierbar.
+    var clubSel = slot.querySelector('#fClub');
+    var courseWrap = slot.querySelector('#fCourseWrap');
+    var courseSel = slot.querySelector('#fCourse');
+    var whereInput = slot.querySelector('#fWhere');
+    var clubs = [];
+    Club.followedClubs().then(function (list) {
+      clubs = list || [];
+      if (!clubs.length) return;
+      clubs.forEach(function (c) {
+        var o = document.createElement('option');
+        o.value = c.id;
+        o.textContent = c.name;
+        clubSel.appendChild(o);
+      });
+    });
+    function fillCourses(club) {
+      courseSel.innerHTML = '';
+      (club.courses || []).forEach(function (c) {
+        var o = document.createElement('option');
+        o.value = c.id;
+        o.textContent = c.name || 'Platz';
+        courseSel.appendChild(o);
+      });
+      courseWrap.classList.remove('hidden');
+      applyCourseLoc(club, club.courses[0]);
+    }
+    function applyCourseLoc(club, course) {
+      if (!course) return;
+      whereInput.value = club.name + ' – ' + (course.name || 'Platz');
+    }
+    clubSel.addEventListener('change', function () {
+      var club = clubs.filter(function (c) { return c.id === clubSel.value; })[0];
+      if (club && club.courses && club.courses.length) {
+        fillCourses(club);
+      } else {
+        courseWrap.classList.add('hidden');
+        courseSel.innerHTML = '';
+      }
+    });
+    courseSel.addEventListener('change', function () {
+      var club = clubs.filter(function (c) { return c.id === clubSel.value; })[0];
+      var course = club && club.courses.filter(function (c) { return c.id === courseSel.value; })[0];
+      if (club) applyCourseLoc(club, course);
     });
 
     var selected = {};
@@ -4673,15 +4735,14 @@ var APP_VERSION = '0.40';
       document.getElementById('mNext').addEventListener('click', goErgebnisse);
       document.getElementById('mLive').addEventListener('click', goLive);
 
-      // Kommt der Kurs von einem Golfplatz-Profil (preselect), direkt das
-      // Popup mit der Wahl zeigen statt nur die zwei Formular-Knoepfe -
-      // das Formular bleibt als Rueckfalloption sichtbar (z.B. um noch
-      // das Datum zu aendern), falls das Popup weggeklickt wird.
-      if (preselectedCourse) {
-        openCourseChoice(
-          preselectedCourse.clubName + ' – ' + (preselectedCourse.name || 'Platz'),
-          goLive, goErgebnisse
-        );
+      // Kommt der Kurs von einem Golfplatz-Profil, wurde die Wahl
+      // (Live/Ergebnisse) schon dort per Popup getroffen (siehe
+      // renderClubProfile()) - das /live-Hash-Suffix sagt hier nur noch,
+      // direkt in den Live-Assistenten zu springen, ohne das Formular
+      // sichtbar aufblitzen zu lassen. Ohne das Suffix (z.B. Aufruf ueber
+      // den Zurueck-Button) bleibt das Formular selbst als Fallback stehen.
+      if (preselectedCourse && preselect && preselect.autoLive) {
+        goLive();
       }
     }
 
@@ -5666,8 +5727,8 @@ var APP_VERSION = '0.40';
     // Runde direkt aus einem Golfplatz-Profil starten (Platz angeklickt):
     // manual/<clubId>/<courseId>, vor der einfachen 'manual'-Zeile geprueft,
     // damit die spezifischere Route zuerst greift.
-    var mc = /^manual\/([0-9a-f-]{36})\/([0-9a-f-]{36})$/.exec(raw);
-    if (mc) { renderManualEntry({ clubId: mc[1], courseId: mc[2] }); return; }
+    var mc = /^manual\/([0-9a-f-]{36})\/([0-9a-f-]{36})(\/live)?$/.exec(raw);
+    if (mc) { renderManualEntry({ clubId: mc[1], courseId: mc[2], autoLive: !!mc[3] }); return; }
     if (raw === 'manual')      { renderManualEntry(); return; }
     if (raw === 'menu/plan')   { renderPlan(); return; }
 
