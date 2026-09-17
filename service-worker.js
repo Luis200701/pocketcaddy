@@ -3,7 +3,7 @@
 // eine leere Seite zu zeigen. Runden-Daten von Supabase laufen weiterhin
 // normal ueber das Netz, die werden hier bewusst nicht angefasst.
 
-const CACHE_NAME = 'pocketcaddy-v57';
+const CACHE_NAME = 'pocketcaddy-v58';
 const APP_SHELL = [
   './',
   './index.html',

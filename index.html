@@ -904,6 +904,20 @@
   </div>
 </div>
 
+<!-- Verein+Platz auswaehlen (z.B. im Termin-Formular): eigenes Popup statt
+     nativem <select>, siehe openClubPick()/closeClubPick(). Erst gefolgte
+     Vereine, per Suche auch andere; Antippen eines Vereins klappt ihn auf
+     und zeigt seine Plaetze direkt darunter. -->
+<div class="sheetbg" id="clubPickBg"></div>
+<div class="sheet" id="clubPickSheet"><div class="grip"></div>
+  <div style="padding:4px 8px 6px">
+    <div class="form" style="margin-bottom:14px">
+      <input type="text" id="clubPickSearch" placeholder="Verein suchen …" autocomplete="off">
+    </div>
+    <div id="clubPickList" style="max-height:50vh;overflow:auto"></div>
+  </div>
+</div>
+
 <!-- Profilbild antippen zum Vergroessern - randloses Vollbild-Overlay
      wie .scanview, statt der Karten-Optik von .sheet, da hier nur ein
      Bild gezeigt wird. -->
@@ -950,7 +964,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.41';
+var APP_VERSION = '0.42';
 </script>
 
 <script>
@@ -1789,6 +1803,88 @@ var APP_VERSION = '0.41';
     courseChoiceManualBtn.addEventListener('click', onManualPick);
     courseChoiceBg.addEventListener('click', onBgClick);
     courseChoiceSheet.classList.add('on'); courseChoiceBg.classList.add('on');
+  }
+
+  // Verein+Platz waehlen (z.B. im Termin-Formular): eigenes Popup statt
+  // nativem <select>. Erst gefolgte Vereine, per Suche auch alle
+  // verifizierten (gleiche Datenquellen/Zeilen-Optik wie renderClubSearch()).
+  // Antippen eines Vereins klappt ihn per expandedClubId in-place auf und
+  // zeigt seine Plaetze direkt darunter (gleiches Grundprinzip wie
+  // mountCoursesEditor()s Aufklapp-Zustand, hier nur zur Auswahl statt
+  // zum Bearbeiten). Klick-Listener per Delegation auf der Liste selbst,
+  // damit ein Re-Render (Suche/Aufklappen) keine neuen Listener braucht.
+  var clubPickSheet = document.getElementById('clubPickSheet');
+  var clubPickBg = document.getElementById('clubPickBg');
+  var clubPickSearchEl = document.getElementById('clubPickSearch');
+  var clubPickListEl = document.getElementById('clubPickList');
+  function closeClubPick() { clubPickSheet.classList.remove('on'); clubPickBg.classList.remove('on'); }
+  function openClubPick(onPick) {
+    var followed = [], allClubs = [], currentClubs = [], expandedClubId = null;
+    clubPickSearchEl.value = '';
+    clubPickListEl.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
+
+    function rowHtml(c) {
+      var expanded = expandedClubId === c.id;
+      var courses = c.courses || [];
+      var html = '<button type="button" class="item" data-pick-club-row="' + c.id + '">' +
+        avaHtml(c.avatarUrl || c.coverImageUrl, c.name, '', '', 'club') +
+        '<span class="meta"><span class="d">' + esc(c.name || 'Golfplatz') + '</span>' +
+        '<span class="s">' + (courses.length ? (courses.length + (courses.length === 1 ? ' Platz' : ' Plätze')) : 'Noch keine Plätze') +
+        '</span></span><span class="chev">' + I.chev + '</span></button>';
+      if (expanded && courses.length) {
+        html += '<div class="list" style="margin:8px 0 0 54px">' + courses.map(function (course) {
+          return '<button type="button" class="item" data-pick-course="' + course.id + '" data-pick-club="' + c.id + '">' +
+            '<span class="meta"><span class="d">' + esc(course.name || 'Platz') + '</span>' +
+            '<span class="s">' + course.holes + ' Löcher</span></span></button>';
+        }).join('') + '</div>';
+      }
+      return html;
+    }
+    function renderList(query) {
+      var q = (query || '').trim().toLowerCase();
+      var source = q
+        ? allClubs.filter(function (c) { return (c.name || '').toLowerCase().indexOf(q) >= 0; })
+        : (followed.length ? followed : allClubs);
+      currentClubs = source;
+      clubPickListEl.innerHTML = source.length
+        ? '<div class="list">' + source.map(rowHtml).join('') + '</div>'
+        : '<div class="empty"><b>Nichts gefunden</b>Versuch einen anderen Suchbegriff.</div>';
+    }
+    function findClub(id) {
+      return currentClubs.filter(function (c) { return c.id === id; })[0] ||
+        allClubs.filter(function (c) { return c.id === id; })[0];
+    }
+    function onListClick(e) {
+      var courseEl = e.target.closest('[data-pick-course]');
+      if (courseEl) {
+        var club = findClub(courseEl.getAttribute('data-pick-club'));
+        var course = club && (club.courses || []).filter(function (x) { return x.id === courseEl.getAttribute('data-pick-course'); })[0];
+        if (club && course) { closeClubPick(); cleanup(); onPick(club, course); }
+        return;
+      }
+      var clubEl = e.target.closest('[data-pick-club-row]');
+      if (clubEl) {
+        var id = clubEl.getAttribute('data-pick-club-row');
+        expandedClubId = (expandedClubId === id) ? null : id;
+        renderList(clubPickSearchEl.value);
+      }
+    }
+    function onSearchInput() { expandedClubId = null; renderList(clubPickSearchEl.value); }
+    function onBgClick() { closeClubPick(); cleanup(); }
+    function cleanup() {
+      clubPickListEl.removeEventListener('click', onListClick);
+      clubPickSearchEl.removeEventListener('input', onSearchInput);
+      clubPickBg.removeEventListener('click', onBgClick);
+    }
+    clubPickListEl.addEventListener('click', onListClick);
+    clubPickSearchEl.addEventListener('input', onSearchInput);
+    clubPickBg.addEventListener('click', onBgClick);
+    clubPickSheet.classList.add('on'); clubPickBg.classList.add('on');
+
+    Promise.all([Club.followedClubs(), Club.verifiedClubsList()]).then(function (res) {
+      followed = res[0] || []; allClubs = res[1] || [];
+      renderList(clubPickSearchEl.value);
+    });
   }
 
   // Profilbild antippen zum Vergroessern - EIN delegierter Listener statt
@@ -4178,8 +4274,9 @@ var APP_VERSION = '0.41';
       '<div class="dtcol"><label class="dtlabel" for="fTime">Uhrzeit</label>' +
       '<input type="time" id="fTime" class="dtinput"></div>' +
       '</div>' +
-      '<div class="form"><select id="fClub"><option value="">Kein Verein</option></select></div>' +
-      '<div class="form hidden" id="fCourseWrap"><select id="fCourse"></select></div>' +
+      '<div class="form"><button type="button" class="btn ghost" id="fCoursePickBtn" ' +
+      'style="width:100%;justify-content:space-between">' +
+      '<span id="fCoursePickLabel">Kurs wählen</span>' + I.chev + '</button></div>' +
       '<div class="form"><input type="text" id="fWhere" placeholder="Ort (optional)" autocomplete="off"></div>';
 
     if (!friends.length) {
@@ -4205,55 +4302,20 @@ var APP_VERSION = '0.41';
       el.addEventListener('input', function () { el.classList.toggle('has-value', !!el.value); });
     });
 
-    // Verein auswaehlen -> beim "Aufklappen" (= sobald ein Verein gewaehlt
-    // ist) erscheint darunter die Platzauswahl dieses Vereins. Kein neues
-    // DB-Feld noetig: die Wahl fuellt nur das schon vorhandene Freitext-
-    // Ortsfeld aus (gleiches Prinzip wie location bei den Runden - der
-    // Text bleibt historisch stabil, auch wenn ein Kurs spaeter umbenannt
-    // wird), bleibt danach aber ganz normal editierbar.
-    var clubSel = slot.querySelector('#fClub');
-    var courseWrap = slot.querySelector('#fCourseWrap');
-    var courseSel = slot.querySelector('#fCourse');
+    // Verein+Platz waehlen -> eigenes Popup statt nativem <select> (siehe
+    // openClubPick()). Kein neues DB-Feld noetig: die Wahl fuellt nur das
+    // schon vorhandene Freitext-Ortsfeld aus (gleiches Prinzip wie location
+    // bei den Runden - der Text bleibt historisch stabil, auch wenn ein
+    // Kurs spaeter umbenannt wird), bleibt danach aber ganz normal
+    // editierbar.
+    var pickBtn = slot.querySelector('#fCoursePickBtn');
+    var pickLabel = slot.querySelector('#fCoursePickLabel');
     var whereInput = slot.querySelector('#fWhere');
-    var clubs = [];
-    Club.followedClubs().then(function (list) {
-      clubs = list || [];
-      if (!clubs.length) return;
-      clubs.forEach(function (c) {
-        var o = document.createElement('option');
-        o.value = c.id;
-        o.textContent = c.name;
-        clubSel.appendChild(o);
+    pickBtn.addEventListener('click', function () {
+      openClubPick(function (club, course) {
+        pickLabel.textContent = club.name + ' – ' + (course.name || 'Platz');
+        whereInput.value = club.name + ' – ' + (course.name || 'Platz');
       });
-    });
-    function fillCourses(club) {
-      courseSel.innerHTML = '';
-      (club.courses || []).forEach(function (c) {
-        var o = document.createElement('option');
-        o.value = c.id;
-        o.textContent = c.name || 'Platz';
-        courseSel.appendChild(o);
-      });
-      courseWrap.classList.remove('hidden');
-      applyCourseLoc(club, club.courses[0]);
-    }
-    function applyCourseLoc(club, course) {
-      if (!course) return;
-      whereInput.value = club.name + ' – ' + (course.name || 'Platz');
-    }
-    clubSel.addEventListener('change', function () {
-      var club = clubs.filter(function (c) { return c.id === clubSel.value; })[0];
-      if (club && club.courses && club.courses.length) {
-        fillCourses(club);
-      } else {
-        courseWrap.classList.add('hidden');
-        courseSel.innerHTML = '';
-      }
-    });
-    courseSel.addEventListener('change', function () {
-      var club = clubs.filter(function (c) { return c.id === clubSel.value; })[0];
-      var course = club && club.courses.filter(function (c) { return c.id === courseSel.value; })[0];
-      if (club) applyCourseLoc(club, course);
     });
 
     var selected = {};
