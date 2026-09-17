@@ -154,7 +154,6 @@
   .profilehead .ava{width:52px;height:52px;font-size:20px;flex:none}
   .profilehead .pname{font-size:18px;font-weight:700}
   .profilehead .pname.link{color:var(--mut);font-weight:600;font-size:15px}
-  .profilehead .psub{font-size:13px;color:var(--mut);margin-top:2px}
 
   /* Freunde-Auswahl beim Termin anlegen: antippbare Avatare statt
      Abhak-Kaestchen, ausgewaehlt = gruener Kranz um das Bild. */
@@ -302,10 +301,13 @@
   .datebtn .tag{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
                 background:#ffffff14;border-radius:99px;padding:3px 7px}
   .hidden-date-input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+  /* Allzweck-Utility statt wiederholtem style="display:none" (Datei-Input-
+     Proxys, einmalig bedingt ausgeblendete Bloecke, per JS umgeschaltete
+     Elemente ueber classList.toggle('hidden', ...)). */
+  .hidden{display:none}
   /* Datum steht am Bildschirm im antippbaren Knopf, in der Unterzeile waere
      es doppelt. Im PDF ist der Knopf ausgeblendet, dort wird es gebraucht. */
   #subDate{display:none}
-  #subDate + .dot{display:none}
   .total{margin:14px 0 24px;text-align:center}
   .total .num{font-size:64px;font-weight:800;line-height:1}
   .total .sub{font-size:13px;color:var(--mut);letter-spacing:.1em;
@@ -322,6 +324,7 @@
   tfoot td{background:var(--bar);font-weight:700;border-top:2px solid #ffffff1a}
 
   .actions{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .actions.tight{margin-top:12px}
   /* "Nächstes Loch" beim Live-Mitzählen: Wisch-Leiste statt Antipp-Button
      (wie das alte iPhone-Entsperren) - der Griff muss bewusst bis fast ans
      Ende gezogen werden, ein einfaches Antippen loest nichts aus. Siehe
@@ -359,6 +362,10 @@
   button.btn:active{transform:translateY(1px)}
   button.btn.ghost{background:transparent;color:var(--mut);box-shadow:inset 0 0 0 1px #ffffff1f}
   button.btn.saved{background:#2a3b1c;color:var(--lime)}
+  /* Aktions-Knopf im eigenen Bestaetigungs-Dialog (siehe confirmDialog()) -
+     alle 12 Faelle sind destruktiv/negativ (loeschen, entfolgen, ablehnen, ...),
+     daher standardmaessig in --bad statt in der normalen Akzentfarbe. */
+  button.btn.danger{background:var(--bad);color:#fff}
   button.btn svg{width:17px;height:17px;fill:none;stroke:currentColor;
                  stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .hint{margin-top:14px;font-size:12.5px;color:var(--mut);text-align:center;line-height:1.7}
@@ -640,7 +647,7 @@
   .friendhead .fname{font-size:20px;font-weight:700}
   .datebtn.plain{cursor:default}
 
-  .del{margin-top:26px;text-align:center}
+  .del{margin-top:0;text-align:left}
   .del button{background:transparent;border:0;color:#8a5050;font:inherit;
               box-shadow:inset 0 0 0 1px #ff5c5c33;font-size:13.5px;padding:11px 18px;
               border-radius:999px;cursor:pointer}
@@ -667,11 +674,11 @@
   }
   /* ---------- Dezente Animationen ---------- */
   /* Druckgefuehl auf allen antippbaren Elementen */
-  .btn,.iconbtn,.fab,.item,.mini,.menuitem,
+  .btn,.iconbtn,.item,.mini,.menuitem,
   .taction,.linkbtn,.datebtn,.linklike{
     transition:transform .12s ease, background-color .12s ease, opacity .12s ease;
   }
-  .btn:active,.iconbtn:active,.fab:active,.item:active,.mini:active,
+  .btn:active,.iconbtn:active,.item:active,.mini:active,
   .menuitem:active,.datebtn:active{
     transform:scale(.96);
   }
@@ -860,6 +867,19 @@
   <div id="holeInfoContent" style="padding:4px 8px 6px"></div>
 </div>
 
+<!-- Eigenes Bestaetigungs-Popup statt des nativen confirm() - gleiches
+     Sheet-Muster wie oben, siehe confirmDialog() weiter unten. -->
+<div class="sheetbg" id="confirmBg"></div>
+<div class="sheet" id="confirmSheet"><div class="grip"></div>
+  <div style="padding:4px 8px 6px">
+    <p id="confirmMsg" style="margin:0 0 18px;font-size:15px;line-height:1.6"></p>
+    <div class="actions" style="margin-top:0">
+      <button class="btn ghost" id="confirmCancelBtn" style="flex:1;justify-content:center">Abbrechen</button>
+      <button class="btn danger" id="confirmOkBtn" style="flex:1;justify-content:center">Löschen</button>
+    </div>
+  </div>
+</div>
+
 <!-- Profilbild antippen zum Vergroessern - randloses Vollbild-Overlay
      wie .scanview, statt der Karten-Optik von .sheet, da hier nur ein
      Bild gezeigt wird. -->
@@ -898,7 +918,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.38';
+var APP_VERSION = '0.39';
 </script>
 
 <script>
@@ -1670,6 +1690,37 @@ var APP_VERSION = '0.38';
   function closeHoleInfo() { holeInfoSheet.classList.remove('on'); holeInfoBg.classList.remove('on'); }
   holeInfoBg.addEventListener('click', closeHoleInfo);
 
+  // Eigenes Bestaetigungs-Popup statt des nativen confirm() - passt sich
+  // dem App-Design an (und sieht auf jeder Plattform gleich aus). Gleiches
+  // Sheet-Muster wie oben, aber Promise-basiert statt synchron: confirmDialog()
+  // loest mit true (Aktions-Knopf) oder false (Abbrechen/Hintergrund) auf.
+  var confirmSheet    = document.getElementById('confirmSheet');
+  var confirmBg       = document.getElementById('confirmBg');
+  var confirmMsgEl    = document.getElementById('confirmMsg');
+  var confirmOkBtn    = document.getElementById('confirmOkBtn');
+  var confirmCancelBtn = document.getElementById('confirmCancelBtn');
+  function openConfirm()  { confirmSheet.classList.add('on'); confirmBg.classList.add('on'); }
+  function closeConfirm() { confirmSheet.classList.remove('on'); confirmBg.classList.remove('on'); }
+  function confirmDialog(message, okLabel) {
+    return new Promise(function (resolve) {
+      confirmMsgEl.textContent = message;
+      confirmOkBtn.textContent = okLabel || 'Löschen';
+      function done(result) {
+        closeConfirm();
+        confirmOkBtn.removeEventListener('click', onOk);
+        confirmCancelBtn.removeEventListener('click', onCancel);
+        confirmBg.removeEventListener('click', onCancel);
+        resolve(result);
+      }
+      function onOk()     { done(true); }
+      function onCancel() { done(false); }
+      confirmOkBtn.addEventListener('click', onOk);
+      confirmCancelBtn.addEventListener('click', onCancel);
+      confirmBg.addEventListener('click', onCancel);
+      openConfirm();
+    });
+  }
+
   // Profilbild antippen zum Vergroessern - EIN delegierter Listener statt
   // Einzel-Handler an den ~15 Stellen, die avaHtml() aufrufen. Reagiert NUR
   // auf ein <img> innerhalb von .ava.zoomable - bewusst opt-in statt global:
@@ -1722,16 +1773,6 @@ var APP_VERSION = '0.38';
       location.hash = el.getAttribute('data-go'); route();
     });
   });
-
-  function backButton(id) {
-    return '<div class="actions"><button class="btn ghost" id="' + id + '">' +
-           I.back + 'Startseite</button></div>';
-  }
-  function wireBack(id) {
-    document.getElementById(id).addEventListener('click', function () {
-      location.hash = ''; route();
-    });
-  }
 
   /* ---------- Startseite ---------- */
   function renderHome() {
@@ -1829,8 +1870,8 @@ var APP_VERSION = '0.38';
         if (!clubs.length) {
           slot.innerHTML =
             '<div class="sectionhead" style="margin-top:22px"><span class="t">Golfplätze</span></div>' +
-            '<p class="hint" style="margin:0">Noch keinen Golfplätzen gefolgt – ' +
-            'im Menü unter &bdquo;Golfplätze&ldquo; suchen.</p>';
+            '<div class="empty"><b>Noch keinen Golfplätzen gefolgt</b>' +
+            'Im Menü unter &bdquo;Golfplätze&ldquo; suchen.</div>';
           return;
         }
         slot.innerHTML =
@@ -1852,10 +1893,13 @@ var APP_VERSION = '0.38';
         Array.prototype.forEach.call(slot.querySelectorAll('[data-unfollow]'), function (el) {
           el.addEventListener('click', function (e) {
             e.stopPropagation();
-            if (!confirm('Diesem Golfplatz wirklich entfolgen?')) return;
-            Club.unfollow(el.getAttribute('data-unfollow')).then(function (r) {
-              if (r.error) { toast('Hat nicht geklappt.', true); return; }
-              renderHome();
+            var clubId = el.getAttribute('data-unfollow');
+            confirmDialog('Diesem Golfplatz wirklich entfolgen?', 'Entfolgen').then(function (ok) {
+              if (!ok) return;
+              Club.unfollow(clubId).then(function (r) {
+                if (r.error) { toast('Hat nicht geklappt.', true); return; }
+                renderHome();
+              });
             });
           });
         });
@@ -2222,12 +2266,12 @@ var APP_VERSION = '0.38';
       'noch enthalten sind, kommen dabei zur\u00fcck.</p>' +
       '<div class="actions"><button class="btn ghost" id="btnImport">' + I.up +
       'Datei einlesen</button></div>' +
-      '<input type="file" id="fileInput" accept="application/json,.json" style="display:none"></div>' +
+      '<input type="file" id="fileInput" accept="application/json,.json" class="hidden"></div>' +
 
       '<div class="panel"><h3>Alles l\u00f6schen</h3>' +
       '<p>Entfernt alle Runden von diesem Ger\u00e4t. L\u00e4sst sich nur \u00fcber eine ' +
       'zuvor exportierte Datei wiederherstellen.</p>' +
-      '<div class="del" style="margin-top:0;text-align:left">' +
+      '<div class="del">' +
       '<button id="btnClear">Alle Runden l\u00f6schen</button></div></div>';
 
     document.getElementById('btnExport').addEventListener('click', function () {
@@ -2273,9 +2317,10 @@ var APP_VERSION = '0.38';
     });
 
     document.getElementById('btnClear').addEventListener('click', function () {
-      if (confirm('Wirklich alle Runden von diesem Ger\u00e4t l\u00f6schen?')) {
+      confirmDialog('Wirklich alle Runden von diesem Ger\u00e4t l\u00f6schen?').then(function (ok) {
+        if (!ok) return;
         Store.removeAll(); toast('Alle Runden gel\u00f6scht.'); renderBackup();
-      }
+      });
     });
 
   }
@@ -3041,12 +3086,14 @@ var APP_VERSION = '0.38';
       });
       Array.prototype.forEach.call(listEl.querySelectorAll('[data-delete-course]'), function (btn) {
         btn.addEventListener('click', function () {
-          if (!confirm('Diesen Platz wirklich löschen?')) return;
           var id = btn.getAttribute('data-delete-course');
-          Club.removeCourse(id, clubId).then(function () {
-            toast('Gelöscht.');
-            expandedCourse = null;
-            Club.coursesOf(clubId).then(function (fresh) { courses = fresh; renderCourses(); });
+          confirmDialog('Diesen Platz wirklich löschen?').then(function (ok) {
+            if (!ok) return;
+            Club.removeCourse(id, clubId).then(function () {
+              toast('Gelöscht.');
+              expandedCourse = null;
+              Club.coursesOf(clubId).then(function (fresh) { courses = fresh; renderCourses(); });
+            });
           });
         });
       });
@@ -3065,6 +3112,10 @@ var APP_VERSION = '0.38';
   // die normale Startseite (siehe renderHome()). Bewusst auf jeder
   // Bildschirmbreite nutzbar, auch wenn Golfplaetze das in der Praxis
   // fast immer am Rechner ausfuellen werden.
+  // Zielgroessen fuer Club.uploadMedia() - quadratisch fuers Profilbild,
+  // breitformatig fuer Titelbild/Lochfotos (siehe renderClub() unten).
+  var CLUB_AVATAR_SIZE = 800, CLUB_COVER_W = 960, CLUB_COVER_H = 540;
+
   function renderClub() {
     brand.textContent = 'Golfplatz';
     content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
@@ -3109,14 +3160,14 @@ var APP_VERSION = '0.38';
         '<span id="cAvatarPreview">' + avaHtml(club.avatar_url, club.name, 'zoomable') + '</span>' +
         '<button class="btn ghost" id="btnAvatarPick" style="margin:0">Profilbild wählen</button>' +
         '</div>' +
-        '<input type="file" id="fClubAvatar" accept="image/*" style="display:none">' +
+        '<input type="file" id="fClubAvatar" accept="image/*" class="hidden">' +
         '<p class="hint">Titelbild' +
         (club.cover_image_url ? '' : ' (noch keins hochgeladen)') + '</p>' +
         (club.cover_image_url
           ? '<img src="' + esc(club.cover_image_url) + '" style="width:100%;border-radius:12px;margin-bottom:12px">'
           : '') +
         '<div class="actions"><button class="btn ghost" id="btnCoverPick">Titelbild wählen</button></div>' +
-        '<input type="file" id="fCover" accept="image/*" style="display:none">' +
+        '<input type="file" id="fCover" accept="image/*" class="hidden">' +
         '<p class="hint">Lochfotos (optional): ' + (club.hole_images || []).length + ' hochgeladen</p>' +
         (club.hole_images && club.hole_images.length
           ? '<div class="pars-grid">' + club.hole_images.map(function (u) {
@@ -3124,7 +3175,7 @@ var APP_VERSION = '0.38';
             }).join('') + '</div>'
           : '') +
         '<div class="actions"><button class="btn ghost" id="btnHolePhotoPick">Lochfoto hinzufügen</button></div>' +
-        '<input type="file" id="fHolePhoto" accept="image/*" style="display:none">' +
+        '<input type="file" id="fHolePhoto" accept="image/*" class="hidden">' +
         '</div>';
 
       html += '<div class="actions"><button class="btn ghost" id="btnGoOffers">Angebote verwalten →</button></div>';
@@ -3155,7 +3206,7 @@ var APP_VERSION = '0.38';
         var file = e.target.files && e.target.files[0]; e.target.value = '';
         if (!file) return;
         toast('Lade Bild hoch …');
-        Club.uploadMedia(file, 800, 800).then(function (url) {
+        Club.uploadMedia(file, CLUB_AVATAR_SIZE, CLUB_AVATAR_SIZE).then(function (url) {
           return Club.saveClub({ avatar_url: url });
         }).then(function () { toast('Profilbild gespeichert.'); renderClub(); })
           .catch(function (e) { toast('Hochladen fehlgeschlagen: ' + (e && e.message || ''), true); });
@@ -3168,7 +3219,7 @@ var APP_VERSION = '0.38';
         var file = e.target.files && e.target.files[0]; e.target.value = '';
         if (!file) return;
         toast('Lade Bild hoch …');
-        Club.uploadMedia(file, 960, 540).then(function (url) {
+        Club.uploadMedia(file, CLUB_COVER_W, CLUB_COVER_H).then(function (url) {
           return Club.saveClub({ cover_image_url: url });
         }).then(function () { toast('Titelbild gespeichert.'); renderClub(); })
           .catch(function (e) { toast('Hochladen fehlgeschlagen: ' + (e && e.message || ''), true); });
@@ -3181,7 +3232,7 @@ var APP_VERSION = '0.38';
         var file = e.target.files && e.target.files[0]; e.target.value = '';
         if (!file) return;
         toast('Lade Bild hoch …');
-        Club.uploadMedia(file, 960, 540).then(function (url) {
+        Club.uploadMedia(file, CLUB_COVER_W, CLUB_COVER_H).then(function (url) {
           var imgs = (club.hole_images || []).slice(); imgs.push(url);
           return Club.saveClub({ hole_images: imgs });
         }).then(function () { toast('Lochfoto gespeichert.'); renderClub(); })
@@ -3240,13 +3291,39 @@ var APP_VERSION = '0.38';
 
       Array.prototype.forEach.call(document.querySelectorAll('[data-remove]'), function (el) {
         el.addEventListener('click', function () {
-          if (!confirm('Dieses Angebot wirklich löschen?')) return;
-          Club.removeOffer(el.getAttribute('data-remove')).then(function () {
-            toast('Gelöscht.'); renderClubOffers();
+          var offerId = el.getAttribute('data-remove');
+          confirmDialog('Dieses Angebot wirklich löschen?').then(function (ok) {
+            if (!ok) return;
+            Club.removeOffer(offerId).then(function () {
+              toast('Gelöscht.'); renderClubOffers();
+            });
           });
         });
       });
     });
+  }
+
+  // Gemeinsames Muster fuer "Suchfeld filtert eine Liste von Golfplatz-
+  // Zeilen" - genutzt von renderClubSearch() und wireClubManagement() in
+  // renderAdmin(). rowHtml(club) baut eine Zeile, wireRows(listEl) haengt
+  // die Klick-Handler der gerade sichtbaren Zeilen an (nach jedem Render
+  // neu noetig, da innerHTML alte Elemente/Listener verwirft).
+  function mountFilterableClubList(searchEl, listEl, clubs, rowHtml, wireRows) {
+    function renderList(filtered) {
+      listEl.innerHTML = filtered.length
+        ? '<div class="list">' + filtered.map(rowHtml).join('') + '</div>'
+        : '<div class="empty"><b>Nichts gefunden</b>Versuch einen anderen Suchbegriff.</div>';
+      wireRows(listEl);
+    }
+    renderList(clubs);
+    if (searchEl) {
+      searchEl.addEventListener('input', function (e) {
+        var q = e.target.value.trim().toLowerCase();
+        renderList(!q ? clubs : clubs.filter(function (c) {
+          return (c.name || '').toLowerCase().indexOf(q) >= 0;
+        }));
+      });
+    }
   }
 
   // Golfplaetze suchen und folgen (menu/clubs) - die volle Liste aller
@@ -3276,53 +3353,46 @@ var APP_VERSION = '0.38';
           '</div>';
       }
 
-      function renderList(filtered) {
-        var listEl = document.getElementById('clubSearchList');
-        if (!listEl) return;
-        listEl.innerHTML = filtered.length
-          ? '<div class="list">' + filtered.map(rowHtml).join('') + '</div>'
-          : '<div class="empty"><b>Nichts gefunden</b>Versuch einen anderen Suchbegriff.</div>';
-        wireRowEvents();
-      }
-
-      function wireRowEvents() {
-        Array.prototype.forEach.call(document.querySelectorAll('[data-club]'), function (el) {
+      function wireRows(listEl) {
+        Array.prototype.forEach.call(listEl.querySelectorAll('[data-club]'), function (el) {
           el.addEventListener('click', function () {
             location.hash = 'club/' + el.getAttribute('data-club'); route();
           });
         });
-        Array.prototype.forEach.call(document.querySelectorAll('[data-follow]'), function (btn) {
+        Array.prototype.forEach.call(listEl.querySelectorAll('[data-follow]'), function (btn) {
           btn.addEventListener('click', function (e) {
             e.stopPropagation();
             if (!Auth.id()) { toast('Bitte zuerst anmelden.', true); return; }
             var id = btn.getAttribute('data-follow');
             var following = follows.indexOf(id) >= 0;
-            if (following && !confirm('Diesem Golfplatz wirklich entfolgen?')) return;
-            var op = following ? Club.unfollow(id) : Club.follow(id);
-            op.then(function (r) {
-              if (r.error) { toast('Hat nicht geklappt.', true); return; }
-              if (following) { follows = follows.filter(function (x) { return x !== id; }); }
-              else { follows.push(id); }
-              btn.classList.toggle('ok', !following);
-              btn.innerHTML = following ? '+' : I.check;
-            });
+            function doToggle() {
+              var op = following ? Club.unfollow(id) : Club.follow(id);
+              op.then(function (r) {
+                if (r.error) { toast('Hat nicht geklappt.', true); return; }
+                if (following) { follows = follows.filter(function (x) { return x !== id; }); }
+                else { follows.push(id); }
+                btn.classList.toggle('ok', !following);
+                btn.innerHTML = following ? '+' : I.check;
+              });
+            }
+            if (following) {
+              confirmDialog('Diesem Golfplatz wirklich entfolgen?', 'Entfolgen').then(function (ok) {
+                if (ok) doToggle();
+              });
+            } else {
+              doToggle();
+            }
           });
         });
       }
 
       content.innerHTML =
-        '<div class="form" style="margin-bottom:14px">' +
+        '<div class="form">' +
         '<input type="text" id="clubSearchInput" placeholder="Golfplatz suchen …"></div>' +
         '<div id="clubSearchList"></div>';
 
-      renderList(clubs);
-
-      document.getElementById('clubSearchInput').addEventListener('input', function (e) {
-        var q = e.target.value.trim().toLowerCase();
-        renderList(!q ? clubs : clubs.filter(function (c) {
-          return (c.name || '').toLowerCase().indexOf(q) >= 0;
-        }));
-      });
+      mountFilterableClubList(document.getElementById('clubSearchInput'),
+        document.getElementById('clubSearchList'), clubs, rowHtml, wireRows);
     });
   }
 
@@ -3411,14 +3481,22 @@ var APP_VERSION = '0.38';
       });
       document.getElementById('btnFollowClub').addEventListener('click', function () {
         if (!Auth.id()) { toast('Bitte zuerst anmelden.', true); return; }
-        if (following && !confirm('Diesem Golfplatz wirklich entfolgen?')) return;
         var btn = document.getElementById('btnFollowClub');
-        var op = following ? Club.unfollow(id) : Club.follow(id);
-        op.then(function (r) {
-          if (r.error) { toast('Hat nicht geklappt.', true); return; }
-          following = !following;
-          btn.textContent = following ? 'Folgt' : 'Folgen';
-        });
+        function doToggle() {
+          var op = following ? Club.unfollow(id) : Club.follow(id);
+          op.then(function (r) {
+            if (r.error) { toast('Hat nicht geklappt.', true); return; }
+            following = !following;
+            btn.textContent = following ? 'Folgt' : 'Folgen';
+          });
+        }
+        if (following) {
+          confirmDialog('Diesem Golfplatz wirklich entfolgen?', 'Entfolgen').then(function (ok) {
+            if (ok) doToggle();
+          });
+        } else {
+          doToggle();
+        }
       });
       Array.prototype.forEach.call(document.querySelectorAll('[data-course]'), function (el) {
         el.addEventListener('click', function () {
@@ -3498,7 +3576,7 @@ var APP_VERSION = '0.38';
     // wegfallen koennen, wenn gerade nichts offen ist.
     function clubManagementHtml() {
       return '<div class="sectionhead"><span class="t">Golfplätze verwalten</span></div>' +
-        '<div class="form" style="margin-bottom:14px">' +
+        '<div class="form">' +
         '<input type="text" id="adminClubSearch" placeholder="Golfplatz suchen …"></div>' +
         '<div id="adminClubList"></div>' +
         '<div class="actions"><button class="btn ghost" id="btnAdminNewClub">' +
@@ -3530,28 +3608,15 @@ var APP_VERSION = '0.38';
           '<span class="s">' + (n ? (n + (n === 1 ? ' Platz' : ' Plätze')) : 'Noch keine Plätze') +
           '</span></span></div>';
       }
-      function renderList(filtered) {
-        var listEl = document.getElementById('adminClubList');
-        if (!listEl) return;
-        listEl.innerHTML = filtered.length
-          ? '<div class="list">' + filtered.map(rowHtml).join('') + '</div>'
-          : '<div class="empty"><b>Nichts gefunden</b>Versuch einen anderen Suchbegriff.</div>';
+      function wireRows(listEl) {
         Array.prototype.forEach.call(listEl.querySelectorAll('[data-admin-club]'), function (el) {
           el.addEventListener('click', function () {
             location.hash = 'menu/admin/club/' + el.getAttribute('data-admin-club'); route();
           });
         });
       }
-      renderList(clubs);
-      var searchEl = document.getElementById('adminClubSearch');
-      if (searchEl) {
-        searchEl.addEventListener('input', function (e) {
-          var q = e.target.value.trim().toLowerCase();
-          renderList(!q ? clubs : clubs.filter(function (c) {
-            return (c.name || '').toLowerCase().indexOf(q) >= 0;
-          }));
-        });
-      }
+      mountFilterableClubList(document.getElementById('adminClubSearch'),
+        document.getElementById('adminClubList'), clubs, rowHtml, wireRows);
 
       var formEl = document.getElementById('adminNewClubForm');
       document.getElementById('btnAdminNewClub').addEventListener('click', function () {
@@ -3592,6 +3657,45 @@ var APP_VERSION = '0.38';
         return;
       }
 
+      // Gemeinsame Zeile fuer beide Anfrage-Arten (Golfplatz/Rolle) - title
+      // kommt bereits fertig escaped vom Aufrufer, da sich der Aufbau
+      // unterscheidet (Rollen-Anfrage haengt die gewuenschte Rolle an).
+      function requestRowHtml(r, title, kind) {
+        return '<div class="event"><div class="eventtitle">' + title + '</div>' +
+          (r.message ? '<div class="eventloc">' + esc(r.message) + '</div>' : '') +
+          '<div class="eventwho">Angefragt am ' + fmtDateTime(r.requested_at) + '</div>' +
+          '<div class="actions tight">' +
+          '<button class="btn" data-approve-' + kind + '="' + r.user_id + '">Freischalten</button>' +
+          '<button class="btn ghost" data-reject-' + kind + '="' + r.user_id + '">Ablehnen</button>' +
+          '</div></div>';
+      }
+      // Freischalten/Ablehnen fuer eine der beiden Anfrage-Arten verdrahten -
+      // approveFn/rejectFn sind Club.approveRequest/rejectRequest oder
+      // Verify.approveRequest/rejectRequest, je nach kind.
+      function wireRequestActions(kind, approveFn, rejectFn) {
+        Array.prototype.forEach.call(document.querySelectorAll('[data-approve-' + kind + ']'), function (el) {
+          el.addEventListener('click', function () {
+            toast('Schalte frei …');
+            approveFn(el.getAttribute('data-approve-' + kind)).then(function (r) {
+              if (r.error) { toast('Hat nicht geklappt: ' + r.error.message, true); return; }
+              toast('Freigeschaltet.'); renderAdmin();
+            });
+          });
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('[data-reject-' + kind + ']'), function (el) {
+          el.addEventListener('click', function () {
+            var reqId = el.getAttribute('data-reject-' + kind);
+            confirmDialog('Diese Anfrage wirklich ablehnen?', 'Ablehnen').then(function (ok) {
+              if (!ok) return;
+              rejectFn(reqId).then(function (r) {
+                if (r.error) { toast('Hat nicht geklappt: ' + r.error.message, true); return; }
+                toast('Abgelehnt.'); renderAdmin();
+              });
+            });
+          });
+        });
+      }
+
       var ids = clubReqs.map(function (r) { return r.user_id; })
         .concat(roleReqs.map(function (r) { return r.user_id; }));
 
@@ -3606,14 +3710,7 @@ var APP_VERSION = '0.38';
             html += '<div class="sectionhead"><span class="t">Golfplatz-Anfragen</span>' +
               '<span class="c">' + clubReqs.length + '</span></div><div class="list">';
             clubReqs.forEach(function (r) {
-              html += '<div class="event"><div class="eventtitle">' +
-                esc(names[r.user_id] || 'Spieler') + '</div>' +
-                (r.message ? '<div class="eventloc">' + esc(r.message) + '</div>' : '') +
-                '<div class="eventwho">Angefragt am ' + fmtDateTime(r.requested_at) + '</div>' +
-                '<div class="actions" style="margin-top:12px">' +
-                '<button class="btn" data-approve-club="' + r.user_id + '">Freischalten</button>' +
-                '<button class="btn ghost" data-reject-club="' + r.user_id + '">Ablehnen</button>' +
-                '</div></div>';
+              html += requestRowHtml(r, esc(names[r.user_id] || 'Spieler'), 'club');
             });
             html += '</div>';
           }
@@ -3622,14 +3719,8 @@ var APP_VERSION = '0.38';
             html += '<div class="sectionhead"><span class="t">Verifizierungs-Anfragen</span>' +
               '<span class="c">' + roleReqs.length + '</span></div><div class="list">';
             roleReqs.forEach(function (r) {
-              html += '<div class="event"><div class="eventtitle">' +
-                esc(names[r.user_id] || 'Spieler') + ' – ' + esc(roleLabel(r.requested_role)) + '</div>' +
-                (r.message ? '<div class="eventloc">' + esc(r.message) + '</div>' : '') +
-                '<div class="eventwho">Angefragt am ' + fmtDateTime(r.requested_at) + '</div>' +
-                '<div class="actions" style="margin-top:12px">' +
-                '<button class="btn" data-approve-role="' + r.user_id + '">Freischalten</button>' +
-                '<button class="btn ghost" data-reject-role="' + r.user_id + '">Ablehnen</button>' +
-                '</div></div>';
+              html += requestRowHtml(r,
+                esc(names[r.user_id] || 'Spieler') + ' – ' + esc(roleLabel(r.requested_role)), 'role');
             });
             html += '</div>';
           }
@@ -3638,42 +3729,8 @@ var APP_VERSION = '0.38';
           content.innerHTML = html;
           wireClubManagement(clubs);
 
-          Array.prototype.forEach.call(document.querySelectorAll('[data-approve-club]'), function (el) {
-            el.addEventListener('click', function () {
-              toast('Schalte frei …');
-              Club.approveRequest(el.getAttribute('data-approve-club')).then(function (r) {
-                if (r.error) { toast('Hat nicht geklappt: ' + r.error.message, true); return; }
-                toast('Freigeschaltet.'); renderAdmin();
-              });
-            });
-          });
-          Array.prototype.forEach.call(document.querySelectorAll('[data-reject-club]'), function (el) {
-            el.addEventListener('click', function () {
-              if (!confirm('Diese Anfrage wirklich ablehnen?')) return;
-              Club.rejectRequest(el.getAttribute('data-reject-club')).then(function (r) {
-                if (r.error) { toast('Hat nicht geklappt: ' + r.error.message, true); return; }
-                toast('Abgelehnt.'); renderAdmin();
-              });
-            });
-          });
-          Array.prototype.forEach.call(document.querySelectorAll('[data-approve-role]'), function (el) {
-            el.addEventListener('click', function () {
-              toast('Schalte frei …');
-              Verify.approveRequest(el.getAttribute('data-approve-role')).then(function (r) {
-                if (r.error) { toast('Hat nicht geklappt: ' + r.error.message, true); return; }
-                toast('Freigeschaltet.'); renderAdmin();
-              });
-            });
-          });
-          Array.prototype.forEach.call(document.querySelectorAll('[data-reject-role]'), function (el) {
-            el.addEventListener('click', function () {
-              if (!confirm('Diese Anfrage wirklich ablehnen?')) return;
-              Verify.rejectRequest(el.getAttribute('data-reject-role')).then(function (r) {
-                if (r.error) { toast('Hat nicht geklappt: ' + r.error.message, true); return; }
-                toast('Abgelehnt.'); renderAdmin();
-              });
-            });
-          });
+          wireRequestActions('club', Club.approveRequest, Club.rejectRequest);
+          wireRequestActions('role', Verify.approveRequest, Verify.rejectRequest);
         });
     });
   }
@@ -4061,14 +4118,14 @@ var APP_VERSION = '0.38';
           }
 
           if (mine && mine.status === 'pending') {
-            html += '<div class="actions" style="margin-top:12px">' +
+            html += '<div class="actions tight">' +
               '<button class="mini ok" data-accept-invite="' + mine.id + '">' + I.check + '</button>' +
               '<button class="mini no" data-decline-invite="' + mine.id + '">' + I.x + '</button>' +
               '<span style="align-self:center;color:var(--mut);font-size:13px">zusagen?</span></div>';
           }
 
           if (confirmed && !past) {
-            html += '<div class="actions" style="margin-top:12px">' +
+            html += '<div class="actions tight">' +
               '<button class="btn ghost" data-ics="' + ev.id + '">' + I.down + 'Kalender</button></div>';
           }
 
@@ -4107,9 +4164,12 @@ var APP_VERSION = '0.38';
       });
       Array.prototype.forEach.call(content.querySelectorAll('[data-cancel]'), function (el) {
         el.addEventListener('click', function () {
-          if (!confirm('Diesen Termin wirklich absagen?')) return;
-          Planner.cancelEvent(el.getAttribute('data-cancel')).then(function () {
-            toast('Termin abgesagt.'); renderPlan();
+          var eventId = el.getAttribute('data-cancel');
+          confirmDialog('Diesen Termin wirklich absagen?', 'Absagen').then(function (ok) {
+            if (!ok) return;
+            Planner.cancelEvent(eventId).then(function () {
+              toast('Termin abgesagt.'); renderPlan();
+            });
           });
         });
       });
@@ -4177,10 +4237,12 @@ var APP_VERSION = '0.38';
           location.hash = 'menu/friends'; route();
         });
         document.getElementById('btnRemoveFriend').addEventListener('click', function () {
-          if (!confirm('Diese Freundschaft wirklich beenden?')) return;
-          Friends.remove(f.id).then(function () {
-            toast('Freundschaft beendet.');
-            location.hash = 'menu/friends'; route();
+          confirmDialog('Diese Freundschaft wirklich beenden?', 'Beenden').then(function (ok) {
+            if (!ok) return;
+            Friends.remove(f.id).then(function () {
+              toast('Freundschaft beendet.');
+              location.hash = 'menu/friends'; route();
+            });
           });
         });
       }
@@ -4308,7 +4370,7 @@ var APP_VERSION = '0.38';
     function buildForm(preselectedCourse) {
       mobileEl.innerHTML =
         '<div class="panel"><h3>Runde eintragen</h3>' +
-        '<div class="form" style="margin-bottom:14px" id="mClubWrap">' +
+        '<div class="form" id="mClubWrap">' +
         (preselectedCourse
           ? '<p class="hint" style="margin:0">Platz: ' + esc(preselectedCourse.clubName) + ' – ' +
             esc(preselectedCourse.name || 'Platz') + '</p>'
@@ -4330,7 +4392,7 @@ var APP_VERSION = '0.38';
         '</div>' +
         '<div class="actions">' +
         '<button class="btn" id="mNext">Weiter</button>' +
-        '<button class="btn ghost" id="mLive" style="display:none">Live spielen</button>' +
+        '<button class="btn ghost hidden" id="mLive">Live spielen</button>' +
         '</div>' +
         '</div>';
 
@@ -4350,14 +4412,14 @@ var APP_VERSION = '0.38';
           modeSeg.style.display = 'none';
           simpleBox.style.display = 'none';
           nextBtn.textContent = 'Ergebnisse eintragen';
-          liveBtn.style.display = '';
+          liveBtn.classList.remove('hidden');
         } else {
           clubPars = null;
           holesSeg.style.display = '';
           modeSeg.style.display = '';
           simpleBox.style.display = (mode === 'simple') ? 'flex' : 'none';
           nextBtn.textContent = 'Weiter';
-          liveBtn.style.display = 'none';
+          liveBtn.classList.add('hidden');
         }
       }
 
@@ -4532,8 +4594,11 @@ var APP_VERSION = '0.38';
           sc = Math.min(15, sc + 1); document.getElementById('mScVal').textContent = sc;
         });
         document.getElementById('mWizardClose').addEventListener('click', function () {
-          if (idx > 0 && !confirm('Laufende Runde verwerfen?')) return;
-          location.hash = ''; route();
+          if (idx === 0) { location.hash = ''; route(); return; }
+          confirmDialog('Laufende Runde verwerfen?', 'Verwerfen').then(function (ok) {
+            if (!ok) return;
+            location.hash = ''; route();
+          });
         });
         var infoBtn = document.getElementById('mWizardInfo');
         if (infoBtn) {
@@ -4702,7 +4767,7 @@ var APP_VERSION = '0.38';
         if (preselectedCourse) { mdHoles = preselectedCourse.holes; mdClubPars = preselectedCourse.pars; }
         desktopEl.innerHTML =
           '<div class="panel"><h3>Runde eintragen</h3>' +
-          '<div class="form" style="margin-bottom:14px">' +
+          '<div class="form">' +
           '<span id="mdClubWrap">' +
           (preselectedCourse
             ? '<span class="hint">Platz: ' + esc(preselectedCourse.clubName) + ' – ' +
@@ -4711,7 +4776,7 @@ var APP_VERSION = '0.38';
           '</span>' +
           '<input type="date" id="mdDate" value="' + todayInput + '">' +
           '</div>' +
-          '<div class="seg" id="mdHolesSeg"' + (preselectedCourse ? ' style="display:none"' : '') + '>' +
+          '<div class="seg' + (preselectedCourse ? ' hidden' : '') + '" id="mdHolesSeg">' +
           '<button type="button" class="' + (mdHoles === 9 ? 'on' : '') + '" data-holes="9">9 Löcher</button>' +
           '<button type="button" class="' + (mdHoles === 18 ? 'on' : '') + '" data-holes="18">18 Löcher</button>' +
           '</div>' +
@@ -4735,10 +4800,10 @@ var APP_VERSION = '0.38';
               var holesSeg = document.getElementById('mdHolesSeg');
               if (c) {
                 mdHoles = c.holes; mdClubPars = c.pars;
-                holesSeg.style.display = 'none';
+                holesSeg.classList.add('hidden');
               } else {
                 mdClubPars = null;
-                holesSeg.style.display = '';
+                holesSeg.classList.remove('hidden');
               }
               document.getElementById('mdGrid').innerHTML = gridHtml(mdHoles, mdClubPars);
             });
@@ -4942,7 +5007,7 @@ var APP_VERSION = '0.38';
         '<span id="avPreviewSlot">' + avaHtml(null, Auth.email(), 'big zoomable') + '</span>' +
         '<button class="btn ghost" id="btnAvatarPick" style="margin:0">Bild auswählen</button>' +
         '</div>' +
-        '<input type="file" id="fAvatar" accept="image/*" style="display:none"></div>' +
+        '<input type="file" id="fAvatar" accept="image/*" class="hidden"></div>' +
 
         '<div class="panel"><h3>Anzeigename</h3>' +
         '<p>Unter diesem Namen sehen dich deine Freunde. Ohne Namen erscheinst ' +
@@ -4957,7 +5022,7 @@ var APP_VERSION = '0.38';
         '<div class="panel"><h3>Konto löschen</h3>' +
         '<p>Entfernt dein Konto, alle deine Runden, Freundschaften und dein ' +
         'Profil endgültig. Das lässt sich nicht rückgängig machen.</p>' +
-        '<div class="del" style="margin-top:0;text-align:left">' +
+        '<div class="del">' +
         '<button id="btnDeleteAccount">Konto endgültig löschen</button></div></div>';
 
       function applyOwnAvatar(p) {
@@ -5036,14 +5101,16 @@ var APP_VERSION = '0.38';
         });
       });
       document.getElementById('btnDeleteAccount').addEventListener('click', function () {
-        if (!confirm('Konto und alle Runden wirklich unwiderruflich löschen?')) return;
-        toast('Lösche Konto …');
-        invokeEdgeFunction('delete-account').then(function (r) {
-          if (r.error) { toast('Löschen fehlgeschlagen: ' + r.error.message, true); return; }
-          Friends.reset();
-          Auth.signOut().then(function () {
-            toast('Konto gelöscht.');
-            location.hash = ''; route();
+        confirmDialog('Konto und alle Runden wirklich unwiderruflich löschen?').then(function (ok) {
+          if (!ok) return;
+          toast('Lösche Konto …');
+          invokeEdgeFunction('delete-account').then(function (r) {
+            if (r.error) { toast('Löschen fehlgeschlagen: ' + r.error.message, true); return; }
+            Friends.reset();
+            Auth.signOut().then(function () {
+              toast('Konto gelöscht.');
+              location.hash = ''; route();
+            });
           });
         });
       });
