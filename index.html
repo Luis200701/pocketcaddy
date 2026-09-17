@@ -584,7 +584,6 @@
   .clubheadrow .ava{width:64px;height:64px;font-size:24px;
                      border:3px solid var(--card);flex:none}
   .clubheadrow .namewrap{display:flex;flex-direction:column;gap:6px;padding-bottom:2px}
-  .clubheadrow .btn{padding:6px 16px;font-size:13px}
   /* Adresse/Telefon/Website als eigene, direkt anklickbare Zeilen (Karte,
      Anruf, Webseite) statt gestauchter Textzeilen - oben im Profil, vor
      Beschreibung/Preis. */
@@ -652,26 +651,6 @@
               box-shadow:inset 0 0 0 1px #ff5c5c33;font-size:13.5px;padding:11px 18px;
               border-radius:999px;cursor:pointer}
 
-  .print-foot{display:none}
-
-  @media print{
-    @page{size:A4 portrait;margin:0}
-    html,body{background:var(--bg) !important;color:var(--txt);
-      -webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;font-size:11pt}
-    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .topbar,.actions,.hint,.del,.sheet,.sheetbg,.toast,.datewrap{display:none !important}
-    #subDate{display:inline}
-    .wrap{max-width:none;padding:13mm 16mm}
-    .date{text-align:left}
-    .total{margin:0 0 6mm;text-align:left;display:flex;align-items:baseline;gap:6mm}
-    .total .num{font-size:34pt}
-    .total .sub{margin:0;font-size:9pt}
-    th{padding:2.4mm 4mm;font-size:8.5pt}
-    td{padding:2.1mm 4mm}
-    .print-foot{display:flex;margin-top:6mm;padding-top:3.5mm;border-top:1px solid #ffffff1a;
-                font-size:8.5pt;color:var(--mut);justify-content:space-between}
-    tr{break-inside:avoid}
-  }
   /* ---------- Dezente Animationen ---------- */
   /* Druckgefuehl auf allen antippbaren Elementen */
   .btn,.iconbtn,.item,.mini,.menuitem,
@@ -699,9 +678,38 @@
   @keyframes pulseOpac{0%,100%{opacity:.35}50%{opacity:.85}}
 
   /* ==========================================================
+     Quer-Sperre am Handy. Die App soll nur im Hochformat nutzbar sein -
+     manifest.json setzt zwar schon "orientation":"portrait", das wirkt
+     aber nur bei einer als PWA installierten App unter Android; im
+     normalen Browser-Tab UND grundsaetzlich auf iOS (dort gibt es dafuer
+     ueberhaupt keine Web-API, auch nicht fuer installierte PWAs) dreht
+     sich die Ansicht trotzdem mit. Da sich das Drehen selbst nicht
+     verhindern laesst, blendet dieser Vollbild-Hinweis den Inhalt
+     stattdessen aus, solange man das Handy quer haelt.
+     pointer:coarse grenzt Touch-Geraete von Maus-Desktops ab (die die
+     Rechner-Ansicht unten absichtlich behalten, auch bei einem breiten,
+     "querformatigen" Fenster). max-width:960px grenzt grosse Handys von
+     echten Tablets ab, deren Querformat regulaer in dieselbe, funktio-
+     nierende Rechner-Ansicht faellt statt gesperrt zu werden. Reine
+     Media Query, kein Resize-Listener noetig - greift von selbst bei
+     jeder Drehung. */
+  .rotate-lock{display:none}
+  @media (orientation:landscape) and (pointer:coarse) and (max-width:960px) {
+    .rotate-lock{
+      display:flex;position:fixed;inset:0;z-index:50;background:var(--bg);
+      flex-direction:column;align-items:center;justify-content:center;
+      gap:16px;text-align:center;padding:32px;color:var(--txt);
+    }
+  }
+  .rotate-lock svg{width:44px;height:44px;color:var(--lime);fill:none;
+    stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .rotate-lock p{margin:0;font-size:15px;color:var(--mut);max-width:32ch}
+
+  /* ==========================================================
      Rechner-Ansicht ab 860px. Reine Umschichtung derselben Elemente
-     per CSS, keine JS-Aenderung an Routing/Verhalten - unterhalb von
-     860px (jedes Handy, auch quer) bleibt alles exakt wie bisher.
+     per CSS, keine JS-Aenderung an Routing/Verhalten - fuer Handys
+     (siehe .rotate-lock oben) sowie fuer alles unterhalb von 860px
+     Breite bleibt die normale Handy-Ansicht bestehen.
      ========================================================== */
   @media (min-width: 860px) {
     body{padding-bottom:0}
@@ -880,12 +888,35 @@
   </div>
 </div>
 
+<!-- Direkt beim Antippen eines Golfplatz-Kurses: Live spielen (auffaellig)
+     oder Ergebnisse eintragen (unauffaellig) - siehe renderSetup()/
+     openCourseChoice() in renderManualEntry(). Gleiches Sheet-Muster wie
+     oben. -->
+<div class="sheetbg" id="courseChoiceBg"></div>
+<div class="sheet" id="courseChoiceSheet"><div class="grip"></div>
+  <div style="padding:4px 8px 6px">
+    <p id="courseChoiceName" class="hint" style="margin:0 0 18px;text-align:center;font-size:15px;color:var(--txt)"></p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <button class="btn" id="courseChoiceLive" style="width:100%;justify-content:center">Live spielen</button>
+      <button class="btn ghost" id="courseChoiceManual" style="width:100%;justify-content:center">Ergebnisse eintragen</button>
+    </div>
+  </div>
+</div>
+
 <!-- Profilbild antippen zum Vergroessern - randloses Vollbild-Overlay
      wie .scanview, statt der Karten-Optik von .sheet, da hier nur ein
      Bild gezeigt wird. -->
 <div class="avazoom" id="avaZoom"><img id="avaZoomImg" alt=""></div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Reine CSS-Sperre, keine JS-Logik dahinter - siehe .rotate-lock im
+     <style>-Block fuer die Media Query und die Begruendung. -->
+<div class="rotate-lock">
+  <svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M12 18h.01"/>
+  <path d="M19 8a6 6 0 0 1-6 6" stroke-dasharray="3 3"/><path d="M21 10l-2-2-2 2"/></svg>
+  <p>Pocket Caddy lässt sich nur im Hochformat nutzen - bitte dein Handy hochkant halten.</p>
+</div>
 
 <div class="scanview" id="scanview">
   <video id="scanVideo" playsinline muted autoplay></video>
@@ -918,7 +949,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.39';
+var APP_VERSION = '0.40';
 </script>
 
 <script>
@@ -1167,11 +1198,13 @@ var APP_VERSION = '0.39';
       return readRaw() || [];
     }
 
-    function add(code, date) {
+    function add(code, date, opts) {
       var arr = allIncludingDeleted();
       var now = Date.now();
       var rec = { id:newId(), code:code, date:date || '',
-                  createdAt:now, updatedAt:now, deleted:false, confirmed:false };
+                  createdAt:now, updatedAt:now, deleted:false, confirmed:false,
+                  location:(opts && opts.location) || null,
+                  playmates:(opts && opts.playmates) || null };
       arr.push(rec);
       if (!writeRaw(arr)) return null;
       pushSoon();
@@ -1287,13 +1320,15 @@ var APP_VERSION = '0.39';
       return { id:r.id, user_id:uid, code:r.code, date:r.date || null,
                created_at:new Date(r.createdAt || Date.now()).toISOString(),
                updated_at:new Date(r.updatedAt || Date.now()).toISOString(),
-               deleted:!!r.deleted, confirmed:!!r.confirmed };
+               deleted:!!r.deleted, confirmed:!!r.confirmed,
+               location:r.location || null, playmates:r.playmates || null };
     }
     function fromRow(row) {
       return { id:row.id, code:row.code, date:row.date || '',
                createdAt:Date.parse(row.created_at) || Date.now(),
                updatedAt:Date.parse(row.updated_at) || Date.now(),
-               deleted:!!row.deleted, confirmed:!!row.confirmed };
+               deleted:!!row.deleted, confirmed:!!row.confirmed,
+               location:row.location || null, playmates:row.playmates || null };
     }
 
     var syncing = false;
@@ -1334,6 +1369,7 @@ var APP_VERSION = '0.39';
             else if (remote.updatedAt > cur.updatedAt) {
               cur.code = remote.code; cur.date = remote.date;
               cur.deleted = remote.deleted; cur.confirmed = remote.confirmed;
+              cur.location = remote.location; cur.playmates = remote.playmates;
               cur.updatedAt = remote.updatedAt;
             } else if (cur.updatedAt > remote.updatedAt) {
               pushUp.push(cur);
@@ -1468,11 +1504,11 @@ var APP_VERSION = '0.39';
   var I = {
     save:'<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>',
     check:'<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>',
-    pdf:'<svg viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg>',
     share:'<svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>',
     back:'<svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>',
     chev:'<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
     user:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>',
+    userplus:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21v-1a7 7 0 0 1 14 0v1"/><path d="M19 8v6"/><path d="M16 11h6"/></svg>',
     users:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6.5 6.5 0 0 1 13 0v1"/><path d="M17 5.2a3.5 3.5 0 0 1 0 6.6"/><path d="M19.5 21v-1a5.6 5.6 0 0 0-2.2-4.4"/></svg>',
     chart:'<svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>',
     home:'<svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 21v-7h6v7"/></svg>',
@@ -1505,7 +1541,7 @@ var APP_VERSION = '0.39';
         label:loggedIn ? 'Konto' : 'Anmelden',
         sub:loggedIn ? Auth.email() : 'Runden ger\u00e4te\u00fcbergreifend sichern',
         ready:true },
-      isClub ? null : { id:'menu/addfriend', icon:I.share, label:'Freund hinzuf\u00fcgen',
+      isClub ? null : { id:'menu/addfriend', icon:I.userplus, label:'Freund hinzuf\u00fcgen',
         sub:'Eigenen Code teilen oder per Code anfragen', ready:true },
       isClub ? null : { id:'menu/clubs', icon:I.home, label:'Golfpl\u00e4tze',
         sub:'Suchen und folgen', ready:true },
@@ -1530,7 +1566,10 @@ var APP_VERSION = '0.39';
     }).join('');
     Array.prototype.forEach.call(document.querySelectorAll('.menuitem'), function (el) {
       el.addEventListener('click', function () {
-        closeMenu(); location.hash = el.getAttribute('data-go'); route();
+        closeMenu();
+        var target = el.getAttribute('data-go');
+        if ((location.hash || '').replace(/^#/, '') === target) return;
+        location.hash = target; route();
       });
     });
   }
@@ -1721,6 +1760,36 @@ var APP_VERSION = '0.39';
     });
   }
 
+  // Direkt beim Antippen eines Golfplatz-Kurses (siehe renderSetup() in
+  // renderManualEntry()): Live spielen oder Ergebnisse eintragen, als
+  // Popup statt zweier Knoepfe im Formular. Gleiches Grundmuster wie
+  // confirmDialog() - Listener werden bei jedem Aufruf neu gesetzt und
+  // beim Schliessen wieder entfernt, damit sich nichts aufsummiert.
+  var courseChoiceSheet = document.getElementById('courseChoiceSheet');
+  var courseChoiceBg    = document.getElementById('courseChoiceBg');
+  var courseChoiceNameEl = document.getElementById('courseChoiceName');
+  var courseChoiceLiveBtn = document.getElementById('courseChoiceLive');
+  var courseChoiceManualBtn = document.getElementById('courseChoiceManual');
+  function closeCourseChoice() { courseChoiceSheet.classList.remove('on'); courseChoiceBg.classList.remove('on'); }
+  function openCourseChoice(courseLabel, onLive, onManual) {
+    courseChoiceNameEl.textContent = courseLabel || '';
+    function pick(fn) {
+      return function () { closeCourseChoice(); cleanup(); fn(); };
+    }
+    var onLivePick = pick(onLive);
+    var onManualPick = pick(onManual);
+    function cleanup() {
+      courseChoiceLiveBtn.removeEventListener('click', onLivePick);
+      courseChoiceManualBtn.removeEventListener('click', onManualPick);
+      courseChoiceBg.removeEventListener('click', onBgClick);
+    }
+    function onBgClick() { closeCourseChoice(); cleanup(); }
+    courseChoiceLiveBtn.addEventListener('click', onLivePick);
+    courseChoiceManualBtn.addEventListener('click', onManualPick);
+    courseChoiceBg.addEventListener('click', onBgClick);
+    courseChoiceSheet.classList.add('on'); courseChoiceBg.classList.add('on');
+  }
+
   // Profilbild antippen zum Vergroessern - EIN delegierter Listener statt
   // Einzel-Handler an den ~15 Stellen, die avaHtml() aufrufen. Reagiert NUR
   // auf ein <img> innerhalb von .ava.zoomable - bewusst opt-in statt global:
@@ -1768,9 +1837,16 @@ var APP_VERSION = '0.39';
     location.hash = 'manual'; route();
   });
 
+  // Antippen des schon aktiven Reiters loeste bisher trotzdem ein volles
+  // Neu-Aufbauen der Seite aus (route() bremst nur das automatische
+  // hashchange-Echo, nicht diesen direkten Aufruf, siehe Kommentar bei
+  // route()) - sichtbar als kurzes Aufblitzen des Lade-Spinners. Ziel
+  // gleich dem aktuellen Hash: einfach nichts tun.
   Array.prototype.forEach.call(document.querySelectorAll('.navitem[data-go]'), function (el) {
     el.addEventListener('click', function () {
-      location.hash = el.getAttribute('data-go'); route();
+      var target = el.getAttribute('data-go');
+      if ((location.hash || '').replace(/^#/, '') === target) return;
+      location.hash = target; route();
     });
   });
 
@@ -2095,6 +2171,37 @@ var APP_VERSION = '0.39';
 
   }
 
+  // Laedt fuer eine Liste von Mitspieler-IDs (playmates, siehe Datenbank-
+  // Spalte rounds.playmates) deren EIGENE Runde vom selben Datum und baut
+  // daraus den "Gemeinsam gespielt"-Abschnitt fuer renderRound(). Rein
+  // informativ (keine Bestaetigung noetig) - RLS blendet dabei ganz von
+  // selbst jeden aus, mit dem gar keine Freundschaft besteht (weder
+  // Profil noch Runde waeren fuer uns lesbar), kein Zusatz-Check noetig.
+  function loadPlaymatesSection(playmateIds, roundDate) {
+    if (!playmateIds || !playmateIds.length || !roundDate) return Promise.resolve('');
+    var db = Auth.db();
+    return Promise.all([
+      db.from('profiles').select('user_id,display_name,avatar_url,is_admin,verified_role').in('user_id', playmateIds),
+      db.from('rounds').select('user_id,code').in('user_id', playmateIds).eq('date', roundDate).eq('deleted', false)
+    ]).then(function (res) {
+      var profiles = res[0].data || [], roundsData = res[1].data || [];
+      if (!roundsData.length) return '';
+      var byId = {};
+      profiles.forEach(function (p) { byId[p.user_id] = p; });
+      var rows = roundsData.map(function (row) {
+        var p = byId[row.user_id];
+        var parsed = parseCode(row.code);
+        var name = p ? (p.display_name || 'Spieler') : 'Spieler';
+        return '<div class="item static">' +
+          avaHtml(p ? p.avatar_url : null, name, '', '', p ? badgeTypeFor(p.is_admin, p.verified_role) : '') +
+          '<span class="meta"><span class="d">' + esc(name) + '</span>' +
+          '<span class="s">' + parsed.holes.length + ' Löcher &middot; ' + parsed.strokes + ' Schläge</span></span>' +
+          '<span class="big" style="color:' + colorOf(parsed.diff) + '">' + sign(parsed.diff) + '</span></div>';
+      }).join('');
+      return '<div class="sectionhead"><span class="t">Gemeinsam gespielt</span></div><div class="list">' + rows + '</div>';
+    }).catch(function () { return ''; });
+  }
+
   /* ---------- Eine Runde ---------- */
   // opts.owner  -> Name des Freundes: Ansicht nur lesend, kein Speichern,
   //                kein Datum aendern, Rueckweg fuehrt zum Freund
@@ -2127,7 +2234,8 @@ var APP_VERSION = '0.39';
         '<div class="datewrap"><span class="datebtn plain">' + I.cal +
         '<span>' + (fmtDate(r.date) || '') + '</span></span></div>' +
         '<div class="total"><div class="num" style="color:' + colorOf(r.diff) + '">' +
-          sign(r.diff) + '</div><div class="sub">' + r.holes.length +
+          sign(r.diff) + '</div><div class="sub">' +
+          (opts.location ? esc(opts.location) + ' &middot; ' : '') + r.holes.length +
           ' L\u00f6cher &middot; Par ' + r.par + ' &middot; ' + r.strokes +
           ' Schl\u00e4ge</div></div>' +
         confirmBlock +
@@ -2135,11 +2243,9 @@ var APP_VERSION = '0.39';
           '<tbody>' + rows + '</tbody>' +
           '<tfoot><tr><td>Gesamt</td><td>' + r.par + '</td><td>' + r.strokes +
           '</td><td class="' + cls(r.diff) + '">' + sign(r.diff) + '</td></tr></tfoot></table>' +
+        '<div id="playmatesSlot"></div>' +
         '<p class="hint">Runde von ' + esc(opts.owner) + '</p>' +
-        '<div class="actions"><button class="btn ghost" id="btnPdf">' + I.pdf + 'PDF</button>' +
-        '<button class="btn ghost" id="btnBackF">' + I.back + 'Zur\u00fcck</button></div>' +
-        '<div class="print-foot"><span>Pocket Caddy &middot; ' + esc(opts.owner) +
-        '</span><span>' + fmtDate(r.date) + '</span></div>';
+        '<div class="actions"><button class="btn ghost" id="btnBackF">' + I.back + 'Zur\u00fcck</button></div>';
 
       var cbtn = document.getElementById('btnConfirmRound');
       if (cbtn) {
@@ -2152,9 +2258,12 @@ var APP_VERSION = '0.39';
         });
       }
 
-      document.getElementById('btnPdf').addEventListener('click', function(){ window.print(); });
       document.getElementById('btnBackF').addEventListener('click', function () {
         location.hash = opts.back || 'menu/friends'; route();
+      });
+      loadPlaymatesSection(opts.playmates, r.date).then(function (html) {
+        var slot = document.getElementById('playmatesSlot');
+        if (slot) slot.innerHTML = html;
       });
       return;
     }
@@ -2175,7 +2284,9 @@ var APP_VERSION = '0.39';
       '<div class="datewrap">' + dateBlock() + '</div>' +
       '<div class="total"><div class="num" style="color:' + colorOf(r.diff) + '">' +
         sign(r.diff) + '</div><div class="sub"><span id="subDate">' +
-        fmtDate(curDate) + ' &middot; </span>' + r.holes.length + ' L\u00f6cher &middot; Par ' +
+        fmtDate(curDate) + ' &middot; </span>' +
+        (savedRec && savedRec.location ? esc(savedRec.location) + ' &middot; ' : '') +
+        r.holes.length + ' L\u00f6cher &middot; Par ' +
         r.par + ' &middot; ' + r.strokes + ' Schl\u00e4ge</div></div>' +
       (savedRec ? (savedRec.confirmed
         ? '<div class="confirmbox ok">' + I.check + '<span>Von einem Freund best\u00e4tigt, z\u00e4hlt in der Statistik</span></div>'
@@ -2186,16 +2297,21 @@ var APP_VERSION = '0.39';
         '<tbody>' + rows + '</tbody>' +
         '<tfoot><tr><td>Gesamt</td><td>' + r.par + '</td><td>' + r.strokes +
         '</td><td class="' + cls(r.diff) + '">' + sign(r.diff) + '</td></tr></tfoot></table>' +
+      '<div id="playmatesSlot"></div>' +
       '<div class="actions">' +
         '<button class="btn" id="btnKeep"></button>' +
-        '<button class="btn ghost" id="btnPdf">' + I.pdf + 'PDF</button>' +
         '<button class="btn ghost" id="btnShare">' + I.share + 'Teilen</button>' +
       '</div>' +
       '<p class="hint">' + (Store.available()
         ? 'Gespeicherte Runden bleiben auf diesem Ger\u00e4t.'
-        : 'Dieser Browser erlaubt kein Speichern (privater Modus?).') + '</p>' +
-      '<div class="print-foot"><span>Pocket Caddy</span><span id="pfDate">' +
-        fmtDate(curDate) + '</span></div>';
+        : 'Dieser Browser erlaubt kein Speichern (privater Modus?).') + '</p>';
+
+    if (savedRec && savedRec.playmates && savedRec.playmates.length) {
+      loadPlaymatesSection(savedRec.playmates, curDate).then(function (html) {
+        var slot = document.getElementById('playmatesSlot');
+        if (slot) slot.innerHTML = html;
+      });
+    }
 
     var keep = document.getElementById('btnKeep');
 
@@ -2228,7 +2344,6 @@ var APP_VERSION = '0.39';
       document.querySelector('#btnDate span').textContent = fmtDate(curDate);
       var tag = document.querySelector('#btnDate .tag');
       if (tag) tag.remove();
-      document.getElementById('pfDate').textContent = fmtDate(curDate);
       document.getElementById('subDate').innerHTML = fmtDate(curDate) + ' &middot; ';
       refreshKeep();
     });
@@ -2512,6 +2627,32 @@ var APP_VERSION = '0.39';
         .catch(function () { return []; });
     }
 
+    // Letzte Runden ueber ALLE Freunde hinweg, fuer den Feed auf der
+    // Freunde-Seite (anders als roundsOf(), das nur einen einzelnen
+    // Freund abfragt). Die Freundes-Lese-Policy auf rounds erlaubt das
+    // schon (01_freunde.sql), keine weitere Berechtigung noetig.
+    function feed(limit) {
+      return list().then(function (d) {
+        var ids = d.friends.map(function (f) { return f.userId; });
+        if (!ids.length) return [];
+        var names = {}, avatars = {}, badges = {};
+        d.friends.forEach(function (f) {
+          names[f.userId] = f.name; avatars[f.userId] = f.avatarUrl;
+          badges[f.userId] = badgeTypeFor(f.isAdmin, f.verifiedRole);
+        });
+        return db().from('rounds').select('*')
+          .in('user_id', ids).eq('deleted', false)
+          .order('created_at', { ascending:false }).limit(limit || 20)
+          .then(function (r) {
+            if (r.error) throw r.error;
+            return (r.data || []).map(function (row) {
+              return { row:row, name:names[row.user_id] || 'Spieler',
+                       avatarUrl:avatars[row.user_id], badge:badges[row.user_id] };
+            });
+          });
+      }).catch(function () { return []; });
+    }
+
     // Hat der aktuelle Nutzer selbst eine (nicht geloeschte) Runde vom
     // angegebenen Datum? Nur dann darf er die Runde eines Freundes
     // bestaetigen, egal ob die eigene selbst schon bestaetigt ist.
@@ -2540,7 +2681,7 @@ var APP_VERSION = '0.39';
 
     return { loadProfile:loadProfile, setName:setName, setAvatar:setAvatar, list:list,
              requestByCode:requestByCode, accept:accept, remove:remove,
-             roundsOf:roundsOf,
+             roundsOf:roundsOf, feed:feed,
              hasRoundOnDate:hasRoundOnDate, confirmRound:confirmRound,
              isAdmin:function () { return !!(myProfile && myProfile.is_admin); },
              isClub:function () { return !!(myProfile && myProfile.account_type === 'club'); },
@@ -3439,7 +3580,8 @@ var APP_VERSION = '0.39';
         '<div class="clubheadrow">' +
         avaHtml(club.avatar_url, club.name, 'zoomable') +
         '<div class="namewrap"><h3 style="margin:0">' + esc(club.name || 'Golfplatz') + '</h3>' +
-        '<button class="btn ghost" id="btnFollowClub">' + (following ? 'Folgt' : 'Folgen') + '</button>' +
+        '<button class="mini' + (following ? ' ok' : '') + '" id="btnFollowClub" title="' +
+        (following ? 'Entfolgen' : 'Folgen') + '">' + (following ? I.check : '+') + '</button>' +
         '</div></div>' +
         (contactHtml ? '<div class="contactlist">' + contactHtml + '</div>' : '') +
         (club.description || club.price_info
@@ -3487,7 +3629,9 @@ var APP_VERSION = '0.39';
           op.then(function (r) {
             if (r.error) { toast('Hat nicht geklappt.', true); return; }
             following = !following;
-            btn.textContent = following ? 'Folgt' : 'Folgen';
+            btn.classList.toggle('ok', following);
+            btn.innerHTML = following ? I.check : '+';
+            btn.title = following ? 'Entfolgen' : 'Folgen';
           });
         }
         if (following) {
@@ -3830,10 +3974,26 @@ var APP_VERSION = '0.39';
 
     content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
 
-    Promise.all([Friends.loadProfile(), Friends.list()]).then(function (res) {
+    Promise.all([Friends.loadProfile(), Friends.list(), Friends.feed(15)]).then(function (res) {
       var data = res[1];
+      var feed = res[2];
 
       var html = '';
+
+      if (feed.length) {
+        html += '<div class="sectionhead"><span class="t">Zuletzt gespielt</span></div>' +
+          '<div class="list">' + feed.map(function (e) {
+            var parsed = parseCode(e.row.code);
+            var hashCode = (e.row.date ? e.row.date + '-' : '') + e.row.code;
+            return '<button class="item" data-feed="' + e.row.user_id + '/' + esc(hashCode) + '">' +
+              avaHtml(e.avatarUrl, e.name, '', '', e.badge) +
+              '<span class="meta"><span class="d">' + esc(e.name) + '</span>' +
+              '<span class="s">' + (e.row.location ? esc(e.row.location) + ' &middot; ' : '') +
+              (fmtDate(e.row.date) || 'ohne Datum') + '</span></span>' +
+              '<span class="big" style="color:' + colorOf(parsed.diff) + '">' + sign(parsed.diff) + '</span>' +
+              '</button>';
+          }).join('') + '</div>';
+      }
 
       if (data.incoming.length) {
         html += '<div class="sectionhead"><span class="t">Offene Anfragen</span>' +
@@ -3880,7 +4040,7 @@ var APP_VERSION = '0.39';
       }
 
       html += '<div class="actions"><button class="btn ghost" id="btnGoAdd">' +
-              I.share + 'Freund hinzuf\u00fcgen</button></div>';
+              I.userplus + 'Freund hinzuf\u00fcgen</button></div>';
 
       content.innerHTML = html;
 
@@ -3906,6 +4066,11 @@ var APP_VERSION = '0.39';
       Array.prototype.forEach.call(content.querySelectorAll('[data-friend]'), function (el) {
         el.addEventListener('click', function () {
           location.hash = 'friend/' + el.getAttribute('data-friend'); route();
+        });
+      });
+      Array.prototype.forEach.call(content.querySelectorAll('[data-feed]'), function (el) {
+        el.addEventListener('click', function () {
+          location.hash = 'friend/' + el.getAttribute('data-feed'); route();
         });
       });
 
@@ -4388,6 +4553,7 @@ var APP_VERSION = '0.39';
         '<button type="button" data-mode="detail">Loch f\u00fcr Loch</button></div>' +
         '<div class="form" id="mSimple">' +
         '<input type="number" id="mTotal" min="1" max="270" placeholder="Schl\u00e4ge gesamt">' +
+        '<input type="text" id="mSimpleLocation" placeholder="Wo gespielt? (optional)">' +
         '<p class="hint" style="margin:0">Par wird dabei mit 4 pro Loch angenommen.</p>' +
         '</div>' +
         '<div class="actions">' +
@@ -4413,6 +4579,12 @@ var APP_VERSION = '0.39';
           simpleBox.style.display = 'none';
           nextBtn.textContent = 'Ergebnisse eintragen';
           liveBtn.classList.remove('hidden');
+          // Live spielen ist bei einem gewaehlten Verein die auffaellige
+          // Standard-Empfehlung, "Ergebnisse eintragen" die unauffaellige
+          // Alternative - ohne Verein (unten, "Weiter") bleibt es beim
+          // normalen, einzigen auffaelligen Knopf.
+          nextBtn.classList.add('ghost');
+          liveBtn.classList.remove('ghost');
         } else {
           clubPars = null;
           holesSeg.style.display = '';
@@ -4420,6 +4592,7 @@ var APP_VERSION = '0.39';
           simpleBox.style.display = (mode === 'simple') ? 'flex' : 'none';
           nextBtn.textContent = 'Weiter';
           liveBtn.classList.add('hidden');
+          nextBtn.classList.remove('ghost');
         }
       }
 
@@ -4473,7 +4646,10 @@ var APP_VERSION = '0.39';
         });
       });
 
-      document.getElementById('mNext').addEventListener('click', function () {
+      // Ausgelagert (statt nur inline in den Klick-Handlern), damit
+      // openCourseChoice() (Popup direkt bei einem Club-Kurs) dieselbe
+      // Logik ohne Duplikat aufrufen kann.
+      function goErgebnisse() {
         var dateCode = inputToCode(document.getElementById('mDate').value) || todayCode();
 
         if (mode === 'simple') {
@@ -4484,16 +4660,29 @@ var APP_VERSION = '0.39';
           }
           var base = Math.floor(total / holes), rest = total % holes, holesArr = [];
           for (var j = 0; j < holes; j++) holesArr.push({ par:4, sc: base + (j < rest ? 1 : 0) });
-          finishManual(dateCode, holesArr);
+          var simpleLoc = document.getElementById('mSimpleLocation').value.trim() || null;
+          finishManual(dateCode, holesArr, simpleLoc);
         } else {
           startHoleWizard(dateCode, holes, clubPars, 4, selectedCourse);
         }
-      });
-
-      document.getElementById('mLive').addEventListener('click', function () {
+      }
+      function goLive() {
         var dateCode = inputToCode(document.getElementById('mDate').value) || todayCode();
         startHoleWizard(dateCode, holes, clubPars, 0, selectedCourse);
-      });
+      }
+      document.getElementById('mNext').addEventListener('click', goErgebnisse);
+      document.getElementById('mLive').addEventListener('click', goLive);
+
+      // Kommt der Kurs von einem Golfplatz-Profil (preselect), direkt das
+      // Popup mit der Wahl zeigen statt nur die zwei Formular-Knoepfe -
+      // das Formular bleibt als Rueckfalloption sichtbar (z.B. um noch
+      // das Datum zu aendern), falls das Popup weggeklickt wird.
+      if (preselectedCourse) {
+        openCourseChoice(
+          preselectedCourse.clubName + ' – ' + (preselectedCourse.name || 'Platz'),
+          goLive, goErgebnisse
+        );
+      }
     }
 
     // Loch fuer Loch, wie am Geraet selbst: ein Loch pro Bildschirm,
@@ -4540,6 +4729,16 @@ var APP_VERSION = '0.39';
         return sumSc - sumPar;
       }
 
+      // Ort/Mitspieler nur abfragen, wenn kein Verein feststeht - bei
+      // einem Golfplatz-Kurs ist der Ort schon durch courseLabel klar.
+      // Freunde schon jetzt (nicht erst auf dem letzten Loch) laden, im
+      // Normalfall ist die Liste laengst da, bis man durchgespielt hat.
+      var playmateFriends = [];
+      var selectedPlaymates = {};
+      if (!course) {
+        Friends.list().then(function (d) { playmateFriends = d.friends || []; });
+      }
+
       function renderStep(animateIn) {
         var diff = currentDiff();
         mobileEl.innerHTML =
@@ -4566,6 +4765,18 @@ var APP_VERSION = '0.39';
           '<div class="stepper"><button type="button" id="mScMinus">\u2212</button>' +
           '<span id="mScVal">' + sc + '</span>' +
           '<button type="button" id="mScPlus">+</button></div></div>' +
+          ((idx === totalHoles - 1 && !course)
+            ? '<div class="form" style="margin-top:18px">' +
+              '<input type="text" id="mLocation" placeholder="Wo gespielt? (optional)"></div>' +
+              (playmateFriends.length
+                ? '<p class="hint" style="margin:0 0 8px;text-align:left">Mit wem gespielt?</p>' +
+                  '<div class="pickrow" id="mPlaymates">' + playmateFriends.map(function (f) {
+                    return '<button type="button" class="pickava" data-uid="' + f.userId + '">' +
+                      avaHtml(f.avatarUrl, nameOf(f), '', '', badgeTypeFor(f.isAdmin, f.verifiedRole)) +
+                      '<span class="fname">' + esc(nameOf(f)) + '</span></button>';
+                  }).join('') + '</div>'
+                : '')
+            : '') +
           '</div>' +
           '</div>' +
           '<div class="actions">' +
@@ -4593,6 +4804,17 @@ var APP_VERSION = '0.39';
         document.getElementById('mScPlus').addEventListener('click', function () {
           sc = Math.min(15, sc + 1); document.getElementById('mScVal').textContent = sc;
         });
+        var playmatesEl = document.getElementById('mPlaymates');
+        if (playmatesEl) {
+          Array.prototype.forEach.call(playmatesEl.querySelectorAll('.pickava'), function (btn) {
+            btn.addEventListener('click', function () {
+              var uid = btn.getAttribute('data-uid');
+              btn.classList.toggle('on');
+              if (btn.classList.contains('on')) selectedPlaymates[uid] = true;
+              else delete selectedPlaymates[uid];
+            });
+          });
+        }
         document.getElementById('mWizardClose').addEventListener('click', function () {
           if (idx === 0) { location.hash = ''; route(); return; }
           confirmDialog('Laufende Runde verwerfen?', 'Verwerfen').then(function (ok) {
@@ -4639,7 +4861,10 @@ var APP_VERSION = '0.39';
         acc.push({ par:par, sc:sc });
         idx++;
         if (idx >= totalHoles) {
-          finishManual(dateCode, acc);
+          var locEl = document.getElementById('mLocation');
+          var loc = courseLabel || (locEl ? locEl.value.trim() : '') || null;
+          var mates = Object.keys(selectedPlaymates);
+          finishManual(dateCode, acc, loc, mates.length ? mates : null);
         } else {
           par = fixedPars ? fixedPars[idx] : 4; sc = startSc;
           renderStep(true);
@@ -4729,9 +4954,9 @@ var APP_VERSION = '0.39';
       renderStep();
     }
 
-    function finishManual(dateCode, holesArr) {
+    function finishManual(dateCode, holesArr, roundLocation, playmates) {
       var code = holesToCode(holesArr);
-      Store.add(code, dateCode);
+      Store.add(code, dateCode, { location:roundLocation || null, playmates:playmates || null });
       location.hash = dateCode + '-' + code;
       route();
       toast('Runde gespeichert.');
@@ -4745,6 +4970,8 @@ var APP_VERSION = '0.39';
     function renderDesktopEntry() {
       var mdHoles = 9;
       var mdClubPars = null;
+      var mdCourseLabel = null;
+      var mdSelectedPlaymates = {};
 
       function gridHtml(n, fixedPars) {
         var rows = '';
@@ -4764,7 +4991,12 @@ var APP_VERSION = '0.39';
       }
 
       function render(preselectedCourse) {
-        if (preselectedCourse) { mdHoles = preselectedCourse.holes; mdClubPars = preselectedCourse.pars; }
+        if (preselectedCourse) {
+          mdHoles = preselectedCourse.holes; mdClubPars = preselectedCourse.pars;
+          mdCourseLabel = preselectedCourse.clubName + ' – ' + (preselectedCourse.name || 'Platz');
+        } else {
+          mdCourseLabel = null;
+        }
         desktopEl.innerHTML =
           '<div class="panel"><h3>Runde eintragen</h3>' +
           '<div class="form">' +
@@ -4781,8 +5013,34 @@ var APP_VERSION = '0.39';
           '<button type="button" class="' + (mdHoles === 18 ? 'on' : '') + '" data-holes="18">18 Löcher</button>' +
           '</div>' +
           '<div class="holegrid" id="mdGrid">' + gridHtml(mdHoles, mdClubPars) + '</div>' +
+          (preselectedCourse ? '' :
+            '<div class="form" id="mdExtra" style="margin-top:14px">' +
+            '<input type="text" id="mdLocation" placeholder="Wo gespielt? (optional)">' +
+            '<div id="mdPlaymatesWrap"></div>' +
+            '</div>') +
           '<div class="actions"><button class="btn" id="mdSave">Runde speichern</button></div>' +
           '</div>';
+
+        if (!preselectedCourse) {
+          Friends.list().then(function (d) {
+            var wrap = document.getElementById('mdPlaymatesWrap');
+            if (!wrap || !(d.friends || []).length) return;
+            wrap.innerHTML = '<p class="hint" style="margin:0 0 8px">Mit wem gespielt?</p>' +
+              '<div class="pickrow">' + d.friends.map(function (f) {
+                return '<button type="button" class="pickava" data-uid="' + f.userId + '">' +
+                  avaHtml(f.avatarUrl, nameOf(f), '', '', badgeTypeFor(f.isAdmin, f.verifiedRole)) +
+                  '<span class="fname">' + esc(nameOf(f)) + '</span></button>';
+              }).join('') + '</div>';
+            Array.prototype.forEach.call(wrap.querySelectorAll('.pickava'), function (btn) {
+              btn.addEventListener('click', function () {
+                var uid = btn.getAttribute('data-uid');
+                btn.classList.toggle('on');
+                if (btn.classList.contains('on')) mdSelectedPlaymates[uid] = true;
+                else delete mdSelectedPlaymates[uid];
+              });
+            });
+          });
+        }
 
         if (!preselectedCourse && !preselect) {
           coursesPromise.then(function (courses) {
@@ -4798,12 +5056,17 @@ var APP_VERSION = '0.39';
             sel.addEventListener('change', function () {
               var c = courses.filter(function (x) { return x.id === sel.value; })[0];
               var holesSeg = document.getElementById('mdHolesSeg');
+              var extra = document.getElementById('mdExtra');
               if (c) {
                 mdHoles = c.holes; mdClubPars = c.pars;
+                mdCourseLabel = c.clubName + ' – ' + (c.name || 'Platz');
                 holesSeg.classList.add('hidden');
+                if (extra) extra.classList.add('hidden');
               } else {
                 mdClubPars = null;
+                mdCourseLabel = null;
                 holesSeg.classList.remove('hidden');
+                if (extra) extra.classList.remove('hidden');
               }
               document.getElementById('mdGrid').innerHTML = gridHtml(mdHoles, mdClubPars);
             });
@@ -4835,7 +5098,10 @@ var APP_VERSION = '0.39';
             }
             holesArr.push({ par:par, sc:sc });
           }
-          finishManual(dateCode, holesArr);
+          var mdLocEl = document.getElementById('mdLocation');
+          var loc = mdCourseLabel || (mdLocEl ? mdLocEl.value.trim() : '') || null;
+          var mates = Object.keys(mdSelectedPlaymates);
+          finishManual(dateCode, holesArr, loc, mates.length ? mates : null);
         });
       }
 
@@ -5429,7 +5695,9 @@ var APP_VERSION = '0.39';
             owner: nameOf(f), back: 'friend/' + fm[1],
             roundId: row ? row.id : null,
             confirmed: row ? !!row.confirmed : false,
-            eligible: eligible
+            eligible: eligible,
+            location: row ? row.location : null,
+            playmates: row ? row.playmates : null
           });
         };
         if (row && !row.confirmed) {
