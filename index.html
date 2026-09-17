@@ -829,9 +829,9 @@
       <path d="M18 15v6"/><path d="M15 18h6"/></svg></span>
     <span class="navlabel">Runde hinzuf&uuml;gen</span>
   </button>
-  <button class="navitem player-only" data-tab="friends" data-go="menu/friends" aria-label="Freunde">
+  <button class="navitem player-only" data-tab="friends" data-go="menu/friends" aria-label="Feed">
     <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6.5 6.5 0 0 1 13 0v1"/><path d="M17 5.2a3.5 3.5 0 0 1 0 6.6"/><path d="M19.5 21v-1a5.6 5.6 0 0 0-2.2-4.4"/></svg>
-    <span class="navlabel">Freunde</span>
+    <span class="navlabel">Feed</span>
   </button>
   <button class="navitem player-only" id="btnCalNav" data-tab="cal" data-go="menu/plan" aria-label="Kalender">
     <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
@@ -964,7 +964,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.42';
+var APP_VERSION = '0.43';
 </script>
 
 <script>
@@ -978,7 +978,7 @@ var APP_VERSION = '0.42';
 
   // Loest bei jeder Aenderung des Seiteninhalts ein sanftes Einblenden aus,
   // unabhaengig davon ob eine Seite sofort steht (renderHome) oder erst
-  // nach dem Laden von Daten (renderFriends, renderPlan usw.). Dadurch
+  // nach dem Laden von Daten (renderFeed, renderPlan usw.). Dadurch
   // muss keine einzelne render-Funktion selbst um die Animation wissen.
   new MutationObserver(function () {
     content.classList.remove('fadein');
@@ -1545,17 +1545,22 @@ var APP_VERSION = '0.42';
   /* ---------- Menue ---------- */
   function menuDef() {
     var loggedIn = !!Auth.id();
-    // Startseite, Statistik, Freunde und Kalender/Planen stecken jetzt in
-    // der unteren Leiste, hier bleiben nur die selteneren Einstellungs-
-    // Punkte, die dort keinen Platz gefunden haetten.
-    // Golfplatz-Konten sehen "Freund hinzufuegen"/"Sicherung" nicht - beides
-    // reine Spieler-Funktionen, ergeben fuer einen Platz keinen Sinn.
+    // Startseite, Statistik und Kalender/Planen stecken in der unteren
+    // Leiste; der Freunde-Reiter dort zeigt nur noch den reinen Feed
+    // (renderFeed()) - die eigentliche Freundesliste/Anfragen/Verwalten
+    // steckt seit dieser Runde hier im Menue (renderFriendList()), damit
+    // die untere Leiste eine reine Aktivitaets-Ansicht bleibt.
+    // Golfplatz-Konten sehen "Freunde"/"Freund hinzufuegen"/"Sicherung"
+    // nicht - alles reine Spieler-Funktionen, ergeben fuer einen Platz
+    // keinen Sinn.
     var isClub = Friends.isClub();
     var items = [
       { id:'menu/login',  icon:loggedIn ? I.cloud : I.user,
         label:loggedIn ? 'Konto' : 'Anmelden',
         sub:loggedIn ? Auth.email() : 'Runden ger\u00e4te\u00fcbergreifend sichern',
         ready:true },
+      isClub ? null : { id:'menu/friendlist', icon:I.users, label:'Freunde',
+        sub:'Anfragen, Liste, Freund entfernen', ready:true },
       isClub ? null : { id:'menu/addfriend', icon:I.userplus, label:'Freund hinzuf\u00fcgen',
         sub:'Eigenen Code teilen oder per Code anfragen', ready:true },
       isClub ? null : { id:'menu/clubs', icon:I.home, label:'Golfpl\u00e4tze',
@@ -1588,8 +1593,35 @@ var APP_VERSION = '0.42';
       });
     });
   }
-  function openMenu(){ sheet.classList.add('on'); sheetbg.classList.add('on'); }
-  function closeMenu(){ sheet.classList.remove('on'); sheetbg.classList.remove('on'); }
+  // Kein einziges Sheet sperrte bisher den Hintergrund-Scroll - fiel nur
+  // beim Club-Picker auf, weil dessen Liste als einzige eine eigene
+  // Scrollzone hat (siehe openClubPick()); ohne genug eigenen Inhalt zum
+  // Scrollen geht die Touch-Geste sonst direkt an body durch. Zaehler
+  // statt Bool, falls mal zwei Sheets verschachtelt offen sind (z.B.
+  // openScanChoice() schliesst das Menue und oeffnet sich selbst).
+  var scrollLockCount = 0, scrollLockY = 0;
+  function lockBodyScroll() {
+    if (scrollLockCount === 0) {
+      scrollLockY = window.scrollY || window.pageYOffset || 0;
+      document.body.style.position = 'fixed';
+      document.body.style.top = '-' + scrollLockY + 'px';
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+    }
+    scrollLockCount++;
+  }
+  function unlockBodyScroll() {
+    scrollLockCount = Math.max(0, scrollLockCount - 1);
+    if (scrollLockCount === 0) {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      window.scrollTo(0, scrollLockY);
+    }
+  }
+  function openMenu(){ lockBodyScroll(); sheet.classList.add('on'); sheetbg.classList.add('on'); }
+  function closeMenu(){ unlockBodyScroll(); sheet.classList.remove('on'); sheetbg.classList.remove('on'); }
   document.getElementById('btnMenu').addEventListener('click', openMenu);
   document.getElementById('btnTopBack').addEventListener('click', function () {
     location.hash = ''; route();
@@ -1732,16 +1764,16 @@ var APP_VERSION = '0.42';
 
   var scanChoiceSheet = document.getElementById('scanChoiceSheet');
   var scanChoiceBg    = document.getElementById('scanChoiceBg');
-  function openScanChoice()  { closeMenu(); scanChoiceSheet.classList.add('on'); scanChoiceBg.classList.add('on'); }
-  function closeScanChoice() { scanChoiceSheet.classList.remove('on'); scanChoiceBg.classList.remove('on'); }
+  function openScanChoice()  { closeMenu(); lockBodyScroll(); scanChoiceSheet.classList.add('on'); scanChoiceBg.classList.add('on'); }
+  function closeScanChoice() { unlockBodyScroll(); scanChoiceSheet.classList.remove('on'); scanChoiceBg.classList.remove('on'); }
 
   // Loch-Zusatzinfos (Distanz Herren-/Damenabschlag) beim Live-Zaehlen,
   // gleiches Sheet-Muster wie oben - Inhalt wird von startHoleWizard()
   // pro Loch neu befuellt, bevor das Sheet geoeffnet wird.
   var holeInfoSheet = document.getElementById('holeInfoSheet');
   var holeInfoBg    = document.getElementById('holeInfoBg');
-  function openHoleInfo()  { holeInfoSheet.classList.add('on'); holeInfoBg.classList.add('on'); }
-  function closeHoleInfo() { holeInfoSheet.classList.remove('on'); holeInfoBg.classList.remove('on'); }
+  function openHoleInfo()  { lockBodyScroll(); holeInfoSheet.classList.add('on'); holeInfoBg.classList.add('on'); }
+  function closeHoleInfo() { unlockBodyScroll(); holeInfoSheet.classList.remove('on'); holeInfoBg.classList.remove('on'); }
   holeInfoBg.addEventListener('click', closeHoleInfo);
 
   // Eigenes Bestaetigungs-Popup statt des nativen confirm() - passt sich
@@ -1753,8 +1785,8 @@ var APP_VERSION = '0.42';
   var confirmMsgEl    = document.getElementById('confirmMsg');
   var confirmOkBtn    = document.getElementById('confirmOkBtn');
   var confirmCancelBtn = document.getElementById('confirmCancelBtn');
-  function openConfirm()  { confirmSheet.classList.add('on'); confirmBg.classList.add('on'); }
-  function closeConfirm() { confirmSheet.classList.remove('on'); confirmBg.classList.remove('on'); }
+  function openConfirm()  { lockBodyScroll(); confirmSheet.classList.add('on'); confirmBg.classList.add('on'); }
+  function closeConfirm() { unlockBodyScroll(); confirmSheet.classList.remove('on'); confirmBg.classList.remove('on'); }
   function confirmDialog(message, okLabel) {
     return new Promise(function (resolve) {
       confirmMsgEl.textContent = message;
@@ -1785,7 +1817,7 @@ var APP_VERSION = '0.42';
   var courseChoiceNameEl = document.getElementById('courseChoiceName');
   var courseChoiceLiveBtn = document.getElementById('courseChoiceLive');
   var courseChoiceManualBtn = document.getElementById('courseChoiceManual');
-  function closeCourseChoice() { courseChoiceSheet.classList.remove('on'); courseChoiceBg.classList.remove('on'); }
+  function closeCourseChoice() { unlockBodyScroll(); courseChoiceSheet.classList.remove('on'); courseChoiceBg.classList.remove('on'); }
   function openCourseChoice(courseLabel, onLive, onManual) {
     courseChoiceNameEl.textContent = courseLabel || '';
     function pick(fn) {
@@ -1802,6 +1834,7 @@ var APP_VERSION = '0.42';
     courseChoiceLiveBtn.addEventListener('click', onLivePick);
     courseChoiceManualBtn.addEventListener('click', onManualPick);
     courseChoiceBg.addEventListener('click', onBgClick);
+    lockBodyScroll();
     courseChoiceSheet.classList.add('on'); courseChoiceBg.classList.add('on');
   }
 
@@ -1817,7 +1850,7 @@ var APP_VERSION = '0.42';
   var clubPickBg = document.getElementById('clubPickBg');
   var clubPickSearchEl = document.getElementById('clubPickSearch');
   var clubPickListEl = document.getElementById('clubPickList');
-  function closeClubPick() { clubPickSheet.classList.remove('on'); clubPickBg.classList.remove('on'); }
+  function closeClubPick() { unlockBodyScroll(); clubPickSheet.classList.remove('on'); clubPickBg.classList.remove('on'); }
   function openClubPick(onPick) {
     var followed = [], allClubs = [], currentClubs = [], expandedClubId = null;
     clubPickSearchEl.value = '';
@@ -1879,6 +1912,7 @@ var APP_VERSION = '0.42';
     clubPickListEl.addEventListener('click', onListClick);
     clubPickSearchEl.addEventListener('input', onSearchInput);
     clubPickBg.addEventListener('click', onBgClick);
+    lockBodyScroll();
     clubPickSheet.classList.add('on'); clubPickBg.classList.add('on');
 
     Promise.all([Club.followedClubs(), Club.verifiedClubsList()]).then(function (res) {
@@ -2831,6 +2865,7 @@ var APP_VERSION = '0.42';
                     return {
                       id: e.id, title: e.title, date: e.event_date,
                       location: e.location, creator: e.creator,
+                      clubId: e.club_id, courseId: e.course_id,
                       isMine: e.creator === me,
                       creatorName: names[e.creator] || 'Spieler',
                       invites: evInvites.map(function (i) {
@@ -2856,7 +2891,8 @@ var APP_VERSION = '0.42';
       var me = Auth.id();
       return db().from('events').insert({
         creator: me, title: data.title || 'Golfrunde',
-        event_date: data.date, location: data.location || null
+        event_date: data.date, location: data.location || null,
+        club_id: data.clubId || null, course_id: data.courseId || null
       }).select().single().then(function (r) {
         if (r.error) throw r.error;
         var ev = r.data;
@@ -4061,7 +4097,63 @@ var APP_VERSION = '0.42';
     return null;
   }
 
-  function renderFriends() {
+  // Reiner Aktivitaets-Feed (Ziel der unteren Leiste, Hash menu/friends) -
+  // die eigentliche Freundesliste/Anfragen/Verwalten stecken seit dieser
+  // Runde in renderFriendList() (eigener Menuepunkt, siehe menuDef()).
+  function renderFeed() {
+    brand.textContent = 'Feed';
+
+    if (!Auth.id()) {
+      content.innerHTML =
+        '<div class="ph"><div class="ic">' + I.users + '</div>' +
+        '<b>Anmeldung n\u00f6tig</b>' +
+        'Der Feed zeigt Runden von Freunden - daf\u00fcr braucht es ein Konto, ' +
+        'weil eure Runden dabei \u00fcber den Server ausgetauscht werden.</div>' +
+        '<div class="actions"><button class="btn" id="btnToLogin">Zur Anmeldung</button></div>';
+      document.getElementById('btnToLogin').addEventListener('click', function () {
+        location.hash = 'menu/login'; route();
+      });
+      return;
+    }
+
+    content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
+
+    Friends.feed(15).then(function (feed) {
+      var html = feed.length
+        ? '<div class="list">' + feed.map(function (e) {
+            var parsed = parseCode(e.row.code);
+            var hashCode = (e.row.date ? e.row.date + '-' : '') + e.row.code;
+            return '<button class="item" data-feed="' + e.row.user_id + '/' + esc(hashCode) + '">' +
+              avaHtml(e.avatarUrl, e.name, '', '', e.badge) +
+              '<span class="meta"><span class="d">' + esc(e.name) + '</span>' +
+              '<span class="s">' + (e.row.location ? esc(e.row.location) + ' &middot; ' : '') +
+              (fmtDate(e.row.date) || 'ohne Datum') + '</span></span>' +
+              '<span class="big" style="color:' + colorOf(parsed.diff) + '">' + sign(parsed.diff) + '</span>' +
+              '</button>';
+          }).join('') + '</div>'
+        : '<div class="empty"><b>Noch keine Aktivit\u00e4t</b>' +
+          'Sobald Freunde Runden speichern, taucht das hier auf.</div>';
+
+      html += '<div class="actions" style="margin-top:22px">' +
+              '<button class="btn ghost" id="btnGoFriendList">' + I.users + 'Freunde verwalten</button></div>';
+
+      content.innerHTML = html;
+
+      document.getElementById('btnGoFriendList').addEventListener('click', function () {
+        location.hash = 'menu/friendlist'; route();
+      });
+      Array.prototype.forEach.call(content.querySelectorAll('[data-feed]'), function (el) {
+        el.addEventListener('click', function () {
+          location.hash = 'friend/' + el.getAttribute('data-feed'); route();
+        });
+      });
+    });
+  }
+
+  // Freundesliste, Anfragen, Verwalten - frueher Teil der Freunde-Seite,
+  // jetzt ausgelagert und nur noch ueber das Menue erreichbar (die untere
+  // Leiste zeigt stattdessen den reinen Feed, siehe renderFeed()).
+  function renderFriendList() {
     brand.textContent = 'Freunde';
 
     if (!Auth.id()) {
@@ -4079,29 +4171,13 @@ var APP_VERSION = '0.42';
 
     content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
 
-    Promise.all([Friends.loadProfile(), Friends.list(), Friends.feed(15)]).then(function (res) {
+    Promise.all([Friends.loadProfile(), Friends.list()]).then(function (res) {
       var data = res[1];
-      var feed = res[2];
 
       var html = '';
 
-      if (feed.length) {
-        html += '<div class="sectionhead"><span class="t">Zuletzt gespielt</span></div>' +
-          '<div class="list">' + feed.map(function (e) {
-            var parsed = parseCode(e.row.code);
-            var hashCode = (e.row.date ? e.row.date + '-' : '') + e.row.code;
-            return '<button class="item" data-feed="' + e.row.user_id + '/' + esc(hashCode) + '">' +
-              avaHtml(e.avatarUrl, e.name, '', '', e.badge) +
-              '<span class="meta"><span class="d">' + esc(e.name) + '</span>' +
-              '<span class="s">' + (e.row.location ? esc(e.row.location) + ' &middot; ' : '') +
-              (fmtDate(e.row.date) || 'ohne Datum') + '</span></span>' +
-              '<span class="big" style="color:' + colorOf(parsed.diff) + '">' + sign(parsed.diff) + '</span>' +
-              '</button>';
-          }).join('') + '</div>';
-      }
-
       if (data.incoming.length) {
-        html += '<div class="sectionhead" style="margin-top:22px"><span class="t">Offene Anfragen</span>' +
+        html += '<div class="sectionhead"><span class="t">Offene Anfragen</span>' +
                 '<span class="c">' + data.incoming.length + '</span></div><div class="list">' +
           data.incoming.map(function (f) {
             return '<div class="item static">' +
@@ -4115,8 +4191,8 @@ var APP_VERSION = '0.42';
           }).join('') + '</div>';
       }
 
-      html += '<div class="sectionhead" style="margin-top:22px"><span class="t">Freunde</span>' +
-              '<span class="c">' + data.friends.length + '</span></div>';
+      html += '<div class="sectionhead"' + (data.incoming.length ? ' style="margin-top:22px"' : '') +
+              '><span class="t">Freunde</span><span class="c">' + data.friends.length + '</span></div>';
 
       if (!data.friends.length) {
         html += '<div class="empty"><b>Noch keine Freunde</b>' +
@@ -4157,25 +4233,20 @@ var APP_VERSION = '0.42';
         el.addEventListener('click', function () {
           Friends.accept(el.getAttribute('data-accept')).then(function (r) {
             toast(r.error ? 'Hat nicht geklappt.' : 'Best\u00e4tigt.', !!r.error);
-            renderFriends();
+            renderFriendList();
           });
         });
       });
       Array.prototype.forEach.call(content.querySelectorAll('[data-drop]'), function (el) {
         el.addEventListener('click', function () {
           Friends.remove(el.getAttribute('data-drop')).then(function () {
-            toast('Entfernt.'); renderFriends();
+            toast('Entfernt.'); renderFriendList();
           });
         });
       });
       Array.prototype.forEach.call(content.querySelectorAll('[data-friend]'), function (el) {
         el.addEventListener('click', function () {
           location.hash = 'friend/' + el.getAttribute('data-friend'); route();
-        });
-      });
-      Array.prototype.forEach.call(content.querySelectorAll('[data-feed]'), function (el) {
-        el.addEventListener('click', function () {
-          location.hash = 'friend/' + el.getAttribute('data-feed'); route();
         });
       });
 
@@ -4224,7 +4295,7 @@ var APP_VERSION = '0.42';
         if (c.length !== 8) { toast('Der Code besteht aus 8 Ziffern.', true); return; }
         toast('Sende Anfrage \u2026');
         Friends.requestByCode(c).then(function (r) {
-          if (r.ok) { toast('Anfrage gesendet.'); location.hash = 'menu/friends'; route(); return; }
+          if (r.ok) { toast('Anfrage gesendet.'); location.hash = 'menu/friendlist'; route(); return; }
           if (r.reason === 'notfound') toast('Zu diesem Code gibt es niemanden.', true);
           else if (r.reason === 'exists') toast('Mit dieser Person besteht schon eine Verbindung.', true);
           else toast('Hat nicht geklappt: ' + (r.message || 'unbekannt'), true);
@@ -4232,7 +4303,7 @@ var APP_VERSION = '0.42';
       });
 
       document.getElementById('btnBackFriends').addEventListener('click', function () {
-        location.hash = 'menu/friends'; route();
+        location.hash = 'menu/friendlist'; route();
       });
     });
   }
@@ -4276,8 +4347,7 @@ var APP_VERSION = '0.42';
       '</div>' +
       '<div class="form"><button type="button" class="btn ghost" id="fCoursePickBtn" ' +
       'style="width:100%;justify-content:space-between">' +
-      '<span id="fCoursePickLabel">Kurs wählen</span>' + I.chev + '</button></div>' +
-      '<div class="form"><input type="text" id="fWhere" placeholder="Ort (optional)" autocomplete="off"></div>';
+      '<span id="fCoursePickLabel">Kurs wählen</span>' + I.chev + '</button></div>';
 
     if (!friends.length) {
       html += '<p class="hint" style="margin-top:0">Noch keine Freunde zum Einladen. ' +
@@ -4303,18 +4373,17 @@ var APP_VERSION = '0.42';
     });
 
     // Verein+Platz waehlen -> eigenes Popup statt nativem <select> (siehe
-    // openClubPick()). Kein neues DB-Feld noetig: die Wahl fuellt nur das
-    // schon vorhandene Freitext-Ortsfeld aus (gleiches Prinzip wie location
-    // bei den Runden - der Text bleibt historisch stabil, auch wenn ein
-    // Kurs spaeter umbenannt wird), bleibt danach aber ganz normal
-    // editierbar.
+    // openClubPick()). club_id/course_id werden mitgespeichert (fuer den
+    // Live-Start direkt am Termin, siehe renderPlan()); location bleibt
+    // trotzdem ein reiner Anzeige-Text, der bei einer spaeteren
+    // Umbenennung des Kurses stabil bleibt.
     var pickBtn = slot.querySelector('#fCoursePickBtn');
     var pickLabel = slot.querySelector('#fCoursePickLabel');
-    var whereInput = slot.querySelector('#fWhere');
+    var pickedClub = null, pickedCourse = null;
     pickBtn.addEventListener('click', function () {
       openClubPick(function (club, course) {
+        pickedClub = club; pickedCourse = course;
         pickLabel.textContent = club.name + ' – ' + (course.name || 'Platz');
-        whereInput.value = club.name + ' – ' + (course.name || 'Platz');
       });
     });
 
@@ -4329,15 +4398,19 @@ var APP_VERSION = '0.42';
 
     slot.querySelector('#btnCreate').addEventListener('click', function () {
       var title = slot.querySelector('#fTitle').value.trim();
-      var where = slot.querySelector('#fWhere').value.trim();
       if (!dateInput.value || !timeInput.value) {
         toast('Bitte Datum und Uhrzeit wählen.', true); return;
       }
       var d = new Date(dateInput.value + 'T' + timeInput.value);
       if (isNaN(d.getTime())) { toast('Datum konnte nicht gelesen werden.', true); return; }
+      var loc = pickedClub ? (pickedClub.name + ' – ' + (pickedCourse.name || 'Platz')) : null;
 
       toast('Lege Termin an …');
-      Planner.create({ date: d.toISOString(), location: where, title: title }, Object.keys(selected)).then(function (r) {
+      Planner.create({
+        date: d.toISOString(), location: loc, title: title,
+        clubId: pickedClub ? pickedClub.id : null,
+        courseId: pickedCourse ? pickedCourse.id : null
+      }, Object.keys(selected)).then(function (r) {
         if (!r.ok) { toast('Hat nicht geklappt: ' + (r.message || 'unbekannt'), true); return; }
         slot.innerHTML = '';
         toast('Termin angelegt.');
@@ -4418,6 +4491,16 @@ var APP_VERSION = '0.42';
               '<button class="btn ghost" data-ics="' + ev.id + '">' + I.down + 'Kalender</button></div>';
           }
 
+          if (ev.clubId && ev.courseId) {
+            var evTime = new Date(ev.date).getTime(), now2 = Date.now();
+            var liveWindow = now2 >= evTime - 30 * 60000 && now2 <= evTime + 60 * 60000;
+            html += '<div class="actions tight">';
+            if (liveWindow) {
+              html += '<button class="btn" data-live="' + ev.clubId + '/' + ev.courseId + '">Live spielen</button>';
+            }
+            html += '<button class="btn ghost" data-enter-result="' + ev.clubId + '/' + ev.courseId + '">Ergebnisse eintragen</button></div>';
+          }
+
           if (ev.isMine) {
             html += '<div class="linkrow"><button class="linkbtn" data-cancel="' + ev.id + '">Termin absagen</button></div>';
           }
@@ -4466,6 +4549,16 @@ var APP_VERSION = '0.42';
         el.addEventListener('click', function () {
           var ev = events.filter(function (e) { return e.id === el.getAttribute('data-ics'); })[0];
           if (ev) downloadEventIcs(ev);
+        });
+      });
+      Array.prototype.forEach.call(content.querySelectorAll('[data-live]'), function (el) {
+        el.addEventListener('click', function () {
+          location.hash = 'manual/' + el.getAttribute('data-live') + '/live'; route();
+        });
+      });
+      Array.prototype.forEach.call(content.querySelectorAll('[data-enter-result]'), function (el) {
+        el.addEventListener('click', function () {
+          location.hash = 'manual/' + el.getAttribute('data-enter-result'); route();
         });
       });
 
@@ -4523,14 +4616,14 @@ var APP_VERSION = '0.42';
 
       function wireBackAndRemove() {
         document.getElementById('btnBackF').addEventListener('click', function () {
-          location.hash = 'menu/friends'; route();
+          location.hash = 'menu/friendlist'; route();
         });
         document.getElementById('btnRemoveFriend').addEventListener('click', function () {
           confirmDialog('Diese Freundschaft wirklich beenden?', 'Beenden').then(function (ok) {
             if (!ok) return;
             Friends.remove(f.id).then(function () {
               toast('Freundschaft beendet.');
-              location.hash = 'menu/friends'; route();
+              location.hash = 'menu/friendlist'; route();
             });
           });
         });
@@ -5685,6 +5778,7 @@ var APP_VERSION = '0.42';
     if (!raw) return 'home';
     if (raw === 'menu/stats')  return 'stats';
     if (raw === 'menu/friends')return 'friends';
+    if (raw === 'menu/friendlist') return 'friends';
     if (raw === 'menu/addfriend') return 'friends';
     if (raw === 'menu/plan')   return 'cal';
     if (/^friend\//.test(raw)) return 'friends';
@@ -5764,7 +5858,7 @@ var APP_VERSION = '0.42';
     // Navigation-Lektion). Greift erst, sobald das Profil einmal geladen
     // wurde (Friends.isClub() ist bis dahin false, gleiche Einschraenkung
     // wie bei Friends.isAdmin()).
-    var CLUB_BLOCKED_HASHES = ['manual', 'menu/stats', 'menu/friends', 'menu/addfriend', 'menu/plan', 'menu/clubs', 'menu/backup', 'rounds'];
+    var CLUB_BLOCKED_HASHES = ['manual', 'menu/stats', 'menu/friends', 'menu/friendlist', 'menu/addfriend', 'menu/plan', 'menu/clubs', 'menu/backup', 'rounds'];
     if (Friends.isClub() && (CLUB_BLOCKED_HASHES.indexOf(raw) >= 0 || parseCode(raw).holes.length)) {
       location.hash = ''; route(); return;
     }
@@ -5782,7 +5876,8 @@ var APP_VERSION = '0.42';
 
     if (!raw)                 { renderHome(); return; }
     if (raw === 'menu/login') { renderLogin(); return; }
-    if (raw === 'menu/friends'){ renderFriends(); return; }
+    if (raw === 'menu/friends'){ renderFeed(); return; }
+    if (raw === 'menu/friendlist'){ renderFriendList(); return; }
     if (raw === 'menu/addfriend'){ renderAddFriend(); return; }
     if (raw === 'menu/stats')  { renderStats(); return; }
     if (raw === 'rounds')      { renderAllRounds(); return; }
