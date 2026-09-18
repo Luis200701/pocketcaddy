@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Pocket Caddy – die Golf-App, mit der du deine Runden festhältst und mit deiner Community teilst.">
+<title>Pocket Caddy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@500;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  /* Bewusst nur ein, dunkles Erscheinungsbild statt hell/dunkel-Umschaltung -
+     die echte App ist selbst konsequent dunkel gehalten, jede Farbe wird
+     hier trotzdem explizit gesetzt statt auf die Systemfarbe zu vertrauen,
+     damit die Seite auf jedem Host-Hintergrund haelt. */
+  :root{
+    --bg:#0b0e13;
+    --surface:#141922;
+    --surface-2:#1a212c;
+    --line:#252d3a;
+    --lime:#a3e635;
+    --lime-deep:#84bf19;
+    --ink:#f3f6ef;
+    --mut:#8b93a3;
+    --good:#5ede8f;
+    --bad:#ff5c5c;
+    --shadow:0 20px 50px -25px rgba(0,0,0,.7);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Work Sans",-apple-system,BlinkMacSystemFont,sans-serif;
+    font-size:16px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  ::selection{background:var(--lime);color:#0b0e13}
+
+  h1,h2,h3{
+    font-family:"League Spartan","Work Sans",sans-serif;
+    font-weight:800;
+    line-height:1.04;
+    margin:0;
+    text-wrap:balance;
+    letter-spacing:-.01em;
+  }
+  .mono{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-variant-numeric:tabular-nums;
+  }
+  p{margin:0}
+  a{color:inherit}
+  img,svg{display:block}
+
+  .wrap{
+    max-width:1120px;
+    margin:0 auto;
+    padding-inline:24px;
+  }
+  section{padding-block:88px}
+  @media (max-width:720px){
+    section{padding-block:64px}
+    .wrap{padding-inline:20px}
+  }
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    position:sticky;top:env(safe-area-inset-top, 0px);z-index:40;
+    background:rgba(11,14,19,.78);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .topbar .wrap{
+    display:flex;align-items:center;justify-content:space-between;
+    padding-block:14px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;font-family:"League Spartan",sans-serif}
+  .brand img{width:28px;height:28px;border-radius:8px;flex:none}
+  .pill{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:11.5px;color:var(--mut);
+    border:1px solid var(--line);border-radius:999px;
+    padding:6px 12px;letter-spacing:.02em;
+    display:flex;align-items:center;gap:7px;
+  }
+  .pill .dot{width:6px;height:6px;border-radius:99px;background:var(--lime);
+    box-shadow:0 0 0 3px rgba(163,230,53,.18)}
+
+  /* ---------- Hero ---------- */
+  .hero{padding-top:64px}
+  .hero .wrap{
+    display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;
+  }
+  @media (max-width:900px){
+    .hero .wrap{grid-template-columns:1fr;gap:48px}
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--lime);
+    letter-spacing:.14em;text-transform:uppercase;margin-bottom:18px;
+    display:flex;align-items:center;gap:10px;
+  }
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--lime)}
+  h1{font-size:clamp(38px,5.4vw,60px)}
+  h1 .accent{color:var(--lime)}
+  .lead{color:var(--mut);font-size:18px;max-width:44ch;margin-top:22px;line-height:1.65}
+  .hero-cta{margin-top:34px;display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+  .btn{
+    font-family:"Work Sans",sans-serif;font-weight:600;font-size:15px;
+    padding:14px 26px;border-radius:999px;border:0;cursor:pointer;
+    display:inline-flex;align-items:center;gap:9px;text-decoration:none;
+    transition:transform .15s ease, background-color .15s ease;
+  }
+  .btn:active{transform:scale(.97)}
+  .btn.primary{background:var(--lime);color:#0b0e13}
+  .btn.primary:hover{background:var(--lime-deep)}
+  .btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+  .btn.ghost:hover{box-shadow:inset 0 0 0 1px #3a4456}
+  .btn svg{width:16px;height:16px}
+
+  /* ---------- Store badges (noch inaktiv, vor dem Launch) ---------- */
+  .stores{margin-top:28px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .store-badge{
+    display:inline-flex;align-items:center;gap:10px;
+    border:1px solid var(--line);border-radius:12px;
+    padding:8px 16px 8px 12px;
+    color:#5b6474;cursor:default;user-select:none;position:relative;
+  }
+  .store-badge svg{width:22px;height:22px;flex:none;color:#5b6474}
+  .store-badge .stx{display:flex;flex-direction:column;line-height:1.25}
+  .store-badge .stx b{font-size:14px;font-weight:600;color:#7b8494}
+  .store-badge .stx span{font-size:9.5px;text-transform:uppercase;letter-spacing:.06em}
+  .store-note{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--mut);
+    width:100%;margin-top:2px}
+
+  /* ---------- App-Illustration ---------- */
+  .rig{position:relative;display:flex;justify-content:center;align-items:center;padding:20px 0}
+  .phone{
+    width:210px;height:422px;border-radius:34px;flex:none;
+    background:linear-gradient(160deg,#171d27,#10141b);
+    box-shadow:var(--shadow), inset 0 0 0 1px #2a3242;
+    padding:9px;
+  }
+  .phone .pscreen{
+    height:100%;border-radius:22px;background:#0d1016;overflow:hidden;
+    display:flex;flex-direction:column;padding:16px 14px;position:relative;
+  }
+  .phone .prow{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--mut)}
+  .phone .ptitle{font-size:14px;font-weight:700;color:var(--ink);font-family:"League Spartan",sans-serif}
+  .phone .pstats{margin-top:20px;display:flex;gap:10px}
+  .phone .pstat{flex:1;background:#12161d;border-radius:14px;padding:14px 10px;text-align:center}
+  .phone .pstat-v{display:block;font-size:20px;font-weight:600;color:var(--lime)}
+  .phone .pstat-k{display:block;font-size:9px;color:var(--mut);text-transform:uppercase;
+    letter-spacing:.08em;margin-top:4px}
+  .phone .psub{margin-top:22px;font-size:10.5px;color:var(--mut);text-transform:uppercase;
+    letter-spacing:.08em}
+  .phone .pclubs{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1}
+  .phone .pclub{background:#12161d;border-radius:12px;padding:12px 10px;
+    display:flex;flex-direction:column;align-items:center;gap:8px}
+  .phone .pclub-ava{width:26px;height:26px;border-radius:99px;background:#232c3a}
+  .phone .pclub-ln{width:70%;height:6px;border-radius:99px;background:#1e2531}
+  .phone .pnav{margin-top:auto;padding-top:14px;border-top:1px solid #1e2531;
+    display:flex;justify-content:space-around}
+  .phone .pnav .nic{width:18px;height:18px;color:#3c4657}
+  .phone .pnav .nic.on{color:var(--lime)}
+
+  /* ---------- So funktioniert's ---------- */
+  .kicker{font-family:"IBM Plex Mono",monospace;color:var(--lime);font-size:12.5px;
+    letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
+  h2{font-size:clamp(28px,3.6vw,40px)}
+  .section-lead{color:var(--mut);font-size:16.5px;max-width:56ch;margin-top:14px}
+
+  .steps{margin-top:52px;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+    background:var(--line);border:1px solid var(--line);border-radius:20px;overflow:hidden}
+  @media (max-width:800px){.steps{grid-template-columns:1fr}}
+  .step{background:var(--surface);padding:34px 30px}
+  .step .idx{font-family:"IBM Plex Mono",monospace;color:var(--lime);font-size:13px;
+    margin-bottom:18px;display:block}
+  .step h3{font-size:20px;font-weight:700;margin-bottom:10px}
+  .step p{color:var(--mut);font-size:14.5px;line-height:1.65}
+
+  /* ---------- Feature grid ---------- */
+  .grid{margin-top:52px;display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  @media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:620px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:26px}
+  .card.accent{border-color:#3a4a1f;background:linear-gradient(160deg,#171f12,var(--surface))}
+  .card .ic{width:34px;height:34px;color:var(--lime);margin-bottom:18px}
+  .card h3{font-size:16.5px;font-weight:700;margin-bottom:9px}
+  .card p{color:var(--mut);font-size:14px;line-height:1.6}
+
+  /* ---------- Honesty section ---------- */
+  .honest{background:var(--surface);border:1px solid var(--line);border-radius:24px;
+    margin-top:0;padding:52px;display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center}
+  @media (max-width:820px){.honest{grid-template-columns:1fr;padding:34px}}
+  .confirmbox-demo{background:var(--surface-2);border-radius:14px;padding:16px 18px;
+    display:flex;flex-direction:column;gap:12px;font-size:13.5px;color:var(--mut)}
+  .confirmbox-demo .row{display:flex;align-items:center;gap:10px;padding:12px 14px;
+    border-radius:12px;background:#12161d}
+  .confirmbox-demo .row.ok{color:var(--good)}
+  .confirmbox-demo svg{width:16px;height:16px;flex:none}
+
+  /* ---------- Footer ---------- */
+  footer{border-top:1px solid var(--line);padding-block:56px}
+  .foot-top{display:flex;justify-content:space-between;align-items:flex-start;gap:32px;flex-wrap:wrap}
+  .foot-note{max-width:44ch}
+  .foot-note h3{font-size:20px;margin-bottom:10px}
+  .foot-note p{color:var(--mut);font-size:14.5px;line-height:1.6}
+  .foot-status{display:flex;align-items:center;gap:10px;font-family:"IBM Plex Mono",monospace;
+    font-size:12.5px;color:var(--mut);border:1px solid var(--line);border-radius:999px;
+    padding:10px 16px;white-space:nowrap}
+  .foot-bottom{margin-top:40px;padding-top:24px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;
+    font-size:12.5px;color:var(--mut);font-family:"IBM Plex Mono",monospace}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <div class="brand">
+      <img src="data:image/png;base64,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" alt="">
+      Pocket Caddy
+    </div>
+    <div class="pill"><span class="dot"></span>Bald verfügbar</div>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Die Golf-Community-App</div>
+      <h1>Golf spielt man<br><span class="accent">nicht allein.</span></h1>
+      <p class="lead">Runden festhalten, mit Freunden teilen, gemeinsam auswerten – die App für eure Golf-Community.</p>
+      <div class="hero-cta">
+        <a class="btn primary" href="#funktion">
+          So funktioniert's
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+        <a class="btn ghost" href="#app">Was du bekommst</a>
+      </div>
+      <div class="stores">
+        <div class="store-badge">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.7 12.5c0-2.8 2.3-4.1 2.4-4.2-1.3-1.9-3.3-2.2-4-2.2-1.7-.2-3.3 1-4.2 1-.9 0-2.2-1-3.6-1-1.9 0-3.6 1.1-4.6 2.8-2 3.4-.5 8.5 1.4 11.3.9 1.3 2 2.9 3.5 2.8 1.4-.1 1.9-.9 3.6-.9s2.1.9 3.6.9c1.5 0 2.5-1.3 3.4-2.7.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.8-1.1-2.8-4.1zM13.9 4.2c.7-.9 1.2-2.1 1.1-3.3-1 .1-2.3.7-3.1 1.6-.7.7-1.3 1.9-1.1 3.1 1.2.1 2.4-.6 3.1-1.4z"/></svg>
+          <span class="stx"><span>Download on the</span><b>App Store</b></span>
+        </div>
+        <div class="store-badge">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 3.5v17c0 .4.2.7.5.9L14 12 4.5 2.6c-.3.2-.5.5-.5.9zM16.5 10.4 6.2 2.3 15 7.4l1.5 3zM17.9 11.2l2.9-1.7c.6-.3.6-1.1 0-1.5l-2.9-1.7-2.1 2.9 2.1 2zM6.2 21.7l10.3-8.1-1.5 3-8.8 5.1z"/></svg>
+          <span class="stx"><span>Get it on</span><b>Google Play</b></span>
+        </div>
+        <p class="store-note">// noch nicht live – wir bauen gerade an der echten App</p>
+      </div>
+    </div>
+    <div class="rig">
+      <div class="phone">
+        <div class="pscreen">
+          <div class="prow"><span class="ptitle">Start</span><span>⚙</span></div>
+          <div class="pstats">
+            <div class="pstat"><span class="pstat-v mono">14.2</span><span class="pstat-k">HCP</span></div>
+            <div class="pstat"><span class="pstat-v mono">27</span><span class="pstat-k">Runden</span></div>
+          </div>
+          <div class="psub">Golfplätze</div>
+          <div class="pclubs">
+            <div class="pclub"><span class="pclub-ava"></span><span class="pclub-ln"></span></div>
+            <div class="pclub"><span class="pclub-ava"></span><span class="pclub-ln"></span></div>
+            <div class="pclub"><span class="pclub-ava"></span><span class="pclub-ln"></span></div>
+            <div class="pclub"><span class="pclub-ava"></span><span class="pclub-ln"></span></div>
+          </div>
+          <div class="pnav">
+            <svg class="nic on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            <svg class="nic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="1.6" fill="currentColor" stroke="none"/><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/></svg>
+            <svg class="nic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="funktion">
+  <div class="wrap">
+    <div class="kicker">Ablauf</div>
+    <h2>Vom ersten Abschlag bis zur gemeinsamen Statistik in drei Schritten.</h2>
+    <p class="section-lead">Kein Zettel, kein Nachtragen aus dem Gedächtnis am Abend.</p>
+    <div class="steps">
+      <div class="step">
+        <span class="idx mono">01</span>
+        <h3>Loch für Loch eintragen</h3>
+        <p>Direkt beim Spielen mitzählen oder danach in Ruhe nachtragen – Par und Schläge, mehr braucht es nicht.</p>
+      </div>
+      <div class="step">
+        <span class="idx mono">02</span>
+        <h3>Automatisch ausgewertet</h3>
+        <p>Jede Runde wandert sofort in die eigene Statistik, sauber sortiert nach Datum und Platz.</p>
+      </div>
+      <div class="step">
+        <span class="idx mono">03</span>
+        <h3>Von Freunden bestätigt</h3>
+        <p>Ein Mitspieler bestätigt die Runde – erst dann zählt sie wirklich in der Auswertung.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="app">
+  <div class="wrap">
+    <div class="kicker">Was du bekommst</div>
+    <h2>Gebaut, um gemeinsam gespielt zu werden.</h2>
+    <p class="section-lead">Nicht nur ein Schlagzähler für dich allein – Pocket Caddy soll die App werden, die deine Golf-Runde als Community zusammenbringt.</p>
+    <div class="grid">
+      <div class="card accent">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6.5 6.5 0 0 1 13 0v1"/><path d="M17 5.2a3.5 3.5 0 0 1 0 6.6"/><path d="M19.5 21v-1a5.6 5.6 0 0 0-2.2-4.4"/></svg>
+        <h3>Freunde &amp; Feed</h3>
+        <p>Sieh, was deine Golf-Freunde zuletzt gespielt haben.</p>
+      </div>
+      <div class="card accent">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+        <h3>Runden gemeinsam planen</h3>
+        <p>Termine mit Freunden anlegen, zu- oder absagen.</p>
+      </div>
+      <div class="card">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-4"/></svg>
+        <h3>Statistik über alle Runden</h3>
+        <p>Jede Runde wandert automatisch in die eigene Auswertung.</p>
+      </div>
+      <div class="card">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4v16"/><path d="M5 5l14 4-14 4"/></svg>
+        <h3>Echte Golfplatz-Daten</h3>
+        <p>Platz auswählen statt Par raten.</p>
+      </div>
+      <div class="card">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 6h6M9 18h.01"/></svg>
+        <h3>Handy oder Rechner</h3>
+        <p>Am Platz live mitzählen, am Rechner nachtragen.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="ehrlich">
+  <div class="wrap">
+    <div class="honest">
+      <div>
+        <div class="kicker">Warum anders</div>
+        <h2 style="font-size:clamp(24px,3vw,32px)">Handicap-Statistiken leben von ehrlichen Zahlen.</h2>
+        <p class="section-lead" style="margin-top:16px">Deshalb zählt eine Runde erst, wenn ein Freund sie bestätigt.</p>
+      </div>
+      <div class="confirmbox-demo">
+        <div class="row ok">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span>Von einem Freund bestätigt, zählt in der Statistik</span>
+        </div>
+        <div class="row">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg>
+          <span>Noch nicht bestätigt – wartet auf einen Mitspieler</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="impressum" style="padding-block:56px;border-top:1px solid var(--line)">
+  <div class="wrap" style="max-width:640px">
+    <div class="kicker">Impressum</div>
+    <p style="color:var(--mut);font-size:14px;line-height:1.85">
+      Angaben gemäß § 5 TMG<br><br>
+      Luis Moldenhauer<br>
+      Tunnelstraße 6<br>
+      42283 Wuppertal<br>
+      Deutschland<br><br>
+      E-Mail: <a href="mailto:luis@pocketcaddy.de" style="color:var(--ink);text-decoration:underline">luis@pocketcaddy.de</a><br><br>
+      Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: Luis Moldenhauer, Anschrift wie oben.
+    </p>
+  </div>
+</section>
+
+<section id="datenschutz" style="padding-block:56px;border-top:1px solid var(--line)">
+  <div class="wrap" style="max-width:640px">
+    <div class="kicker">Datenschutz</div>
+    <p style="color:var(--mut);font-size:14px;line-height:1.85">
+      Diese Seite selbst erhebt keine personenbezogenen Daten – kein Tracking, keine Cookies, kein Kontaktformular. Schreibst du uns per E-Mail, verwenden wir deine Adresse ausschließlich zur Beantwortung dieser Nachricht.<br><br>
+      Verantwortlicher: Luis Moldenhauer, Tunnelstraße 6, 42283 Wuppertal, <a href="mailto:luis@pocketcaddy.de" style="color:var(--ink);text-decoration:underline">luis@pocketcaddy.de</a><br><br>
+      Du hast das Recht auf Auskunft, Berichtigung, Löschung und Widerspruch bezüglich deiner Daten (Art. 15–21 DSGVO) sowie ein Beschwerderecht bei einer Datenschutz-Aufsichtsbehörde.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-top">
+      <div class="foot-note">
+        <h3>Bald ist es so weit.</h3>
+        <p>Pocket Caddy steht kurz vor dem Start – Kontaktweg folgt in Kürze.</p>
+      </div>
+      <div class="foot-status"><span class="dot" style="width:6px;height:6px;border-radius:99px;background:var(--lime);display:inline-block;margin-right:2px"></span>In Entwicklung</div>
+    </div>
+    <div class="foot-bottom">
+      <span>Pocket Caddy</span>
+      <span style="display:flex;gap:18px">
+        <a href="#impressum" style="text-decoration:none">Impressum</a>
+        <a href="#datenschutz" style="text-decoration:none">Datenschutz</a>
+      </span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

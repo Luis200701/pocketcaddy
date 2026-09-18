@@ -964,7 +964,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.44';
+var APP_VERSION = '0.46';
 </script>
 
 <script>
@@ -1568,6 +1568,7 @@ var APP_VERSION = '0.44';
       Friends.isAdmin() ? { id:'menu/admin', icon:I.info, label:'Admin',
         sub:'Golfplatz-Anfragen freischalten', ready:true } : null,
       isClub ? null : { id:'menu/backup',  icon:I.box,   label:'Sicherung',    sub:'Runden exportieren und einlesen', ready:true },
+      { id:'menu/impressum', icon:I.info, label:'Impressum', sub:'Anbieterkennzeichnung', ready:true },
       { id:'menu/privacy', icon:I.info,  label:'Datenschutz',  sub:'Welche Daten wo landen', ready:true },
       { id:'menu/about',   icon:I.info,  label:'\u00dcber',    sub:'Version und Hinweise', ready:true }
     ];
@@ -5676,17 +5677,18 @@ var APP_VERSION = '0.44';
     brand.textContent = 'Datenschutz';
     content.innerHTML =
       '<div class="panel"><h3>Verantwortlicher</h3><p>' +
-      '[DEIN NAME]<br>[DEINE ADRESSE]<br>[DEINE E-MAIL-ADRESSE]' +
+      'Luis Moldenhauer<br>Tunnelstraße 6<br>42283 Wuppertal<br>luis@pocketcaddy.de' +
       '</p></div>' +
 
       '<div class="panel"><h3>Welche Daten gespeichert werden</h3><p>' +
       'Die Nutzung der App setzt ein Konto voraus. Dabei gespeichert ' +
       'werden: deine E-Mail-Adresse, optional ein selbst gewählter ' +
-      'Anzeigename, deine Golf-Runden (Datum, Par und Schläge je Loch), ' +
-      'sowie – falls genutzt – Freundschaftsverbindungen zu anderen ' +
-      'Konten. Zusätzlich behält dein Gerät eine lokale Kopie deiner ' +
-      'Runden im Browser-Speicher, damit die App auch ohne ' +
-      'Internetverbindung funktioniert.' +
+      'Anzeigename und ein Profilbild, deine Golf-Runden (Datum, Ort, ' +
+      'Par und Schläge je Loch, ggf. Mitspieler), Freundschaftsverbindungen ' +
+      'zu anderen Konten sowie – falls genutzt – geplante Termine. ' +
+      'Zusätzlich behält dein Gerät eine lokale Kopie deiner Runden im ' +
+      'Browser-Speicher, damit die App auch ohne Internetverbindung ' +
+      'funktioniert.' +
       '</p></div>' +
 
       '<div class="panel"><h3>Google-Anmeldung</h3><p>' +
@@ -5696,22 +5698,49 @@ var APP_VERSION = '0.44';
       '</p></div>' +
 
       '<div class="panel"><h3>Wo die Daten liegen</h3><p>' +
-      'Anmeldung und Rundendaten liegen bei Supabase (Auftragsverarbeiter). ' +
-      'Rechtsgrundlage ist die Erfüllung des Nutzungsverhältnisses ' +
-      '(Art. 6 Abs. 1 lit. b DSGVO). Es findet keine Werbung, kein Tracking ' +
-      'und keine Weitergabe an Dritte außer den genannten statt.' +
+      'Anmeldung, Runden- und Profildaten liegen bei Supabase Inc. ' +
+      '(Auftragsverarbeiter, EU-Rechenzentrum Irland). Der ' +
+      'Auftragsverarbeitungsvertrag gilt automatisch mit Nutzung des ' +
+      'Dienstes (supabase.com/legal/dpa). Rechtsgrundlage ist die ' +
+      'Erfüllung des Nutzungsverhältnisses (Art. 6 Abs. 1 lit. b DSGVO). ' +
+      'Es findet keine Werbung, kein Tracking und keine Weitergabe an ' +
+      'Dritte außer den genannten statt.' +
       '</p></div>' +
 
       '<div class="panel"><h3>Speicherdauer</h3><p>' +
       'Deine Daten bleiben gespeichert, bis du dein Konto löschst. ' +
-      'Danach werden Runden, Freundschaften und Profil unwiderruflich entfernt.' +
+      'Danach werden Runden, Freundschaften, Termine und Profil ' +
+      'unwiderruflich entfernt.' +
       '</p></div>' +
 
       '<div class="panel"><h3>Deine Rechte</h3><p>' +
-      'Auskunft, Berichtigung, Löschung und Datenübertragbarkeit ' +
-      '(Art. 15–20 DSGVO). Dein Konto samt aller Daten kannst du jederzeit ' +
-      'selbst löschen, unter Menü → Konto → "Konto endgültig ' +
-      'löschen". Für alles andere: [DEINE E-MAIL-ADRESSE].' +
+      'Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, ' +
+      'Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO) sowie ' +
+      'Beschwerderecht bei einer Datenschutz-Aufsichtsbehörde. Dein Konto ' +
+      'samt aller Daten kannst du jederzeit selbst löschen, unter Menü → ' +
+      'Konto → "Konto endgültig löschen". Für alles andere: ' +
+      'luis@pocketcaddy.de.' +
+      '</p></div>';
+  }
+
+  function renderImpressum() {
+    brand.textContent = 'Impressum';
+    content.innerHTML =
+      '<div class="panel"><h3>Angaben gemäß § 5 TMG</h3><p>' +
+      'Luis Moldenhauer<br>Tunnelstraße 6<br>42283 Wuppertal<br>Deutschland' +
+      '</p></div>' +
+
+      '<div class="panel"><h3>Kontakt</h3><p>' +
+      'E-Mail: luis@pocketcaddy.de' +
+      '</p></div>' +
+
+      '<div class="panel"><h3>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV</h3><p>' +
+      'Luis Moldenhauer, Anschrift wie oben' +
+      '</p></div>' +
+
+      '<div class="panel"><h3>Hinweis</h3><p>' +
+      'Pocket Caddy wird aktuell als Privatperson ohne angemeldetes ' +
+      'Gewerbe betrieben (Testbetrieb).' +
       '</p></div>';
   }
 
@@ -5720,8 +5749,9 @@ var APP_VERSION = '0.44';
     content.innerHTML =
       '<div class="ph"><div class="ic">' + I.info + '</div><b>Pocket Caddy</b>' +
       'Scorecard-Ansicht f\u00fcr den selbstgebauten Golf-Schlagz\u00e4hler.<br><br>' +
-      'Alle Runden werden ausschlie\u00dflich lokal in diesem Browser gespeichert. ' +
-      'Es werden keine Daten an einen Server \u00fcbertragen.<br><br>' +
+      'Mit Konto werden Runden, Profil und Freundschaften \u00fcber Supabase ' +
+      'server-seitig gesichert (siehe Datenschutz); zus\u00e4tzlich h\u00e4lt dieses ' +
+      'Ger\u00e4t eine lokale Kopie f\u00fcr die Offline-Nutzung.<br><br>' +
       'Version: ' + APP_VERSION + '<br>' +
       'Speicherformat: 2<br>Gespeicherte Runden: ' + Store.all().length + '<br>' +
       'Speicher verf\u00fcgbar: ' + (Store.available() ? 'ja' : 'nein') +
@@ -5803,7 +5833,7 @@ var APP_VERSION = '0.44';
     // setzen" intern ab, siehe renderLogin()/Auth.isRecovery()) sowie
     // Datenschutz und "Ueber", die auch vor einer Registrierung lesbar
     // bleiben sollen. Greift bewusst ganz oben, vor jeder anderen Weiche.
-    var LOGIN_EXEMPT_HASHES = ['menu/login', 'menu/privacy', 'menu/about'];
+    var LOGIN_EXEMPT_HASHES = ['menu/login', 'menu/privacy', 'menu/about', 'menu/impressum'];
     if (!Auth.id() && LOGIN_EXEMPT_HASHES.indexOf(raw) < 0) {
       location.hash = 'menu/login'; route(); return;
     }
@@ -5890,6 +5920,7 @@ var APP_VERSION = '0.44';
     var acm = /^menu\/admin\/club\/([0-9a-f-]{36})$/.exec(raw);
     if (acm) { renderAdminClubEdit(acm[1]); return; }
     if (raw === 'menu/backup') { renderBackup();     return; }
+    if (raw === 'menu/impressum'){ renderImpressum(); return; }
     if (raw === 'menu/privacy'){ renderPrivacy();    return; }
     if (raw === 'menu/about')  { renderAbout();      return; }
     if (raw === 'menu/offers') { renderClubOffers(); return; }
