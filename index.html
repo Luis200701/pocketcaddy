@@ -830,7 +830,7 @@
     <span class="navlabel">Runde hinzuf&uuml;gen</span>
   </button>
   <button class="navitem player-only" data-tab="friends" data-go="menu/friends" aria-label="Feed">
-    <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6.5 6.5 0 0 1 13 0v1"/><path d="M17 5.2a3.5 3.5 0 0 1 0 6.6"/><path d="M19.5 21v-1a5.6 5.6 0 0 0-2.2-4.4"/></svg>
+    <svg viewBox="0 0 24 24"><circle cx="5" cy="19" r="1.6" fill="currentColor" stroke="none"/><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/></svg>
     <span class="navlabel">Feed</span>
   </button>
   <button class="navitem player-only" id="btnCalNav" data-tab="cal" data-go="menu/plan" aria-label="Kalender">
@@ -964,7 +964,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.43';
+var APP_VERSION = '0.44';
 </script>
 
 <script>
@@ -1549,10 +1549,11 @@ var APP_VERSION = '0.43';
     // Leiste; der Freunde-Reiter dort zeigt nur noch den reinen Feed
     // (renderFeed()) - die eigentliche Freundesliste/Anfragen/Verwalten
     // steckt seit dieser Runde hier im Menue (renderFriendList()), damit
-    // die untere Leiste eine reine Aktivitaets-Ansicht bleibt.
-    // Golfplatz-Konten sehen "Freunde"/"Freund hinzufuegen"/"Sicherung"
-    // nicht - alles reine Spieler-Funktionen, ergeben fuer einen Platz
-    // keinen Sinn.
+    // die untere Leiste eine reine Aktivitaets-Ansicht bleibt - "Freund
+    // hinzufuegen" (menu/addfriend) hat dort seinen eigenen Knopf und
+    // braucht deshalb keinen zusaetzlichen, eigenen Menuepunkt hier mehr.
+    // Golfplatz-Konten sehen "Freunde"/"Sicherung" nicht - alles reine
+    // Spieler-Funktionen, ergeben fuer einen Platz keinen Sinn.
     var isClub = Friends.isClub();
     var items = [
       { id:'menu/login',  icon:loggedIn ? I.cloud : I.user,
@@ -1560,9 +1561,7 @@ var APP_VERSION = '0.43';
         sub:loggedIn ? Auth.email() : 'Runden ger\u00e4te\u00fcbergreifend sichern',
         ready:true },
       isClub ? null : { id:'menu/friendlist', icon:I.users, label:'Freunde',
-        sub:'Anfragen, Liste, Freund entfernen', ready:true },
-      isClub ? null : { id:'menu/addfriend', icon:I.userplus, label:'Freund hinzuf\u00fcgen',
-        sub:'Eigenen Code teilen oder per Code anfragen', ready:true },
+        sub:'Anfragen, Liste, Freund hinzuf\u00fcgen/entfernen', ready:true },
       isClub ? null : { id:'menu/clubs', icon:I.home, label:'Golfpl\u00e4tze',
         sub:'Suchen und folgen', ready:true },
       { sep:true },
@@ -1860,7 +1859,7 @@ var APP_VERSION = '0.43';
       var expanded = expandedClubId === c.id;
       var courses = c.courses || [];
       var html = '<button type="button" class="item" data-pick-club-row="' + c.id + '">' +
-        avaHtml(c.avatarUrl || c.coverImageUrl, c.name, '', '', 'club') +
+        avaHtml(c.avatarUrl || c.coverImageUrl, c.name) +
         '<span class="meta"><span class="d">' + esc(c.name || 'Golfplatz') + '</span>' +
         '<span class="s">' + (courses.length ? (courses.length + (courses.length === 1 ? ' Platz' : ' Plätze')) : 'Noch keine Plätze') +
         '</span></span><span class="chev">' + I.chev + '</span></button>';
@@ -5336,45 +5335,6 @@ var APP_VERSION = '0.43';
     renderDesktopEntry();
   }
 
-  // Golfplatz-Anfrage im Konto-Bereich (renderLogin()): normale Konten
-  // stellen hier eine Anfrage, ein Admin schaltet sie in renderAdmin()
-  // frei - kein Selbstbedienungsweg zum Golfplatz-Konto.
-  function renderClubRequestPanel(profile) {
-    var slot = document.getElementById('clubReqSlot');
-    if (!slot) return;
-    if (!profile || profile.account_type !== 'player') { slot.innerHTML = ''; return; }
-
-    Club.myRequest().then(function (req) {
-      if (req && req.status === 'pending') {
-        slot.innerHTML = '<div class="panel"><h3>Golfplatz-Anfrage</h3>' +
-          '<p class="hint" style="margin:0"><span class="badge">Wird geprüft</span> ' +
-          'Wir melden uns, sobald wir das freigeschaltet haben.</p></div>';
-        return;
-      }
-
-      slot.innerHTML = '<div class="panel"><h3>Bist du ein Golfplatz?</h3>' +
-        '<p>Stell eine Anfrage, dann schalten wir dein Konto zu einem ' +
-        'Golfplatz-Konto mit eigener Platzverwaltung frei.</p>' +
-        (req && req.status === 'rejected'
-          ? '<p class="hint" style="margin-top:0">Deine letzte Anfrage wurde ' +
-            'abgelehnt – du kannst es gerne nochmal versuchen.</p>' : '') +
-        '<div class="form"><input type="text" id="fClubMsg" placeholder="' +
-        'Name des Platzes (optional)"></div>' +
-        '<div class="actions"><button class="btn ghost" id="btnClubRequest">' +
-        'Anfrage stellen</button></div></div>';
-
-      document.getElementById('btnClubRequest').addEventListener('click', function () {
-        var msg = document.getElementById('fClubMsg').value.trim();
-        toast('Sende Anfrage …');
-        Club.submitRequest(msg).then(function (r) {
-          if (r.error) { toast('Hat nicht geklappt.', true); return; }
-          toast('Anfrage gesendet.');
-          renderClubRequestPanel(profile);
-        });
-      });
-    });
-  }
-
   // Verifizierungs-Anfrage im Konto-Bereich (renderLogin()): normale
   // Spieler-Konten stellen hier eine Anfrage mit gewuenschter Rolle, ein
   // Admin schaltet sie in renderAdmin() frei. Admins, schon verifizierte
@@ -5498,7 +5458,6 @@ var APP_VERSION = '0.43';
         'maxlength="40" autocomplete="nickname"></div>' +
         '<div class="actions"><button class="btn ghost" id="btnName">Namen speichern</button></div></div>' +
 
-        '<div id="clubReqSlot"></div>' +
         '<div id="verifyReqSlot"></div>' +
 
         '<div class="panel"><h3>Konto löschen</h3>' +
@@ -5522,7 +5481,6 @@ var APP_VERSION = '0.43';
       Friends.loadProfile().then(function (p) {
         var el = document.getElementById('fName');
         if (el && p && p.display_name) el.value = p.display_name;
-        renderClubRequestPanel(p);
         renderVerifyRequestPanel(p);
 
         if (!p) return;
