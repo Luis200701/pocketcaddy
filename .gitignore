@@ -1,0 +1,7 @@
+ANLEITUNG.md
+.DS_Store
+capacitor/node_modules/
+capacitor/www/
+capacitor/ios/App/build/
+capacitor/ios/App/Pods/
+xcuserdata/

@@ -1,0 +1,11 @@
+{
+  "appId": "de.pocketcaddy.app",
+  "appName": "Pocket Caddy",
+  "webDir": "www",
+  "backgroundColor": "#101217",
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK"
+    }
+  }
+}
