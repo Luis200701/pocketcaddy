@@ -964,7 +964,37 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.46';
+var APP_VERSION = '0.47';
+
+/* Sperrbildschirm-Anzeige (iOS Live Activity) fuer live gespielte Runden.
+   Nur in der nativen Capacitor-App vorhanden - im Browser/PWA sind alle
+   Aufrufe stille No-ops. Native Seite: capacitor/native/. */
+var LiveRoundNative = (function () {
+  var plugin = null, active = false;
+  function get() {
+    if (plugin) return plugin;
+    try {
+      var C = window.Capacitor;
+      if (C && C.isNativePlatform && C.isNativePlatform() && C.registerPlugin) {
+        plugin = C.registerPlugin('LiveRound');
+      }
+    } catch (e) { plugin = null; }
+    return plugin;
+  }
+  function call(name, data) {
+    try {
+      var p = get();
+      if (!p) return;
+      var r = p[name](data || {});
+      if (r && r.catch) r.catch(function () {});
+    } catch (e) {}
+  }
+  return {
+    start: function (data) { active = true; call('start', data); },
+    update: function (data) { if (active) call('update', data); },
+    end: function () { if (!active) return; active = false; call('end'); }
+  };
+})();
 </script>
 
 <script>
@@ -4955,6 +4985,12 @@ var APP_VERSION = '0.46';
         Friends.list().then(function (d) { playmateFriends = d.friends || []; });
       }
 
+      var live = (startAt === 0);
+      function pushLive() {
+        if (!live) return;
+        LiveRoundNative.update({ hole: idx + 1, totalHoles: totalHoles, par: par, strokes: sc, diff: currentDiff() });
+      }
+
       function renderStep(animateIn) {
         var diff = currentDiff();
         mobileEl.innerHTML =
@@ -5009,16 +5045,20 @@ var APP_VERSION = '0.46';
         if (!fixedPars) {
           document.getElementById('mParMinus').addEventListener('click', function () {
             par = Math.max(3, par - 1); document.getElementById('mParVal').textContent = par;
+            pushLive();
           });
           document.getElementById('mParPlus').addEventListener('click', function () {
             par = Math.min(6, par + 1); document.getElementById('mParVal').textContent = par;
+            pushLive();
           });
         }
         document.getElementById('mScMinus').addEventListener('click', function () {
           sc = Math.max(0, sc - 1); document.getElementById('mScVal').textContent = sc;
+          pushLive();
         });
         document.getElementById('mScPlus').addEventListener('click', function () {
           sc = Math.min(15, sc + 1); document.getElementById('mScVal').textContent = sc;
+          pushLive();
         });
         var playmatesEl = document.getElementById('mPlaymates');
         if (playmatesEl) {
@@ -5084,6 +5124,7 @@ var APP_VERSION = '0.46';
         } else {
           par = fixedPars ? fixedPars[idx] : 4; sc = startSc;
           renderStep(true);
+          pushLive();
         }
       }
 
@@ -5166,6 +5207,10 @@ var APP_VERSION = '0.46';
         }
         thumb.addEventListener('pointerup', endDrag);
         thumb.addEventListener('pointercancel', endDrag);
+      }
+      if (live) {
+        LiveRoundNative.start({ courseName: courseLabel || 'Pocket Caddy', totalHoles: totalHoles,
+          hole: 1, par: par, strokes: sc, diff: 0 });
       }
       renderStep();
     }
@@ -5825,6 +5870,7 @@ var APP_VERSION = '0.46';
     lastRoutedRaw = raw;
     closeMenu(); closeScanChoice(); closeHoleInfo(); window.scrollTo(0,0);
     document.body.classList.remove('wizard-fullscreen');
+    LiveRoundNative.end();
     updateSidebarProfile();
 
     // Golfplatz-Konten sehen keine Spieler-Seiten (Statistik, Runde
