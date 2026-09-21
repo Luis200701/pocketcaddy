@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://hieaduzvsqkwvdxfscoo.supabase.co; media-src 'self' blob:; connect-src 'self' https://hieaduzvsqkwvdxfscoo.supabase.co wss://hieaduzvsqkwvdxfscoo.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#101217">
 <title>Pocket Caddy</title>
 
@@ -547,6 +549,15 @@
           color:var(--mut);font-size:12.5px}
   .orline::before,.orline::after{content:"";flex:1;height:1px;background:var(--line)}
   .linkrow{margin-top:14px;text-align:center}
+  .pwrules{list-style:none;margin:12px 0 0;padding:0;font-size:12.5px;color:var(--mut);
+    display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
+  .pwrules li::before{content:"\25CB";margin-right:6px}
+  .pwrules li.ok{color:var(--good)}
+  .pwrules li.ok::before{content:"\25CF"}
+  .consent{display:flex;gap:10px;align-items:flex-start;margin:16px 0 18px;font-size:12.5px;
+    color:var(--mut);line-height:1.5}
+  .consent input{margin-top:2px;flex:none;width:18px;height:18px;accent-color:var(--good)}
+  .consent a{color:var(--txt)}
   .linkbtn{background:transparent;border:0;color:var(--mut);font:inherit;
            font-size:13.5px;text-decoration:underline;text-underline-offset:3px;
            cursor:pointer;padding:6px}
@@ -912,7 +923,7 @@
 <div class="sheet" id="clubPickSheet"><div class="grip"></div>
   <div style="padding:4px 8px 6px">
     <div class="form" style="margin-bottom:14px">
-      <input type="text" id="clubPickSearch" placeholder="Verein suchen …" autocomplete="off">
+      <input type="text" id="clubPickSearch" maxlength="80" placeholder="Verein suchen …" autocomplete="off">
     </div>
     <div id="clubPickList" style="max-height:50vh;overflow:auto"></div>
   </div>
@@ -946,7 +957,8 @@
   <button class="linkbtn" id="btnManualEntry" style="color:#fff;position:relative;z-index:2">Oder manuell eingeben</button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"
+  integrity="sha384-iLddHTLokph6Omwoyid4XKxHaWa6w41BnoEj0q5oOrzmYPpHIKt1wyjReA7s//pP" crossorigin="anonymous"></script>
 <script>
 /* ==========================================================
    Zugangsdaten des Supabase-Projekts.
@@ -964,7 +976,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.47';
+var APP_VERSION = '0.48';
 
 /* Sperrbildschirm-Anzeige (iOS Live Activity) fuer live gespielte Runden.
    Nur in der nativen Capacitor-App vorhanden - im Browser/PWA sind alle
@@ -1045,6 +1057,23 @@ var LiveRoundNative = (function () {
     var client = null, user = null, ready = false;
     var listeners = [];
     var recovery = false;   // kommt gerade aus der "Passwort vergessen"-Mail
+    // Kommt man ueber den Bestaetigungslink aus der Registrierungsmail, steht
+    // "type=signup" im #-Teil - supabase-js raeumt den Teil beim Start auf,
+    // darum hier VORHER merken (nur fuer die Willkommens-Meldung).
+    var fromConfirmLink = /[#&]type=signup/.test(location.hash || '');
+
+    // In der nativen App ist die Seitenadresse capacitor://localhost - das
+    // ist als Ziel fuer Links aus E-Mails/OAuth ungueltig. Dort zeigen die
+    // Links auf die Web-Fassung (Konto ist dasselbe, danach in der App
+    // einfach anmelden).
+    var WEB_APP_URL = 'https://luis200701.github.io/pocketcaddy/';
+    function isNative() {
+      try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }
+      catch (e) { return false; }
+    }
+    function redirectUrl() {
+      return isNative() ? WEB_APP_URL : location.origin + location.pathname;
+    }
 
     function init(cb) {
       try {
@@ -1073,6 +1102,10 @@ var LiveRoundNative = (function () {
         if ((user ? user.id : null) !== before || evt === 'PASSWORD_RECOVERY') {
           listeners.forEach(function (f) { f(user); });
         }
+        if (evt === 'SIGNED_IN' && fromConfirmLink) {
+          fromConfirmLink = false;
+          setTimeout(function () { toast('E-Mail bestätigt – willkommen!'); }, 400);
+        }
       });
     }
 
@@ -1086,8 +1119,15 @@ var LiveRoundNative = (function () {
       user: function () { return user; },
       id: function () { return user ? user.id : null; },
       email: function () { return user ? user.email : ''; },
+      isNative: isNative,
       signUp: function (email, pw) {
-        return client.auth.signUp({ email: email, password: pw });
+        return client.auth.signUp({ email: email, password: pw,
+          options: { emailRedirectTo: redirectUrl() } });
+      },
+      // Bestaetigungsmail nochmal schicken (Supabase drosselt selbst auf 1/min).
+      resendConfirmation: function (email) {
+        return client.auth.resend({ type: 'signup', email: email,
+          options: { emailRedirectTo: redirectUrl() } });
       },
       signIn: function (email, pw) {
         return client.auth.signInWithPassword({ email: email, password: pw });
@@ -1102,7 +1142,7 @@ var LiveRoundNative = (function () {
       signInWithProvider: function (provider) {
         return client.auth.signInWithOAuth({
           provider: provider,
-          options: { redirectTo: location.origin + location.pathname }
+          options: { redirectTo: redirectUrl() }
         });
       },
       // Schickt eine Mail mit Link zurueck auf diese Seite. Der Anker
@@ -1113,7 +1153,7 @@ var LiveRoundNative = (function () {
       // passiert stattdessen im PASSWORD_RECOVERY-Ereignis unten.
       resetPassword: function (email) {
         return client.auth.resetPasswordForEmail(email, {
-          redirectTo: location.origin + location.pathname
+          redirectTo: redirectUrl()
         });
       },
       updatePassword: function (pw) {
@@ -1543,7 +1583,17 @@ var LiveRoundNative = (function () {
   // Protokoll) - als Link braucht sie eins, sonst haengt der Browser sie
   // an die aktuelle Seite an statt extern zu oeffnen.
   function normalizeUrl(u){
-    return /^https?:\/\//i.test(u) ? u : 'https://' + u;
+    u = String(u || '').trim();
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    return /^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : '#';
+  }
+  // Bild-Adressen kommen aus der Datenbank und landen teils in CSS
+  // (url('...')). esc() hilft dort NICHT (HTML-Entities werden vor dem CSS
+  // wieder aufgeloest), darum nur schlichte https-Adressen ohne Anfuehrungs-
+  // zeichen/Klammern/Semikolon durchlassen.
+  function safeImgUrl(u){
+    u = String(u || '');
+    return /^https:\/\/[^\s'"()\\;<>]+$/.test(u) ? u : '';
   }
 
   var I = {
@@ -1679,6 +1729,8 @@ var LiveRoundNative = (function () {
       jsQRready = new Promise(function (resolve, reject) {
         var s = document.createElement('script');
         s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+        s.integrity = 'sha384-b5Ya4Bq3qCyz39m2ISh+4DxjAIljdeFwK/BsXLuj9gugaNwAcj/ia15fxNZL9Nlx';
+        s.crossOrigin = 'anonymous';
         s.onload = resolve;
         s.onerror = reject;
         document.head.appendChild(s);
@@ -3312,7 +3364,7 @@ var LiveRoundNative = (function () {
           '</div>';
       }
       return '<div class="panel" data-course="' + id + '" style="margin-bottom:10px">' +
-        '<div class="form"><input type="text" data-course-name value="' + esc(c.name || '') +
+        '<div class="form"><input type="text" data-course-name maxlength="80" value="' + esc(c.name || '') +
         '" placeholder="Name des Platzes (z.B. Hauptplatz)"></div>' +
         '<div class="seg" data-course-holes-seg>' +
         [9, 18].map(function (n) {
@@ -3442,12 +3494,12 @@ var LiveRoundNative = (function () {
         '</div>';
 
       html += '<div class="panel"><h3>Stammdaten</h3><div class="form">' +
-        '<input type="text" id="cName" placeholder="Name des Platzes" value="' + esc(club.name || '') + '">' +
-        '<textarea id="cDesc" placeholder="Beschreibung" rows="3">' + esc(club.description || '') + '</textarea>' +
-        '<input type="text" id="cAddress" placeholder="Adresse" value="' + esc(club.address || '') + '">' +
-        '<input type="text" id="cPhone" placeholder="Telefon" value="' + esc(club.phone || '') + '">' +
-        '<input type="text" id="cWebsite" placeholder="Website" value="' + esc(club.website || '') + '">' +
-        '<input type="text" id="cPrice" placeholder="Preise (z.B. Greenfee 45€, Wochenende 55€)" ' +
+        '<input type="text" id="cName" maxlength="80" placeholder="Name des Platzes" value="' + esc(club.name || '') + '">' +
+        '<textarea id="cDesc" maxlength="2000" placeholder="Beschreibung" rows="3">' + esc(club.description || '') + '</textarea>' +
+        '<input type="text" id="cAddress" maxlength="200" placeholder="Adresse" value="' + esc(club.address || '') + '">' +
+        '<input type="text" id="cPhone" maxlength="40" placeholder="Telefon" value="' + esc(club.phone || '') + '">' +
+        '<input type="text" id="cWebsite" maxlength="200" placeholder="Website" value="' + esc(club.website || '') + '">' +
+        '<input type="text" id="cPrice" maxlength="200" placeholder="Preise (z.B. Greenfee 45€, Wochenende 55€)" ' +
         'value="' + esc(club.price_info || '') + '">' +
         '</div><div class="actions"><button class="btn" id="btnSaveClub">Speichern</button></div></div>';
 
@@ -3558,9 +3610,9 @@ var LiveRoundNative = (function () {
 
     Club.offersOf(uid).then(function (offers) {
       var html = '<div class="panel"><h3>Neues Angebot</h3><div class="form">' +
-        '<input type="text" id="oTitle" placeholder="Titel (z.B. Anfänger-Kurs)">' +
-        '<textarea id="oDesc" placeholder="Beschreibung" rows="2"></textarea>' +
-        '<input type="text" id="oPrice" placeholder="Preis (optional)">' +
+        '<input type="text" id="oTitle" maxlength="80" placeholder="Titel (z.B. Anfänger-Kurs)">' +
+        '<textarea id="oDesc" maxlength="1000" placeholder="Beschreibung" rows="2"></textarea>' +
+        '<input type="text" id="oPrice" maxlength="100" placeholder="Preis (optional)">' +
         '</div><div class="actions"><button class="btn" id="btnAddOffer">Anlegen</button></div></div>';
 
       if (!offers.length) {
@@ -3692,7 +3744,7 @@ var LiveRoundNative = (function () {
 
       content.innerHTML =
         '<div class="form">' +
-        '<input type="text" id="clubSearchInput" placeholder="Golfplatz suchen …"></div>' +
+        '<input type="text" id="clubSearchInput" maxlength="80" placeholder="Golfplatz suchen …"></div>' +
         '<div id="clubSearchList"></div>';
 
       mountFilterableClubList(document.getElementById('clubSearchInput'),
@@ -3738,7 +3790,7 @@ var LiveRoundNative = (function () {
 
       var html = '<div class="panel" style="padding:0;overflow:hidden">' +
         '<div class="clubbanner"' +
-        (club.cover_image_url ? ' style="background-image:url(\'' + esc(club.cover_image_url) + '\')"' : '') +
+        (safeImgUrl(club.cover_image_url) ? ' style="background-image:url(\'' + esc(safeImgUrl(club.cover_image_url)) + '\')"' : '') +
         '></div>' +
         '<div class="clubheadrow">' +
         avaHtml(club.avatar_url, club.name, 'zoomable') +
@@ -3842,12 +3894,12 @@ var LiveRoundNative = (function () {
       }
       content.innerHTML =
         '<div class="panel"><h3>Stammdaten</h3><div class="form">' +
-        '<input type="text" id="cAdminName" placeholder="Name des Platzes" value="' + esc(club.name || '') + '">' +
-        '<textarea id="cAdminDesc" placeholder="Beschreibung" rows="3">' + esc(club.description || '') + '</textarea>' +
-        '<input type="text" id="cAdminAddress" placeholder="Adresse" value="' + esc(club.address || '') + '">' +
-        '<input type="text" id="cAdminPhone" placeholder="Telefon" value="' + esc(club.phone || '') + '">' +
-        '<input type="text" id="cAdminWebsite" placeholder="Website" value="' + esc(club.website || '') + '">' +
-        '<input type="text" id="cAdminPrice" placeholder="Preise (z.B. Greenfee 45€, Wochenende 55€)" ' +
+        '<input type="text" id="cAdminName" maxlength="80" placeholder="Name des Platzes" value="' + esc(club.name || '') + '">' +
+        '<textarea id="cAdminDesc" maxlength="2000" placeholder="Beschreibung" rows="3">' + esc(club.description || '') + '</textarea>' +
+        '<input type="text" id="cAdminAddress" maxlength="200" placeholder="Adresse" value="' + esc(club.address || '') + '">' +
+        '<input type="text" id="cAdminPhone" maxlength="40" placeholder="Telefon" value="' + esc(club.phone || '') + '">' +
+        '<input type="text" id="cAdminWebsite" maxlength="200" placeholder="Website" value="' + esc(club.website || '') + '">' +
+        '<input type="text" id="cAdminPrice" maxlength="200" placeholder="Preise (z.B. Greenfee 45€, Wochenende 55€)" ' +
         'value="' + esc(club.price_info || '') + '">' +
         '</div>' +
         '<label class="switchrow"><input type="checkbox" id="cAdminVerified"' +
@@ -3892,18 +3944,18 @@ var LiveRoundNative = (function () {
     function clubManagementHtml() {
       return '<div class="sectionhead"><span class="t">Golfplätze verwalten</span></div>' +
         '<div class="form">' +
-        '<input type="text" id="adminClubSearch" placeholder="Golfplatz suchen …"></div>' +
+        '<input type="text" id="adminClubSearch" maxlength="80" placeholder="Golfplatz suchen …"></div>' +
         '<div id="adminClubList"></div>' +
         '<div class="actions"><button class="btn ghost" id="btnAdminNewClub">' +
         '+ Neuen Golfplatz anlegen</button></div>' +
         '<div class="panel" id="adminNewClubForm" style="display:none;margin-top:10px">' +
         '<div class="form">' +
-        '<input type="text" id="ncName" placeholder="Name des Platzes (Pflicht)">' +
-        '<textarea id="ncDesc" placeholder="Beschreibung" rows="2"></textarea>' +
-        '<input type="text" id="ncAddress" placeholder="Adresse">' +
-        '<input type="text" id="ncPhone" placeholder="Telefon">' +
-        '<input type="text" id="ncWebsite" placeholder="Website">' +
-        '<input type="text" id="ncPrice" placeholder="Preise (optional)">' +
+        '<input type="text" id="ncName" maxlength="80" placeholder="Name des Platzes (Pflicht)">' +
+        '<textarea id="ncDesc" maxlength="2000" placeholder="Beschreibung" rows="2"></textarea>' +
+        '<input type="text" id="ncAddress" maxlength="200" placeholder="Adresse">' +
+        '<input type="text" id="ncPhone" maxlength="40" placeholder="Telefon">' +
+        '<input type="text" id="ncWebsite" maxlength="200" placeholder="Website">' +
+        '<input type="text" id="ncPrice" maxlength="200" placeholder="Preise (optional)">' +
         '</div>' +
         '<p class="hint">Legt ein neues Golfplatz-Konto an, ohne dass sich vorher jemand ' +
         'registrieren muss - Löcher/Par und der Freischalt-Status lassen sich direkt danach ' +
@@ -4053,7 +4105,7 @@ var LiveRoundNative = (function () {
   // ---------- Kalenderdatei (.ics) ----------
   function icsEscape(s) {
     return String(s || '').replace(/\\/g,'\\\\').replace(/,/g,'\\,')
-                           .replace(/;/g,'\\;').replace(/\n/g,'\\n');
+                           .replace(/;/g,'\\;').replace(/\r\n|\r|\n/g,'\\n');
   }
   function icsDate(d) {
     return d.toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
@@ -4297,7 +4349,7 @@ var LiveRoundNative = (function () {
         '<p>Gib deinen Freunden diesen Code, damit sie dich hinzuf\u00fcgen ' +
         'k\u00f6nnen. Erst wenn du eine Anfrage best\u00e4tigst, sieht jemand ' +
         'deine Runden.</p>' +
-        '<div class="codebox" id="codeBox">' + pretty + '</div>' +
+        '<div class="codebox" id="codeBox">' + esc(pretty) + '</div>' +
         '<div class="actions"><button class="btn ghost" id="btnCopy">' +
         I.share + 'Code teilen</button></div></div>' +
 
@@ -4800,7 +4852,7 @@ var LiveRoundNative = (function () {
         '<button type="button" data-mode="detail">Loch f\u00fcr Loch</button></div>' +
         '<div class="form" id="mSimple">' +
         '<input type="number" id="mTotal" min="1" max="270" placeholder="Schl\u00e4ge gesamt">' +
-        '<input type="text" id="mSimpleLocation" placeholder="Wo gespielt? (optional)">' +
+        '<input type="text" id="mSimpleLocation" maxlength="80" placeholder="Wo gespielt? (optional)">' +
         '<p class="hint" style="margin:0">Par wird dabei mit 4 pro Loch angenommen.</p>' +
         '</div>' +
         '<div class="actions">' +
@@ -5019,7 +5071,7 @@ var LiveRoundNative = (function () {
           '<button type="button" id="mScPlus">+</button></div></div>' +
           ((idx === totalHoles - 1 && !course)
             ? '<div class="form" style="margin-top:18px">' +
-              '<input type="text" id="mLocation" placeholder="Wo gespielt? (optional)"></div>' +
+              '<input type="text" id="mLocation" maxlength="80" placeholder="Wo gespielt? (optional)"></div>' +
               (playmateFriends.length
                 ? '<p class="hint" style="margin:0 0 8px;text-align:left">Mit wem gespielt?</p>' +
                   '<div class="pickrow" id="mPlaymates">' + playmateFriends.map(function (f) {
@@ -5276,7 +5328,7 @@ var LiveRoundNative = (function () {
           '<div class="holegrid" id="mdGrid">' + gridHtml(mdHoles, mdClubPars) + '</div>' +
           (preselectedCourse ? '' :
             '<div class="form" id="mdExtra" style="margin-top:14px">' +
-            '<input type="text" id="mdLocation" placeholder="Wo gespielt? (optional)">' +
+            '<input type="text" id="mdLocation" maxlength="80" placeholder="Wo gespielt? (optional)">' +
             '<div id="mdPlaymatesWrap"></div>' +
             '</div>') +
           '<div class="actions"><button class="btn" id="mdSave">Runde speichern</button></div>' +
@@ -5412,7 +5464,7 @@ var LiveRoundNative = (function () {
         '<option value="profi">Profi</option>' +
         '<option value="influencer">Influencer</option>' +
         '</select>' +
-        '<input type="text" id="fVerifyMsg" placeholder="Nachricht (optional)"></div>' +
+        '<input type="text" id="fVerifyMsg" maxlength="500" placeholder="Nachricht (optional)"></div>' +
         '<div class="actions"><button class="btn ghost" id="btnVerifyRequest">' +
         'Anfrage stellen</button></div></div>';
 
@@ -5451,11 +5503,13 @@ var LiveRoundNative = (function () {
         '<p>Du bist \u00fcber den Link aus der E-Mail hier gelandet. ' +
         'Vergib jetzt ein neues Passwort.</p>' +
         '<div class="form">' +
-        '<input type="password" id="fNew" placeholder="Neues Passwort" ' +
+        '<input type="password" id="fNew" placeholder="Neues Passwort" maxlength="72" ' +
         'autocomplete="new-password">' +
-        '<input type="password" id="fNew2" placeholder="Noch einmal wiederholen" ' +
+        '<input type="password" id="fNew2" placeholder="Noch einmal wiederholen" maxlength="72" ' +
         'autocomplete="new-password">' +
         '</div>' +
+        '<p class="warn">Mindestens ' + PW_MIN + ' Zeichen, mit Gro\u00df- und Kleinbuchstabe ' +
+        'und Ziffer.</p>' +
         '<div class="actions"><button class="btn" id="btnSetPw">Passwort speichern</button></div>' +
         '<p class="warn">Speichere es am besten gleich im Passwortmanager ' +
         'deines Ger\u00e4ts.</p></div>';
@@ -5463,7 +5517,10 @@ var LiveRoundNative = (function () {
       document.getElementById('btnSetPw').addEventListener('click', function () {
         var a  = document.getElementById('fNew').value;
         var a2 = document.getElementById('fNew2').value;
-        if (a.length < 6) { toast('Das Passwort braucht mindestens 6 Zeichen.', true); return; }
+        var pc = pwCheck(a);
+        if (!pc.len || !pc.low || !pc.up || !pc.dig) {
+          toast('Mindestens ' + PW_MIN + ' Zeichen mit Gro\u00df-, Kleinbuchstabe und Ziffer.', true); return;
+        }
         if (a !== a2)     { toast('Die beiden Eingaben stimmen nicht \u00fcberein.', true); return; }
         toast('Speichere \u2026');
         Auth.updatePassword(a).then(function (r) {
@@ -5603,33 +5660,175 @@ var LiveRoundNative = (function () {
       return;
     }
 
-    content.innerHTML =
-      '<div class="panel"><h3>Anmelden</h3>' +
+    var GOOGLE_SVG = '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>';
 
-      '<button class="btn google" id="btnGoogle">' +
-      '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>' +
-      'Mit Google anmelden</button>' +
-      '<div class="orline"><span>oder mit E-Mail</span></div>' +
+    // 'in' = Anmelden, 'up' = Konto erstellen, 'confirm' = "Bestaetige deine E-Mail"
+    var authMode = keptAuthMode;
+    var typedEmail = keptAuthEmail;
+    var lastResendAt = 0;
 
-      '<div class="form">' +
-      '<input type="email" id="fEmail" placeholder="E-Mail" autocomplete="email" ' +
-      'inputmode="email" autocapitalize="off" spellcheck="false">' +
-      '<input type="password" id="fPass" placeholder="Passwort" ' +
-      'autocomplete="current-password">' +
-      '</div>' +
-      '<div class="actions">' +
-      '<button class="btn" id="btnIn">Anmelden</button>' +
-      '<button class="btn ghost" id="btnUp">Neu registrieren</button>' +
-      '</div>' +
-      '<div class="linkrow"><button class="linkbtn" id="btnForgot">' +
-      'Passwort vergessen?</button></div></div>';
+    function readEmail() {
+      var el = document.getElementById('fEmail');
+      if (el) typedEmail = el.value.trim();
+      return typedEmail;
+    }
 
-    function creds() {
-      var e = document.getElementById('fEmail').value.trim();
-      var p = document.getElementById('fPass').value;
-      if (!e || !p) { toast('Bitte E-Mail und Passwort eingeben.', true); return null; }
-      if (p.length < 6) { toast('Das Passwort braucht mindestens 6 Zeichen.', true); return null; }
-      return { e:e, p:p };
+    function drawAuth() {
+      if (authMode === 'confirm') { drawConfirm(); return; }
+      var up = authMode === 'up';
+      content.innerHTML =
+        '<div class="panel"><h3>' + (up ? 'Konto erstellen' : 'Anmelden') + '</h3>' +
+
+        '<button class="btn google" id="btnGoogle">' + GOOGLE_SVG +
+        (up ? 'Mit Google registrieren' : 'Mit Google anmelden') + '</button>' +
+        '<div class="orline"><span>oder mit E-Mail</span></div>' +
+
+        '<div class="form">' +
+        '<input type="email" id="fEmail" placeholder="E-Mail" autocomplete="email" ' +
+        'inputmode="email" autocapitalize="off" spellcheck="false" maxlength="254" ' +
+        'value="' + esc(typedEmail) + '">' +
+        '<input type="password" id="fPass" placeholder="Passwort" maxlength="72" ' +
+        'autocomplete="' + (up ? 'new-password' : 'current-password') + '">' +
+        (up ? '<input type="password" id="fPass2" placeholder="Passwort wiederholen" ' +
+              'maxlength="72" autocomplete="new-password">' : '') +
+        '</div>' +
+        (up
+          ? '<ul class="pwrules" id="pwRules">' +
+            '<li data-r="len">Mindestens ' + PW_MIN + ' Zeichen</li>' +
+            '<li data-r="low">Ein Kleinbuchstabe</li>' +
+            '<li data-r="up">Ein Großbuchstabe</li>' +
+            '<li data-r="dig">Eine Ziffer</li>' +
+            '<li data-r="same">Beide Eingaben gleich</li></ul>' +
+            '<label class="consent"><input type="checkbox" id="fConsent"> ' +
+            '<span>Ich habe die <a href="#menu/privacy">Datenschutzerklärung</a> gelesen ' +
+            'und bin einverstanden.</span></label>'
+          : '') +
+        '<div class="actions">' +
+        (up
+          ? '<button class="btn" id="btnUp">Konto erstellen</button>' +
+            '<button class="btn ghost" id="btnToIn">Zur Anmeldung</button>'
+          : '<button class="btn" id="btnIn">Anmelden</button>' +
+            '<button class="btn ghost" id="btnToUp">Neu registrieren</button>') +
+        '</div>' +
+        (up ? '' : '<div class="linkrow"><button class="linkbtn" id="btnForgot">' +
+                   'Passwort vergessen?</button></div>') +
+        '</div>';
+
+      document.getElementById('btnGoogle').addEventListener('click', function () {
+        toast('Weiterleitung zu Google …');
+        Auth.signInWithProvider('google').then(function (r) {
+          if (r && r.error) toast(loginError(r.error), true);
+          // Bei Erfolg leitet die Seite selbst weiter, hier ist nichts mehr zu tun.
+        });
+      });
+
+      var legal = content.querySelector('a[href="#menu/privacy"]');
+      if (legal) legal.addEventListener('click', function () {
+        readEmail(); keptAuthMode = authMode; keptAuthEmail = typedEmail;
+      });
+
+      if (up) wireSignUp(); else wireSignIn();
+    }
+
+    function wireSignIn() {
+      document.getElementById('btnToUp').addEventListener('click', function () {
+        readEmail(); authMode = 'up'; drawAuth();
+      });
+      document.getElementById('btnIn').addEventListener('click', function () {
+        var e = readEmail();
+        var p = document.getElementById('fPass').value;
+        if (!e || !p) { toast('Bitte E-Mail und Passwort eingeben.', true); return; }
+        toast('Melde an …');
+        Auth.signIn(e, p).then(function (r) {
+          if (r.error) {
+            if (isUnconfirmed(r.error)) {
+              authMode = 'confirm'; drawAuth();
+              toast('Bitte bestätige zuerst deine E-Mail.', true);
+              return;
+            }
+            toast(loginError(r.error), true); return;
+          }
+          afterLogin();
+        });
+      });
+      document.getElementById('btnForgot').addEventListener('click', function () {
+        var e = readEmail();
+        if (!e) { toast('Bitte zuerst deine E-Mail eintragen.', true); return; }
+        toast('Schicke Mail …');
+        Auth.resetPassword(e).then(function (r) {
+          if (r.error) { toast(loginError(r.error), true); return; }
+          // Bewusst neutral formuliert: die Antwort verraet nicht, ob es zu
+          // dieser Adresse ueberhaupt ein Konto gibt.
+          toast('Falls es ein Konto gibt, ist die Mail unterwegs. Auch im Spam schauen.');
+        });
+      });
+    }
+
+    function wireSignUp() {
+      var passEl = document.getElementById('fPass');
+      var pass2El = document.getElementById('fPass2');
+      function paintRules() {
+        var c = pwCheck(passEl.value);
+        c.same = passEl.value.length > 0 && passEl.value === pass2El.value;
+        Array.prototype.forEach.call(document.querySelectorAll('#pwRules li'), function (li) {
+          li.classList.toggle('ok', !!c[li.getAttribute('data-r')]);
+        });
+      }
+      passEl.addEventListener('input', paintRules);
+      pass2El.addEventListener('input', paintRules);
+      paintRules();
+
+      document.getElementById('btnToIn').addEventListener('click', function () {
+        readEmail(); authMode = 'in'; drawAuth();
+      });
+      document.getElementById('btnUp').addEventListener('click', function () {
+        var e = readEmail();
+        var p = passEl.value;
+        if (!e || !p) { toast('Bitte E-Mail und Passwort eingeben.', true); return; }
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) { toast('Bitte eine gültige E-Mail eingeben.', true); return; }
+        var c = pwCheck(p);
+        if (!c.len || !c.low || !c.up || !c.dig) {
+          toast('Das Passwort erfüllt die Regeln noch nicht.', true); return;
+        }
+        if (p !== pass2El.value) { toast('Die beiden Passwörter stimmen nicht überein.', true); return; }
+        if (!document.getElementById('fConsent').checked) {
+          toast('Bitte bestätige die Datenschutzerklärung.', true); return;
+        }
+        toast('Lege Konto an …');
+        Auth.signUp(e, p).then(function (r) {
+          if (r.error) { toast(loginError(r.error), true); return; }
+          if (r.data && r.data.session) { afterLogin(); return; }
+          // Neutral: Supabase antwortet bei schon vorhandener Adresse
+          // genauso wie bei einer neuen - das verraet nichts ueber Konten.
+          lastResendAt = Date.now();
+          authMode = 'confirm'; drawAuth();
+        });
+      });
+    }
+
+    function drawConfirm() {
+      content.innerHTML =
+        '<div class="panel"><h3>Bestätige deine E-Mail</h3>' +
+        '<p>Wir haben einen Link an <b>' + esc(typedEmail) + '</b> geschickt. ' +
+        'Tippe darauf, dann ist dein Konto aktiv und du kannst dich anmelden. ' +
+        'Schau auch im Spam-Ordner nach.</p>' +
+        '<div class="actions">' +
+        '<button class="btn" id="btnToIn2">Zur Anmeldung</button>' +
+        '<button class="btn ghost" id="btnResend">Mail erneut senden</button></div>' +
+        '<p class="warn">Der Link ist eine Stunde gültig.</p></div>';
+      document.getElementById('btnToIn2').addEventListener('click', function () {
+        authMode = 'in'; drawAuth();
+      });
+      document.getElementById('btnResend').addEventListener('click', function () {
+        var wait = 60 - Math.floor((Date.now() - lastResendAt) / 1000);
+        if (wait > 0) { toast('Bitte in ' + wait + ' Sekunden nochmal versuchen.', true); return; }
+        if (!typedEmail) { toast('Bitte zuerst deine E-Mail eintragen.', true); return; }
+        lastResendAt = Date.now();
+        Auth.resendConfirmation(typedEmail).then(function (r) {
+          if (r.error) { toast(loginError(r.error), true); return; }
+          toast('Mail ist unterwegs.');
+        });
+      });
     }
 
     function afterLogin() {
@@ -5638,7 +5837,7 @@ var LiveRoundNative = (function () {
         location.hash = ''; route();
         if (res.moved) {
           toastAction(res.moved + (res.moved === 1 ? ' lokale Runde' : ' lokale Runden') +
-                      ' \u00fcbernommen.', 'R\u00fcckg\u00e4ngig', function () {
+                      ' übernommen.', 'Rückgängig', function () {
             Store.undoClaim(res.ids);
             toast('Wieder entfernt.');
             route();
@@ -5649,59 +5848,52 @@ var LiveRoundNative = (function () {
       });
     }
 
-    document.getElementById('btnGoogle').addEventListener('click', function () {
-      toast('Weiterleitung zu Google \u2026');
-      Auth.signInWithProvider('google').then(function (r) {
-        if (r && r.error) toast(loginError(r.error), true);
-        // Bei Erfolg leitet die Seite selbst weiter, hier ist nichts mehr zu tun.
-      });
-    });
+    keptAuthMode = 'in'; keptAuthEmail = '';
+    if (authMode === 'confirm') authMode = 'in';
+    drawAuth();
+  }
 
-    document.getElementById('btnIn').addEventListener('click', function () {
-      var c = creds(); if (!c) return;
-      toast('Melde an \u2026');
-      Auth.signIn(c.e, c.p).then(function (r) {
-        if (r.error) { toast(loginError(r.error), true); return; }
-        afterLogin();
-      });
-    });
+  var keptAuthMode = 'in', keptAuthEmail = '';
 
-    document.getElementById('btnUp').addEventListener('click', function () {
-      var c = creds(); if (!c) return;
-      toast('Lege Konto an \u2026');
-      Auth.signUp(c.e, c.p).then(function (r) {
-        if (r.error) { toast(loginError(r.error), true); return; }
-        if (r.data && r.data.session) { afterLogin(); return; }
-        // Ohne Sitzung: die Bestaetigung per Mail ist noch eingeschaltet
-        toast('Konto angelegt, aber noch nicht best\u00e4tigt. In Supabase ' +
-              'muss "Confirm email" ausgeschaltet sein.', true);
-      });
-    });
+  // Muss zu den Passwort-Regeln in Supabase passen (Mindestlaenge +
+  // Gross-/Kleinbuchstabe + Ziffer, siehe supabase/config.toml). Der Server
+  // prueft ohnehin selbst - das hier ist nur die freundliche Vorab-Anzeige.
+  var PW_MIN = 10;
+  function pwCheck(p) {
+    return {
+      len: p.length >= PW_MIN,
+      low: /[a-zß-ÿ]/.test(p),
+      up:  /[A-ZÀ-Þ]/.test(p),
+      dig: /[0-9]/.test(p)
+    };
+  }
 
-    document.getElementById('btnForgot').addEventListener('click', function () {
-      var e = document.getElementById('fEmail').value.trim();
-      if (!e) { toast('Bitte zuerst deine E-Mail eintragen.', true); return; }
-      toast('Schicke Mail \u2026');
-      Auth.resetPassword(e).then(function (r) {
-        if (r.error) { toast(loginError(r.error), true); return; }
-        // Bewusst neutral formuliert: die Antwort verraet nicht, ob es zu
-        // dieser Adresse ueberhaupt ein Konto gibt.
-        toast('Falls es ein Konto gibt, ist die Mail unterwegs. Auch im Spam schauen.');
-      });
-    });
-
+  function isUnconfirmed(err) {
+    var m = (err && err.message ? err.message : '').toLowerCase();
+    return (err && err.code === 'email_not_confirmed') || m.indexOf('not confirmed') >= 0;
   }
 
   function loginError(err) {
+    var code = err && err.code ? String(err.code) : '';
     var m = (err && err.message ? err.message : '').toLowerCase();
+    if (code === 'weak_password' || m.indexOf('password should') >= 0 || m.indexOf('weak password') >= 0)
+      return 'Das Passwort erfüllt die Regeln nicht (mind. ' + PW_MIN + ' Zeichen, Groß-/Kleinbuchstaben und Ziffer).';
+    if (code === 'same_password' || m.indexOf('different from the old') >= 0)
+      return 'Das neue Passwort muss sich vom alten unterscheiden.';
+    if (code === 'over_request_rate_limit' || code === 'over_email_send_rate_limit' ||
+        m.indexOf('rate limit') >= 0 || m.indexOf('too many') >= 0 || (err && err.status === 429))
+      return 'Zu viele Versuche, bitte ein paar Minuten warten.';
+    if (code === 'captcha_failed' || m.indexOf('captcha') >= 0)
+      return 'Die Sicherheitsprüfung ist fehlgeschlagen, bitte nochmal versuchen.';
     if (m.indexOf('invalid login') >= 0)    return 'E-Mail oder Passwort stimmt nicht.';
     if (m.indexOf('already registered') >= 0) return 'Zu dieser E-Mail gibt es schon ein Konto.';
-    if (m.indexOf('not confirmed') >= 0)    return 'Konto noch nicht best\u00e4tigt. In Supabase "Confirm email" ausschalten.';
-    if (m.indexOf('rate limit') >= 0)       return 'Zu viele Versuche, bitte kurz warten.';
+    if (isUnconfirmed(err))                 return 'Konto noch nicht bestätigt. Bitte den Link in der E-Mail antippen.';
     if (m.indexOf('signups not allowed') >= 0) return 'Registrierung ist derzeit geschlossen.';
     if (m.indexOf('provider is not enabled') >= 0 || m.indexOf('unsupported provider') >= 0)
       return 'Google ist in Supabase noch nicht als Anbieter aktiviert.';
-    return err && err.message ? err.message : 'Es hat nicht geklappt.';
+    if (m.indexOf('failed to fetch') >= 0 || m.indexOf('network') >= 0)
+      return 'Keine Verbindung. Bitte Internet prüfen.';
+    return 'Es hat nicht geklappt. Bitte nochmal versuchen.';
   }
 
   /* ---------- Platzhalter ---------- */
@@ -5863,6 +6055,19 @@ var LiveRoundNative = (function () {
   // native Echo eines gerade erst verarbeiteten Hashs erkennen und
   // ueberspringen, ohne echte Navigationen (anderer Hash) oder bewusste
   // direkte route()-Aufrufe (kein Event-Argument) zu beeintraechtigen.
+  // Ohne Konto sind obere/untere Leiste weg (siehe body.loginscreen) - damit
+  // man von Datenschutz/Impressum/Ueber trotzdem zurueckkommt, oben ein Knopf.
+  function addLoggedOutBack() {
+    if (Auth.id()) return;
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'linkbtn';
+    b.style.cssText = 'display:block;margin:0 0 14px;padding:6px 0';
+    b.textContent = '\u2190 Zur\u00fcck zur Anmeldung';
+    b.addEventListener('click', function () { location.hash = 'menu/login'; route(); });
+    content.insertBefore(b, content.firstChild);
+  }
+
   var lastRoutedRaw;
   function route(e) {
     var raw = (location.hash || '').replace(/^#/, '');
@@ -5885,7 +6090,7 @@ var LiveRoundNative = (function () {
     }
     // Nur auf der eigentlichen Anmeldeseite (nicht auch auf Datenschutz/
     // Ueber) obere und untere Leiste ausblenden - siehe body.loginscreen-CSS.
-    document.body.classList.toggle('loginscreen', !Auth.id() && raw === 'menu/login');
+    document.body.classList.toggle('loginscreen', !Auth.id() && LOGIN_EXEMPT_HASHES.indexOf(raw) >= 0);
 
     // eintragen, Freunde, Planen, eigene Runden) - reiner UX-Schutz vor
     // alten/falschen Links, keine Sicherheitsmassnahme (siehe Golfplatz-
@@ -5966,13 +6171,13 @@ var LiveRoundNative = (function () {
     var acm = /^menu\/admin\/club\/([0-9a-f-]{36})$/.exec(raw);
     if (acm) { renderAdminClubEdit(acm[1]); return; }
     if (raw === 'menu/backup') { renderBackup();     return; }
-    if (raw === 'menu/impressum'){ renderImpressum(); return; }
-    if (raw === 'menu/privacy'){ renderPrivacy();    return; }
-    if (raw === 'menu/about')  { renderAbout();      return; }
+    if (raw === 'menu/impressum'){ renderImpressum(); addLoggedOutBack(); return; }
+    if (raw === 'menu/privacy'){ renderPrivacy();    addLoggedOutBack(); return; }
+    if (raw === 'menu/about')  { renderAbout();      addLoggedOutBack(); return; }
     if (raw === 'menu/offers') { renderClubOffers(); return; }
     if (raw === 'menu/clubs')  { renderClubSearch(); return; }
     if (raw === 'menu/admin')  { renderAdmin();      return; }
-    if (PAGES[raw])           { renderPlaceholder(raw); return; }
+    if (Object.prototype.hasOwnProperty.call(PAGES, raw)) { renderPlaceholder(raw); return; }
 
     var r = parseCode(raw);
     if (!r.holes.length) {
@@ -5997,7 +6202,10 @@ var LiveRoundNative = (function () {
     var fromHash  = new URLSearchParams(location.hash.replace(/^#/, ''));
     var err = fromQuery.get('error') || fromHash.get('error');
     if (!err) return;
-    var desc = fromQuery.get('error_description') || fromHash.get('error_description') || err;
+    var ecode = fromQuery.get('error_code') || fromHash.get('error_code') || '';
+    var desc = (ecode === 'otp_expired')
+      ? 'Der Link ist abgelaufen oder wurde schon benutzt. Bitte fordere einen neuen an.'
+      : (fromQuery.get('error_description') || fromHash.get('error_description') || err);
     toast('Anmeldung fehlgeschlagen: ' + desc, true);
     history.replaceState(null, '', location.pathname);
     location.hash = '';
