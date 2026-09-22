@@ -976,7 +976,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.48';
+var APP_VERSION = '0.49';
 
 /* Sperrbildschirm-Anzeige (iOS Live Activity) fuer live gespielte Runden.
    Nur in der nativen Capacitor-App vorhanden - im Browser/PWA sind alle
@@ -2713,6 +2713,15 @@ var LiveRoundNative = (function () {
         });
     }
 
+    function setNotifyInvites(on) {
+      return db().from('profiles').update({ notify_invites: on })
+        .eq('user_id', Auth.id())
+        .then(function (r) {
+          if (!r.error && myProfile) myProfile.notify_invites = on;
+          return r;
+        });
+    }
+
     // Laedt das Bild als quadratisches, verkleinertes JPEG hoch (siehe
     // resizeImageToJpeg()). Jedes Mal ein NEUER Dateiname statt ein
     // bestehendes Bild zu ersetzen (upsert bzw. Loeschen+Neu-Anlegen
@@ -2892,7 +2901,7 @@ var LiveRoundNative = (function () {
         .catch(function (e) { console.error('confirmRound', e); return false; });
     }
 
-    return { loadProfile:loadProfile, setName:setName, setAvatar:setAvatar, list:list,
+    return { loadProfile:loadProfile, setName:setName, setNotifyInvites:setNotifyInvites, setAvatar:setAvatar, list:list,
              requestByCode:requestByCode, accept:accept, remove:remove,
              roundsOf:roundsOf, feed:feed,
              hasRoundOnDate:hasRoundOnDate, confirmRound:confirmRound,
@@ -2924,7 +2933,8 @@ var LiveRoundNative = (function () {
           if (!events.length) return [];
 
           var ids = events.map(function (e) { return e.id; });
-          return db().from('event_invites').select('*').in('event_id', ids)
+          return db().from('event_invites')
+            .select('id,event_id,invitee,status,responded_at,created_at').in('event_id', ids)
             .then(function (ir) {
               if (ir.error) throw ir.error;
               var invites = ir.data || [];
@@ -2984,6 +2994,10 @@ var LiveRoundNative = (function () {
         });
         return db().from('event_invites').insert(rows).then(function (ir) {
           if (ir.error) throw ir.error;
+          // Mail-Versand laeuft nebenbei (Edge Function) - ein Problem dabei
+          // (z.B. noch kein RESEND_API_KEY eingerichtet) soll den angelegten
+          // Termin nicht rueckgaengig machen oder die Oberflaeche blockieren.
+          invokeEdgeFunction('notify-invites', { eventId: ev.id }).catch(function () {});
           return { ok:true, event:ev };
         });
       }).catch(function (e) {
@@ -5561,6 +5575,11 @@ var LiveRoundNative = (function () {
         'maxlength="40" autocomplete="nickname"></div>' +
         '<div class="actions"><button class="btn ghost" id="btnName">Namen speichern</button></div></div>' +
 
+        '<div class="panel"><h3>Benachrichtigungen</h3>' +
+        '<p>Bei einer neuen Termineinladung eine E-Mail schicken, mit Zusagen/Absagen-Knopf direkt drin.</p>' +
+        '<label class="consent" style="margin:0"><input type="checkbox" id="fNotifyInvites" checked> ' +
+        '<span>Bei neuen Termineinladungen benachrichtigen</span></label></div>' +
+
         '<div id="verifyReqSlot"></div>' +
 
         '<div class="panel"><h3>Konto löschen</h3>' +
@@ -5584,6 +5603,8 @@ var LiveRoundNative = (function () {
       Friends.loadProfile().then(function (p) {
         var el = document.getElementById('fName');
         if (el && p && p.display_name) el.value = p.display_name;
+        var notifyEl = document.getElementById('fNotifyInvites');
+        if (notifyEl) notifyEl.checked = !p || p.notify_invites !== false;
         renderVerifyRequestPanel(p);
 
         if (!p) return;
@@ -5599,6 +5620,13 @@ var LiveRoundNative = (function () {
           ownBadgeType = p.verified_role ? 'verified' : null;
           applyOwnAvatar(p);
         }
+      });
+
+      document.getElementById('fNotifyInvites').addEventListener('change', function (e) {
+        Friends.setNotifyInvites(e.target.checked).then(function (r) {
+          if (r && r.error) { toast('Konnte nicht gespeichert werden.', true); return; }
+          toast(e.target.checked ? 'Benachrichtigungen an.' : 'Benachrichtigungen aus.');
+        });
       });
 
       document.getElementById('btnAvatarPick').addEventListener('click', function () {
