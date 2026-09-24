@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://hieaduzvsqkwvdxfscoo.supabase.co; media-src 'self' blob:; connect-src 'self' https://hieaduzvsqkwvdxfscoo.supabase.co wss://hieaduzvsqkwvdxfscoo.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://hieaduzvsqkwvdxfscoo.supabase.co https://*.tile.openstreetmap.org; media-src 'self' blob:; connect-src 'self' https://hieaduzvsqkwvdxfscoo.supabase.co wss://hieaduzvsqkwvdxfscoo.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#101217">
 <title>Pocket Caddy</title>
@@ -117,8 +117,24 @@
     border:1px solid #ffffff1a;
     box-shadow:0 10px 30px #000a, 0 1px 0 #ffffff0d inset;}
   .navitem{background:none;border:0;color:var(--mut);cursor:pointer;
-    display:flex;align-items:center;justify-content:center;
+    display:flex;align-items:center;justify-content:center;position:relative;
     padding:8px;flex:1;min-width:0;}
+  .navdot{position:absolute;top:6px;left:50%;margin-left:5px;width:8px;height:8px;
+    border-radius:99px;background:var(--lime);box-shadow:0 0 0 2px var(--bg)}
+
+  /* Feste Leiste ueber der unteren Navigation, solange im Hintergrund eine
+     Live-Runde laeuft (siehe Live/updateLiveBanner() im Skript) - immer an
+     derselben Stelle wie .bottomnav, nur etwas hoeher. */
+  .livebanner{position:fixed;left:14px;right:14px;
+    bottom:calc(14px + env(safe-area-inset-bottom) + 74px);
+    z-index:15;max-width:520px;margin:0 auto;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:14px 18px;border-radius:20px;border:0;cursor:pointer;
+    background:var(--lime);color:#0b0e13;font:inherit;font-weight:700;font-size:14px;
+    box-shadow:0 10px 30px #000a;}
+  .livebanner .chev{font-weight:700}
+  body.wizard-fullscreen .livebanner,
+  body.loginscreen .livebanner{display:none}
   .navitem svg{width:25px;height:25px;fill:none;stroke:currentColor;
     stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .navitem.active{color:var(--lime)}
@@ -580,6 +596,8 @@
   .mini svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2.2;
             stroke-linecap:round;stroke-linejoin:round}
   .mini.ok{color:var(--lime);border-color:#a3e63544}
+  .miniplus{width:26px;height:26px;flex:none}
+  .miniplus svg{width:14px;height:14px}
   .mini.no{color:#c07070;border-color:#ff5c5c33}
   .mini:active{background:#ffffff10}
   .friendhead{display:flex;align-items:center;gap:14px;margin-bottom:20px}
@@ -734,6 +752,7 @@
     .navitem{flex:none;flex-direction:row;justify-content:flex-start;
       gap:14px;padding:12px 14px;border-radius:12px}
     .navitem:hover{background:#ffffff10}
+    .navdot{top:8px;left:26px;margin-left:0}
     .navlabel{display:inline;font-size:14.5px}
     .desktop-only{display:block}
     /* !important: muss auch button.btn (display:inline-flex) zuverlaessig
@@ -786,6 +805,673 @@
     .stat .v{font-size:28px}
     .panel{padding:26px}
   }
+
+  /* Leaflet (Karte, menu/map) - inline statt externer CDN-Datei, weil die
+     Content-Security-Policy keine fremden Stylesheet-Quellen erlaubt. */
+/* required styles */
+
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-container,
+.leaflet-pane > svg,
+.leaflet-pane > canvas,
+.leaflet-zoom-box,
+.leaflet-image-layer,
+.leaflet-layer {
+	position: absolute;
+	left: 0;
+	top: 0;
+	}
+.leaflet-container {
+	overflow: hidden;
+	}
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+	-webkit-user-select: none;
+	   -moz-user-select: none;
+	        user-select: none;
+	  -webkit-user-drag: none;
+	}
+/* Prevents IE11 from highlighting tiles in blue */
+.leaflet-tile::selection {
+	background: transparent;
+}
+/* Safari renders non-retina tile on retina better with this, but Chrome is worse */
+.leaflet-safari .leaflet-tile {
+	image-rendering: -webkit-optimize-contrast;
+	}
+/* hack that prevents hw layers "stretching" when loading new tiles */
+.leaflet-safari .leaflet-tile-container {
+	width: 1600px;
+	height: 1600px;
+	-webkit-transform-origin: 0 0;
+	}
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+	display: block;
+	}
+/* .leaflet-container svg: reset svg max-width decleration shipped in Joomla! (joomla.org) 3.x */
+/* .leaflet-container img: map is broken in FF if you have max-width: 100% on tiles */
+.leaflet-container .leaflet-overlay-pane svg {
+	max-width: none !important;
+	max-height: none !important;
+	}
+.leaflet-container .leaflet-marker-pane img,
+.leaflet-container .leaflet-shadow-pane img,
+.leaflet-container .leaflet-tile-pane img,
+.leaflet-container img.leaflet-image-layer,
+.leaflet-container .leaflet-tile {
+	max-width: none !important;
+	max-height: none !important;
+	width: auto;
+	padding: 0;
+	}
+
+.leaflet-container img.leaflet-tile {
+	/* See: https://bugs.chromium.org/p/chromium/issues/detail?id=600120 */
+	mix-blend-mode: plus-lighter;
+}
+
+.leaflet-container.leaflet-touch-zoom {
+	-ms-touch-action: pan-x pan-y;
+	touch-action: pan-x pan-y;
+	}
+.leaflet-container.leaflet-touch-drag {
+	-ms-touch-action: pinch-zoom;
+	/* Fallback for FF which doesn't support pinch-zoom */
+	touch-action: none;
+	touch-action: pinch-zoom;
+}
+.leaflet-container.leaflet-touch-drag.leaflet-touch-zoom {
+	-ms-touch-action: none;
+	touch-action: none;
+}
+.leaflet-container {
+	-webkit-tap-highlight-color: transparent;
+}
+.leaflet-container a {
+	-webkit-tap-highlight-color: rgba(51, 181, 229, 0.4);
+}
+.leaflet-tile {
+	filter: inherit;
+	visibility: hidden;
+	}
+.leaflet-tile-loaded {
+	visibility: inherit;
+	}
+.leaflet-zoom-box {
+	width: 0;
+	height: 0;
+	-moz-box-sizing: border-box;
+	     box-sizing: border-box;
+	z-index: 800;
+	}
+/* workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=888319 */
+.leaflet-overlay-pane svg {
+	-moz-user-select: none;
+	}
+
+.leaflet-pane         { z-index: 400; }
+
+.leaflet-tile-pane    { z-index: 200; }
+.leaflet-overlay-pane { z-index: 400; }
+.leaflet-shadow-pane  { z-index: 500; }
+.leaflet-marker-pane  { z-index: 600; }
+.leaflet-tooltip-pane   { z-index: 650; }
+.leaflet-popup-pane   { z-index: 700; }
+
+.leaflet-map-pane canvas { z-index: 100; }
+.leaflet-map-pane svg    { z-index: 200; }
+
+.leaflet-vml-shape {
+	width: 1px;
+	height: 1px;
+	}
+.lvml {
+	behavior: url(#default#VML);
+	display: inline-block;
+	position: absolute;
+	}
+
+
+/* control positioning */
+
+.leaflet-control {
+	position: relative;
+	z-index: 800;
+	pointer-events: visiblePainted; /* IE 9-10 doesn't have auto */
+	pointer-events: auto;
+	}
+.leaflet-top,
+.leaflet-bottom {
+	position: absolute;
+	z-index: 1000;
+	pointer-events: none;
+	}
+.leaflet-top {
+	top: 0;
+	}
+.leaflet-right {
+	right: 0;
+	}
+.leaflet-bottom {
+	bottom: 0;
+	}
+.leaflet-left {
+	left: 0;
+	}
+.leaflet-control {
+	float: left;
+	clear: both;
+	}
+.leaflet-right .leaflet-control {
+	float: right;
+	}
+.leaflet-top .leaflet-control {
+	margin-top: 10px;
+	}
+.leaflet-bottom .leaflet-control {
+	margin-bottom: 10px;
+	}
+.leaflet-left .leaflet-control {
+	margin-left: 10px;
+	}
+.leaflet-right .leaflet-control {
+	margin-right: 10px;
+	}
+
+
+/* zoom and fade animations */
+
+.leaflet-fade-anim .leaflet-popup {
+	opacity: 0;
+	-webkit-transition: opacity 0.2s linear;
+	   -moz-transition: opacity 0.2s linear;
+	        transition: opacity 0.2s linear;
+	}
+.leaflet-fade-anim .leaflet-map-pane .leaflet-popup {
+	opacity: 1;
+	}
+.leaflet-zoom-animated {
+	-webkit-transform-origin: 0 0;
+	    -ms-transform-origin: 0 0;
+	        transform-origin: 0 0;
+	}
+svg.leaflet-zoom-animated {
+	will-change: transform;
+}
+
+.leaflet-zoom-anim .leaflet-zoom-animated {
+	-webkit-transition: -webkit-transform 0.25s cubic-bezier(0,0,0.25,1);
+	   -moz-transition:    -moz-transform 0.25s cubic-bezier(0,0,0.25,1);
+	        transition:         transform 0.25s cubic-bezier(0,0,0.25,1);
+	}
+.leaflet-zoom-anim .leaflet-tile,
+.leaflet-pan-anim .leaflet-tile {
+	-webkit-transition: none;
+	   -moz-transition: none;
+	        transition: none;
+	}
+
+.leaflet-zoom-anim .leaflet-zoom-hide {
+	visibility: hidden;
+	}
+
+
+/* cursors */
+
+.leaflet-interactive {
+	cursor: pointer;
+	}
+.leaflet-grab {
+	cursor: -webkit-grab;
+	cursor:    -moz-grab;
+	cursor:         grab;
+	}
+.leaflet-crosshair,
+.leaflet-crosshair .leaflet-interactive {
+	cursor: crosshair;
+	}
+.leaflet-popup-pane,
+.leaflet-control {
+	cursor: auto;
+	}
+.leaflet-dragging .leaflet-grab,
+.leaflet-dragging .leaflet-grab .leaflet-interactive,
+.leaflet-dragging .leaflet-marker-draggable {
+	cursor: move;
+	cursor: -webkit-grabbing;
+	cursor:    -moz-grabbing;
+	cursor:         grabbing;
+	}
+
+/* marker & overlays interactivity */
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-image-layer,
+.leaflet-pane > svg path,
+.leaflet-tile-container {
+	pointer-events: none;
+	}
+
+.leaflet-marker-icon.leaflet-interactive,
+.leaflet-image-layer.leaflet-interactive,
+.leaflet-pane > svg path.leaflet-interactive,
+svg.leaflet-image-layer.leaflet-interactive path {
+	pointer-events: visiblePainted; /* IE 9-10 doesn't have auto */
+	pointer-events: auto;
+	}
+
+/* visual tweaks */
+
+.leaflet-container {
+	background: #ddd;
+	outline-offset: 1px;
+	}
+.leaflet-container a {
+	color: #0078A8;
+	}
+.leaflet-zoom-box {
+	border: 2px dotted #38f;
+	background: rgba(255,255,255,0.5);
+	}
+
+
+/* general typography */
+.leaflet-container {
+	font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+	font-size: 12px;
+	font-size: 0.75rem;
+	line-height: 1.5;
+	}
+
+
+/* general toolbar styles */
+
+.leaflet-bar {
+	box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+	border-radius: 4px;
+	}
+.leaflet-bar a {
+	background-color: #fff;
+	border-bottom: 1px solid #ccc;
+	width: 26px;
+	height: 26px;
+	line-height: 26px;
+	display: block;
+	text-align: center;
+	text-decoration: none;
+	color: black;
+	}
+.leaflet-bar a,
+.leaflet-control-layers-toggle {
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+	display: block;
+	}
+.leaflet-bar a:hover,
+.leaflet-bar a:focus {
+	background-color: #f4f4f4;
+	}
+.leaflet-bar a:first-child {
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+	}
+.leaflet-bar a:last-child {
+	border-bottom-left-radius: 4px;
+	border-bottom-right-radius: 4px;
+	border-bottom: none;
+	}
+.leaflet-bar a.leaflet-disabled {
+	cursor: default;
+	background-color: #f4f4f4;
+	color: #bbb;
+	}
+
+.leaflet-touch .leaflet-bar a {
+	width: 30px;
+	height: 30px;
+	line-height: 30px;
+	}
+.leaflet-touch .leaflet-bar a:first-child {
+	border-top-left-radius: 2px;
+	border-top-right-radius: 2px;
+	}
+.leaflet-touch .leaflet-bar a:last-child {
+	border-bottom-left-radius: 2px;
+	border-bottom-right-radius: 2px;
+	}
+
+/* zoom control */
+
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+	font: bold 18px 'Lucida Console', Monaco, monospace;
+	text-indent: 1px;
+	}
+
+.leaflet-touch .leaflet-control-zoom-in, .leaflet-touch .leaflet-control-zoom-out  {
+	font-size: 22px;
+	}
+
+
+/* layers control */
+
+.leaflet-control-layers {
+	box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+	background: #fff;
+	border-radius: 5px;
+	}
+.leaflet-control-layers-toggle {
+	background-image: url(images/layers.png);
+	width: 36px;
+	height: 36px;
+	}
+.leaflet-retina .leaflet-control-layers-toggle {
+	background-image: url(images/layers-2x.png);
+	background-size: 26px 26px;
+	}
+.leaflet-touch .leaflet-control-layers-toggle {
+	width: 44px;
+	height: 44px;
+	}
+.leaflet-control-layers .leaflet-control-layers-list,
+.leaflet-control-layers-expanded .leaflet-control-layers-toggle {
+	display: none;
+	}
+.leaflet-control-layers-expanded .leaflet-control-layers-list {
+	display: block;
+	position: relative;
+	}
+.leaflet-control-layers-expanded {
+	padding: 6px 10px 6px 6px;
+	color: #333;
+	background: #fff;
+	}
+.leaflet-control-layers-scrollbar {
+	overflow-y: scroll;
+	overflow-x: hidden;
+	padding-right: 5px;
+	}
+.leaflet-control-layers-selector {
+	margin-top: 2px;
+	position: relative;
+	top: 1px;
+	}
+.leaflet-control-layers label {
+	display: block;
+	font-size: 13px;
+	font-size: 1.08333em;
+	}
+.leaflet-control-layers-separator {
+	height: 0;
+	border-top: 1px solid #ddd;
+	margin: 5px -10px 5px -6px;
+	}
+
+/* Default icon URLs */
+.leaflet-default-icon-path { /* used only in path-guessing heuristic, see L.Icon.Default */
+	background-image: url(images/marker-icon.png);
+	}
+
+
+/* attribution and scale controls */
+
+.leaflet-container .leaflet-control-attribution {
+	background: #fff;
+	background: rgba(255, 255, 255, 0.8);
+	margin: 0;
+	}
+.leaflet-control-attribution,
+.leaflet-control-scale-line {
+	padding: 0 5px;
+	color: #333;
+	line-height: 1.4;
+	}
+.leaflet-control-attribution a {
+	text-decoration: none;
+	}
+.leaflet-control-attribution a:hover,
+.leaflet-control-attribution a:focus {
+	text-decoration: underline;
+	}
+.leaflet-attribution-flag {
+	display: inline !important;
+	vertical-align: baseline !important;
+	width: 1em;
+	height: 0.6669em;
+	}
+.leaflet-left .leaflet-control-scale {
+	margin-left: 5px;
+	}
+.leaflet-bottom .leaflet-control-scale {
+	margin-bottom: 5px;
+	}
+.leaflet-control-scale-line {
+	border: 2px solid #777;
+	border-top: none;
+	line-height: 1.1;
+	padding: 2px 5px 1px;
+	white-space: nowrap;
+	-moz-box-sizing: border-box;
+	     box-sizing: border-box;
+	background: rgba(255, 255, 255, 0.8);
+	text-shadow: 1px 1px #fff;
+	}
+.leaflet-control-scale-line:not(:first-child) {
+	border-top: 2px solid #777;
+	border-bottom: none;
+	margin-top: -2px;
+	}
+.leaflet-control-scale-line:not(:first-child):not(:last-child) {
+	border-bottom: 2px solid #777;
+	}
+
+.leaflet-touch .leaflet-control-attribution,
+.leaflet-touch .leaflet-control-layers,
+.leaflet-touch .leaflet-bar {
+	box-shadow: none;
+	}
+.leaflet-touch .leaflet-control-layers,
+.leaflet-touch .leaflet-bar {
+	border: 2px solid rgba(0,0,0,0.2);
+	background-clip: padding-box;
+	}
+
+
+/* popup */
+
+.leaflet-popup {
+	position: absolute;
+	text-align: center;
+	margin-bottom: 20px;
+	}
+.leaflet-popup-content-wrapper {
+	padding: 1px;
+	text-align: left;
+	border-radius: 12px;
+	}
+.leaflet-popup-content {
+	margin: 13px 24px 13px 20px;
+	line-height: 1.3;
+	font-size: 13px;
+	font-size: 1.08333em;
+	min-height: 1px;
+	}
+.leaflet-popup-content p {
+	margin: 17px 0;
+	margin: 1.3em 0;
+	}
+.leaflet-popup-tip-container {
+	width: 40px;
+	height: 20px;
+	position: absolute;
+	left: 50%;
+	margin-top: -1px;
+	margin-left: -20px;
+	overflow: hidden;
+	pointer-events: none;
+	}
+.leaflet-popup-tip {
+	width: 17px;
+	height: 17px;
+	padding: 1px;
+
+	margin: -10px auto 0;
+	pointer-events: auto;
+
+	-webkit-transform: rotate(45deg);
+	   -moz-transform: rotate(45deg);
+	    -ms-transform: rotate(45deg);
+	        transform: rotate(45deg);
+	}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+	background: white;
+	color: #333;
+	box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+	}
+.leaflet-container a.leaflet-popup-close-button {
+	position: absolute;
+	top: 0;
+	right: 0;
+	border: none;
+	text-align: center;
+	width: 24px;
+	height: 24px;
+	font: 16px/24px Tahoma, Verdana, sans-serif;
+	color: #757575;
+	text-decoration: none;
+	background: transparent;
+	}
+.leaflet-container a.leaflet-popup-close-button:hover,
+.leaflet-container a.leaflet-popup-close-button:focus {
+	color: #585858;
+	}
+.leaflet-popup-scrolled {
+	overflow: auto;
+	}
+
+.leaflet-oldie .leaflet-popup-content-wrapper {
+	-ms-zoom: 1;
+	}
+.leaflet-oldie .leaflet-popup-tip {
+	width: 24px;
+	margin: 0 auto;
+
+	-ms-filter: "progid:DXImageTransform.Microsoft.Matrix(M11=0.70710678, M12=0.70710678, M21=-0.70710678, M22=0.70710678)";
+	filter: progid:DXImageTransform.Microsoft.Matrix(M11=0.70710678, M12=0.70710678, M21=-0.70710678, M22=0.70710678);
+	}
+
+.leaflet-oldie .leaflet-control-zoom,
+.leaflet-oldie .leaflet-control-layers,
+.leaflet-oldie .leaflet-popup-content-wrapper,
+.leaflet-oldie .leaflet-popup-tip {
+	border: 1px solid #999;
+	}
+
+
+/* div icon */
+
+.leaflet-div-icon {
+	background: #fff;
+	border: 1px solid #666;
+	}
+
+
+/* Tooltip */
+/* Base styles for the element that has a tooltip */
+.leaflet-tooltip {
+	position: absolute;
+	padding: 6px;
+	background-color: #fff;
+	border: 1px solid #fff;
+	border-radius: 3px;
+	color: #222;
+	white-space: nowrap;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	pointer-events: none;
+	box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+	}
+.leaflet-tooltip.leaflet-interactive {
+	cursor: pointer;
+	pointer-events: auto;
+	}
+.leaflet-tooltip-top:before,
+.leaflet-tooltip-bottom:before,
+.leaflet-tooltip-left:before,
+.leaflet-tooltip-right:before {
+	position: absolute;
+	pointer-events: none;
+	border: 6px solid transparent;
+	background: transparent;
+	content: "";
+	}
+
+/* Directions */
+
+.leaflet-tooltip-bottom {
+	margin-top: 6px;
+}
+.leaflet-tooltip-top {
+	margin-top: -6px;
+}
+.leaflet-tooltip-bottom:before,
+.leaflet-tooltip-top:before {
+	left: 50%;
+	margin-left: -6px;
+	}
+.leaflet-tooltip-top:before {
+	bottom: 0;
+	margin-bottom: -12px;
+	border-top-color: #fff;
+	}
+.leaflet-tooltip-bottom:before {
+	top: 0;
+	margin-top: -12px;
+	margin-left: -6px;
+	border-bottom-color: #fff;
+	}
+.leaflet-tooltip-left {
+	margin-left: -6px;
+}
+.leaflet-tooltip-right {
+	margin-left: 6px;
+}
+.leaflet-tooltip-left:before,
+.leaflet-tooltip-right:before {
+	top: 50%;
+	margin-top: -6px;
+	}
+.leaflet-tooltip-left:before {
+	right: 0;
+	margin-right: -12px;
+	border-left-color: #fff;
+	}
+.leaflet-tooltip-right:before {
+	left: 0;
+	margin-left: -12px;
+	border-right-color: #fff;
+	}
+
+/* Printing */
+
+@media print {
+	/* Prevent printers from removing background-images of controls. */
+	.leaflet-control {
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+		}
+	}
+
+  .clubpin{background:none;border:none}
+  .leaflet-container{background:#161921;font-family:inherit}
 </style>
 </head>
 <body>
@@ -824,6 +1510,11 @@
     <svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
   </button>
 </div>
+
+<button type="button" class="livebanner hidden" id="liveBanner">
+  <span id="liveBannerText"></span>
+  <span class="chev">→</span>
+</button>
 
 <nav class="bottomnav" id="bottomNav">
   <button class="navitem player-only" data-tab="home" data-go="" aria-label="Start">
@@ -976,7 +1667,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.49';
+var APP_VERSION = '0.50';
 
 /* Sperrbildschirm-Anzeige (iOS Live Activity) fuer live gespielte Runden.
    Nur in der nativen Capacitor-App vorhanden - im Browser/PWA sind alle
@@ -1599,6 +2290,7 @@ var LiveRoundNative = (function () {
   var I = {
     save:'<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>',
     check:'<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" transform="translate(0,0.5)"/></svg>',
+    plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
     share:'<svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>',
     back:'<svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>',
     chev:'<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
@@ -1644,6 +2336,8 @@ var LiveRoundNative = (function () {
         sub:'Anfragen, Liste, Freund hinzuf\u00fcgen/entfernen', ready:true },
       isClub ? null : { id:'menu/clubs', icon:I.home, label:'Golfpl\u00e4tze',
         sub:'Suchen und folgen', ready:true },
+      isClub ? null : { id:'menu/map', icon:I.pin, label:'Karte',
+        sub:'Golfpl\u00e4tze in der N\u00e4he', ready:true },
       { sep:true },
       Friends.isAdmin() ? { id:'menu/admin', icon:I.info, label:'Admin',
         sub:'Golfplatz-Anfragen freischalten', ready:true } : null,
@@ -1703,6 +2397,9 @@ var LiveRoundNative = (function () {
   function openMenu(){ lockBodyScroll(); sheet.classList.add('on'); sheetbg.classList.add('on'); }
   function closeMenu(){ unlockBodyScroll(); sheet.classList.remove('on'); sheetbg.classList.remove('on'); }
   document.getElementById('btnMenu').addEventListener('click', openMenu);
+  document.getElementById('liveBanner').addEventListener('click', function () {
+    location.hash = 'live'; route();
+  });
   document.getElementById('btnTopBack').addEventListener('click', function () {
     location.hash = ''; route();
   });
@@ -2078,6 +2775,7 @@ var LiveRoundNative = (function () {
       var p = parseCode(x.code);
       p.id = x.id; p.createdAt = x.createdAt;
       p.date = x.date || p.date;   // gespeichertes Datum hat Vorrang
+      p.confirmed = !!x.confirmed;
       return p;
     }).filter(function (p) { return p.holes.length; });
 
@@ -2127,6 +2825,7 @@ var LiveRoundNative = (function () {
           '<span class="meta"><span class="d">' + (fmtDate(r.date) || 'ohne Datum') + '</span>' +
           '<span class="s">' + r.holes.length + ' L\u00f6cher &middot; ' + r.strokes +
           ' Schl\u00e4ge &middot; Par ' + r.par + '</span></span>' +
+          (r.confirmed ? '<span class="badge ok">\u2713</span>' : '<span class="badge">wartet</span>') +
           '<span class="chev">' + I.chev + '</span></button>';
       }).join('');
 
@@ -2158,13 +2857,19 @@ var LiveRoundNative = (function () {
         if (!slot) return;
         if (!clubs.length) {
           slot.innerHTML =
-            '<div class="sectionhead" style="margin-top:22px"><span class="t">Golfplätze</span></div>' +
+            '<div class="sectionhead" style="margin-top:22px;align-items:center"><span class="t">Golfplätze</span>' +
+            '<button class="mini miniplus" id="btnAddClub" title="Golfplatz suchen">' + I.plus + '</button></div>' +
             '<div class="empty"><b>Noch keinen Golfplätzen gefolgt</b>' +
             'Im Menü unter &bdquo;Golfplätze&ldquo; suchen.</div>';
+          var addBtn0 = document.getElementById('btnAddClub');
+          if (addBtn0) addBtn0.addEventListener('click', function () {
+            location.hash = 'menu/clubs'; route();
+          });
           return;
         }
         slot.innerHTML =
-          '<div class="sectionhead" style="margin-top:22px"><span class="t">Golfplätze</span></div>' +
+          '<div class="sectionhead" style="margin-top:22px;align-items:center"><span class="t">Golfplätze</span>' +
+          '<button class="mini miniplus" id="btnAddClub" title="Golfplatz suchen">' + I.plus + '</button></div>' +
           '<div class="clubgrid">' + clubs.slice(0, 6).map(function (c) {
             var n = c.courses.length;
             return '<div class="clubcard" data-club="' + c.id + '">' +
@@ -2174,6 +2879,10 @@ var LiveRoundNative = (function () {
               '<span class="sub">' + (n ? (n + (n === 1 ? ' Platz' : ' Plätze')) : 'Noch keine Plätze') +
               '</span></div>';
           }).join('') + '</div>';
+        var addBtn1 = document.getElementById('btnAddClub');
+        if (addBtn1) addBtn1.addEventListener('click', function () {
+          location.hash = 'menu/clubs'; route();
+        });
         Array.prototype.forEach.call(slot.querySelectorAll('[data-club]'), function (el) {
           el.addEventListener('click', function () {
             location.hash = 'club/' + el.getAttribute('data-club'); route();
@@ -2234,6 +2943,7 @@ var LiveRoundNative = (function () {
       var p = parseCode(x.code);
       p.id = x.id; p.createdAt = x.createdAt;
       p.date = x.date || p.date;
+      p.confirmed = !!x.confirmed;
       return p;
     }).filter(function (p) { return p.holes.length; });
 
@@ -2249,6 +2959,7 @@ var LiveRoundNative = (function () {
         '<span class="meta"><span class="d">' + (fmtDate(r.date) || 'ohne Datum') + '</span>' +
         '<span class="s">' + r.holes.length + ' L\u00f6cher &middot; ' + r.strokes +
         ' Schl\u00e4ge &middot; Par ' + r.par + '</span></span>' +
+        (r.confirmed ? '<span class="badge ok">\u2713</span>' : '<span class="badge">wartet</span>') +
         '<span class="chev">' + I.chev + '</span></button>';
     }).join('');
 
@@ -3177,13 +3888,13 @@ var LiveRoundNative = (function () {
     // angelegter, noch unverifizierter Platz muss hier auffindbar bleiben.
     function allClubsList() {
       return db().from('golf_clubs')
-        .select('user_id,name,description,avatar_url,cover_image_url,verified,golf_courses(id,name,holes)')
+        .select('user_id,name,description,avatar_url,cover_image_url,verified,lat,lng,golf_courses(id,name,holes)')
         .then(function (r) {
           if (r.error) throw r.error;
           return (r.data || []).map(function (c) {
             return { id:c.user_id, name:c.name, description:c.description,
                      avatarUrl:c.avatar_url, coverImageUrl:c.cover_image_url, verified:c.verified,
-                     courses:c.golf_courses || [] };
+                     lat:c.lat, lng:c.lng, courses:c.golf_courses || [] };
           });
         })
         .catch(function () { return []; });
@@ -3515,6 +4226,14 @@ var LiveRoundNative = (function () {
         '<input type="text" id="cWebsite" maxlength="200" placeholder="Website" value="' + esc(club.website || '') + '">' +
         '<input type="text" id="cPrice" maxlength="200" placeholder="Preise (z.B. Greenfee 45€, Wochenende 55€)" ' +
         'value="' + esc(club.price_info || '') + '">' +
+        '</div>' +
+        '<p class="hint" style="margin-top:14px">Koordinaten (optional, für die Karte) – ' +
+        'in Google Maps den Platz suchen, mit Rechtsklick auf die Karte die Zahlen kopieren.</p>' +
+        '<div class="form">' +
+        '<input type="number" step="any" id="cLat" placeholder="Breitengrad, z.B. 51.2277" ' +
+        'value="' + (club.lat != null ? club.lat : '') + '">' +
+        '<input type="number" step="any" id="cLng" placeholder="Längengrad, z.B. 7.0107" ' +
+        'value="' + (club.lng != null ? club.lng : '') + '">' +
         '</div><div class="actions"><button class="btn" id="btnSaveClub">Speichern</button></div></div>';
 
       // Plaetze: eingeklappt nur Name+Lochzahl+Stift, aufgeklappt (per
@@ -3554,13 +4273,17 @@ var LiveRoundNative = (function () {
 
       document.getElementById('btnSaveClub').addEventListener('click', function () {
         toast('Speichere …');
+        var latVal = document.getElementById('cLat').value.trim();
+        var lngVal = document.getElementById('cLng').value.trim();
         Club.saveClub({
           name: document.getElementById('cName').value.trim(),
           description: document.getElementById('cDesc').value.trim(),
           address: document.getElementById('cAddress').value.trim(),
           phone: document.getElementById('cPhone').value.trim(),
           website: document.getElementById('cWebsite').value.trim(),
-          price_info: document.getElementById('cPrice').value.trim()
+          price_info: document.getElementById('cPrice').value.trim(),
+          lat: latVal === '' ? null : parseFloat(latVal),
+          lng: lngVal === '' ? null : parseFloat(lngVal)
         }).then(function (r) {
           toast(r.error ? 'Hat nicht geklappt.' : 'Gespeichert.', !!r.error);
         });
@@ -3694,6 +4417,74 @@ var LiveRoundNative = (function () {
         }));
       });
     }
+  }
+
+  // Leaflet wird erst geladen, wenn die Karte (menu/map) wirklich
+  // aufgerufen wird - gleiches Nachlade-Muster wie loadJsQR() beim
+  // QR-Scanner, spart das Gewicht fuer alle, die die Karte nie oeffnen.
+  var leafletReady = null;
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve();
+    if (leafletReady) return leafletReady;
+    leafletReady = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+      s.integrity = 'sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH';
+      s.crossOrigin = 'anonymous';
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    return leafletReady;
+  }
+
+  // Karte mit allen freigeschalteten Golfplaetzen, die Koordinaten
+  // hinterlegt haben (optionales Feld in der Platzpflege, siehe
+  // Club.saveClub() weiter oben). Eigenes Pin-Symbol statt Leaflets
+  // Standardmarker, damit kein zusaetzliches Bild ueber die CSP erlaubt
+  // werden muss.
+  function renderClubMap() {
+    brand.textContent = 'Karte';
+    content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
+
+    Promise.all([Club.allClubsList(), loadLeaflet()]).then(function (res) {
+      var clubs = res[0].filter(function (c) {
+        return c.verified && c.lat != null && c.lng != null;
+      });
+
+      if (!clubs.length) {
+        content.innerHTML = '<div class="empty"><b>Noch keine Koordinaten hinterlegt</b>' +
+          'Sobald ein Golfplatz Breiten-/Längengrad einträgt, erscheint er hier.</div>';
+        return;
+      }
+
+      content.innerHTML = '<div id="clubMapEl" style="height:65vh;min-height:340px;' +
+        'border-radius:14px;overflow:hidden"></div>';
+
+      var map = L.map('clubMapEl').setView([clubs[0].lat, clubs[0].lng], 8);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" ' +
+          'target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende'
+      }).addTo(map);
+
+      var icon = L.divIcon({
+        className: 'clubpin',
+        html: '<svg viewBox="0 0 24 24" width="30" height="30">' +
+          '<path fill="#a3e635" stroke="#0b0e13" stroke-width="1" ' +
+          'd="M12 2C7.6 2 4 5.6 4 10c0 6 8 12 8 12s8-6 8-12c0-4.4-3.6-8-8-8z"/>' +
+          '<circle cx="12" cy="10" r="3" fill="#0b0e13"/></svg>',
+        iconSize: [30, 30], iconAnchor: [15, 30], popupAnchor: [0, -28]
+      });
+
+      var bounds = [];
+      clubs.forEach(function (c) {
+        var m = L.marker([c.lat, c.lng], { icon: icon, title: c.name || 'Golfplatz' }).addTo(map);
+        m.bindPopup(esc(c.name || 'Golfplatz'));
+        m.on('click', function () { location.hash = 'club/' + c.id; route(); });
+        bounds.push([c.lat, c.lng]);
+      });
+      if (bounds.length > 1) map.fitBounds(bounds, { padding: [32, 32] });
+    });
   }
 
   // Golfplaetze suchen und folgen (menu/clubs) - die volle Liste aller
@@ -3916,6 +4707,13 @@ var LiveRoundNative = (function () {
         '<input type="text" id="cAdminPrice" maxlength="200" placeholder="Preise (z.B. Greenfee 45€, Wochenende 55€)" ' +
         'value="' + esc(club.price_info || '') + '">' +
         '</div>' +
+        '<p class="hint" style="margin-top:14px">Koordinaten (optional, für die Karte)</p>' +
+        '<div class="form">' +
+        '<input type="number" step="any" id="cAdminLat" placeholder="Breitengrad" ' +
+        'value="' + (club.lat != null ? club.lat : '') + '">' +
+        '<input type="number" step="any" id="cAdminLng" placeholder="Längengrad" ' +
+        'value="' + (club.lng != null ? club.lng : '') + '">' +
+        '</div>' +
         '<label class="switchrow"><input type="checkbox" id="cAdminVerified"' +
         (club.verified ? ' checked' : '') + '> Für Spieler sichtbar (freigeschaltet)</label>' +
         '<div class="actions"><button class="btn" id="btnSaveAdminClub">Speichern</button></div></div>' +
@@ -3925,6 +4723,8 @@ var LiveRoundNative = (function () {
 
       document.getElementById('btnSaveAdminClub').addEventListener('click', function () {
         toast('Speichere …');
+        var latVal = document.getElementById('cAdminLat').value.trim();
+        var lngVal = document.getElementById('cAdminLng').value.trim();
         Club.saveClub({
           name: document.getElementById('cAdminName').value.trim(),
           description: document.getElementById('cAdminDesc').value.trim(),
@@ -3932,6 +4732,8 @@ var LiveRoundNative = (function () {
           phone: document.getElementById('cAdminPhone').value.trim(),
           website: document.getElementById('cAdminWebsite').value.trim(),
           price_info: document.getElementById('cAdminPrice').value.trim(),
+          lat: latVal === '' ? null : parseFloat(latVal),
+          lng: lngVal === '' ? null : parseFloat(lngVal),
           verified: document.getElementById('cAdminVerified').checked
         }, clubId).then(function (r) {
           toast(r.error ? 'Hat nicht geklappt.' : 'Gespeichert.', !!r.error);
@@ -4196,6 +4998,40 @@ var LiveRoundNative = (function () {
   // Reiner Aktivitaets-Feed (Ziel der unteren Leiste, Hash menu/friends) -
   // die eigentliche Freundesliste/Anfragen/Verwalten stecken seit dieser
   // Runde in renderFriendList() (eigener Menuepunkt, siehe menuDef()).
+  // Benachrichtigungspunkt am Feed-Symbol der unteren Leiste: an, wenn es
+  // offene Freundschaftsanfragen gibt ODER seit dem letzten Feed-Besuch
+  // eine neue Runde eines Freundes dazugekommen ist. Der Zeitpunkt des
+  // letzten Besuchs liegt bewusst nur lokal (localStorage), keine eigene
+  // Datenbank-Spalte noetig - eine Anfrage bleibt als Punkt sichtbar, bis
+  // sie beantwortet wurde, das ist Absicht.
+  function feedSeenKey() { return 'pc_feed_seen_' + (Auth.id() || ''); }
+  function getFeedSeenAt() {
+    try { return parseInt(localStorage.getItem(feedSeenKey()) || '0', 10) || 0; }
+    catch (e) { return 0; }
+  }
+  function setFeedSeenNow() {
+    try { localStorage.setItem(feedSeenKey(), String(Date.now())); } catch (e) {}
+  }
+  function setFeedDot(on) {
+    var btn = document.querySelector('[data-tab="friends"]');
+    if (!btn) return;
+    var dot = btn.querySelector('.navdot');
+    if (on && !dot) {
+      dot = document.createElement('span'); dot.className = 'navdot'; btn.appendChild(dot);
+    } else if (!on && dot) {
+      dot.parentNode.removeChild(dot);
+    }
+  }
+  function refreshFeedDot() {
+    if (!Auth.id() || !Auth.isOnline()) { setFeedDot(false); return; }
+    Promise.all([Friends.list(), Friends.feed(1)]).then(function (res) {
+      var data = res[0], feed = res[1];
+      var hasIncoming = !!(data.incoming && data.incoming.length);
+      var newestAt = feed.length ? new Date(feed[0].row.created_at).getTime() : 0;
+      setFeedDot(hasIncoming || newestAt > getFeedSeenAt());
+    });
+  }
+
   function renderFeed() {
     brand.textContent = 'Feed';
 
@@ -4214,8 +5050,28 @@ var LiveRoundNative = (function () {
 
     content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
 
-    Friends.feed(15).then(function (feed) {
-      var html = feed.length
+    Promise.all([Friends.list(), Friends.feed(15)]).then(function (res) {
+      var data = res[0], feed = res[1];
+
+      var html = '';
+      if (data.incoming.length) {
+        html += '<div class="sectionhead"><span class="t">Offene Anfragen</span>' +
+                '<span class="c">' + data.incoming.length + '</span></div><div class="list">' +
+          data.incoming.map(function (f) {
+            return '<div class="item static">' +
+              avaHtml(f.avatarUrl, nameOf(f), '', '', badgeTypeFor(f.isAdmin, f.verifiedRole)) +
+              '<span class="meta"><span class="d">' + esc(nameOf(f)) + '</span>' +
+              '<span class="s">m\u00f6chte sich verbinden</span></span>' +
+              '<span class="btnrow">' +
+              '<button class="mini ok" data-accept="' + f.id + '">' + I.check + '</button>' +
+              '<button class="mini no" data-drop="' + f.id + '">' + I.x + '</button>' +
+              '</span></div>';
+          }).join('') + '</div>';
+      }
+
+      html += '<div class="sectionhead"' + (data.incoming.length ? ' style="margin-top:22px"' : '') +
+              '><span class="t">Aktivit\u00e4t</span></div>';
+      html += feed.length
         ? '<div class="list">' + feed.map(function (e) {
             var parsed = parseCode(e.row.code);
             var hashCode = (e.row.date ? e.row.date + '-' : '') + e.row.code;
@@ -4234,6 +5090,8 @@ var LiveRoundNative = (function () {
               '<button class="btn ghost" id="btnGoFriendList">' + I.users + 'Freunde verwalten</button></div>';
 
       content.innerHTML = html;
+      setFeedSeenNow();
+      refreshFeedDot();
 
       document.getElementById('btnGoFriendList').addEventListener('click', function () {
         location.hash = 'menu/friendlist'; route();
@@ -4241,6 +5099,21 @@ var LiveRoundNative = (function () {
       Array.prototype.forEach.call(content.querySelectorAll('[data-feed]'), function (el) {
         el.addEventListener('click', function () {
           location.hash = 'friend/' + el.getAttribute('data-feed'); route();
+        });
+      });
+      Array.prototype.forEach.call(content.querySelectorAll('[data-accept]'), function (el) {
+        el.addEventListener('click', function () {
+          Friends.accept(el.getAttribute('data-accept')).then(function (r) {
+            toast(r.error ? 'Hat nicht geklappt.' : 'Best\u00e4tigt.', !!r.error);
+            renderFeed();
+          });
+        });
+      });
+      Array.prototype.forEach.call(content.querySelectorAll('[data-drop]'), function (el) {
+        el.addEventListener('click', function () {
+          Friends.remove(el.getAttribute('data-drop')).then(function () {
+            toast('Entfernt.'); renderFeed();
+          });
         });
       });
     });
@@ -4784,6 +5657,323 @@ var LiveRoundNative = (function () {
     }).join('');
   }
 
+  // Modul-Ebene statt in renderManualEntry() verschachtelt (dort urspruenglich
+  // definiert): renderLiveWizard() unten braucht sie auch nach einem Neuladen
+  // der Seite erreichbar, wenn renderManualEntry() diese Sitzung nie gelaufen
+  // ist (siehe Live weiter unten). Haengt an nichts aus renderManualEntry's
+  // Abschluss, konnte deshalb gefahrlos rausgezogen werden.
+  function finishManual(dateCode, holesArr, roundLocation, playmates) {
+    var code = holesToCode(holesArr);
+    Store.add(code, dateCode, { location:roundLocation || null, playmates:playmates || null });
+    location.hash = dateCode + '-' + code;
+    route();
+    toast('Runde gespeichert.');
+  }
+
+  /* ==========================================================
+     Live-Runde im Hintergrund
+     Haelt den Stand einer laufenden Live-Runde (Loch, Ergebnisse, Par/
+     Schlaege) ausserhalb der eigentlichen Bildschirm-Funktion fest, damit
+     man waehrenddessen frei in der App navigieren kann, ohne die Runde zu
+     verwerfen - und damit sie sogar ein Neuladen der Seite uebersteht
+     (iOS killt im Hintergrund liegende Browser-Tabs gerne). Nur fuer
+     "Live spielen" (goLive() in renderManualEntry) gedacht; die
+     nachtraegliche "Ergebnisse eintragen"-Eingabe (startHoleWizard() mit
+     startAt=4) bleibt bewusst die einfache, nicht fortsetzbare Vollbild-
+     Eingabe von vorher - dafuer besteht kein Bedarf, das dauert Sekunden.
+     ========================================================== */
+  var Live = {
+    state: null,
+    key: 'pc_live_round',
+    start: function (cfg) {
+      this.state = {
+        dateCode: cfg.dateCode, totalHoles: cfg.totalHoles, fixedPars: cfg.fixedPars,
+        course: cfg.course, idx: 0, acc: [],
+        par: cfg.fixedPars ? cfg.fixedPars[0] : 4, sc: 0,
+        roundLocation: '', selectedPlaymates: {}
+      };
+      this.save();
+    },
+    save: function () {
+      try {
+        if (this.state) localStorage.setItem(this.key, JSON.stringify(this.state));
+        else localStorage.removeItem(this.key);
+      } catch (e) {}
+    },
+    restore: function () {
+      try {
+        var raw = localStorage.getItem(this.key);
+        if (raw) this.state = JSON.parse(raw);
+      } catch (e) { this.state = null; }
+    },
+    clear: function () {
+      this.state = null;
+      try { localStorage.removeItem(this.key); } catch (e) {}
+    }
+  };
+  Live.restore();
+
+  // Zeigt/versteckt die feste Leiste ueber der unteren Navigation
+  // ("Live: Loch x/y ... Weiterspielen") - lebt ausserhalb von #content,
+  // damit sie jeden Seitenwechsel unbeschadet uebersteht. Wird zentral aus
+  // route() heraus aktualisiert, bei jeder Navigation neu.
+  function updateLiveBanner(raw) {
+    var el = document.getElementById('liveBanner');
+    if (!el) return;
+    if (!Live.state || raw === 'live') { el.classList.add('hidden'); return; }
+    var st = Live.state;
+    var sumPar = st.par, sumSc = st.sc;
+    st.acc.forEach(function (h) { sumPar += h.par; sumSc += h.sc; });
+    var diff = sumSc - sumPar;
+    document.getElementById('liveBannerText').textContent =
+      'Live: Loch ' + (st.idx + 1) + ' von ' + st.totalHoles + ' · ' + sign(diff);
+    el.classList.remove('hidden');
+  }
+
+  // Eigene, von renderManualEntry() unabhaengige Bildschirm-Funktion (siehe
+  // Kommentar bei finishManual oben) - baut ihren #manualMobile-Container
+  // selbst, exakt wie startHoleWizard() es tut, nur dass Loch-Index,
+  // Ergebnisse, Par/Schlaege nicht in lokalen Variablen verschwinden,
+  // sondern nach jeder Aenderung in Live.state (+localStorage) landen.
+  function renderLiveWizard() {
+    if (!Live.state) { location.hash = ''; route(); return; }
+    var st = Live.state;
+    var dateCode = st.dateCode, totalHoles = st.totalHoles, fixedPars = st.fixedPars, course = st.course;
+    var courseLabel = course ? (course.clubName + ' – ' + (course.name || 'Platz')) : '';
+
+    content.innerHTML = '<div class="mobile-only" id="manualMobile"></div>';
+    var mobileEl = document.getElementById('manualMobile');
+    document.body.classList.add('wizard-fullscreen');
+    content.classList.remove('fadein');
+
+    var playmateFriends = [];
+    if (!course) {
+      Friends.list().then(function (d) { playmateFriends = d.friends || []; });
+    }
+
+    function currentDiff() {
+      var sumPar = 0, sumSc = 0;
+      st.acc.forEach(function (h) { sumPar += h.par; sumSc += h.sc; });
+      return sumSc - sumPar;
+    }
+    function pushLive() {
+      LiveRoundNative.update({ hole: st.idx + 1, totalHoles: totalHoles, par: st.par, strokes: st.sc,
+                                diff: currentDiff() });
+      Live.save();
+    }
+
+    function renderStep(animateIn) {
+      var diff = currentDiff();
+      mobileEl.innerHTML =
+        '<div class="panel wizardpanel">' +
+        '<div class="wizardfade' + (animateIn ? ' stepenter' : '') + '">' +
+        '<div class="wizardtop">' +
+        '<button type="button" class="mini no" id="mWizardClose" title="Abbrechen">' + I.x + '</button>' +
+        (courseLabel ? '<span class="wizardcoursename">' + esc(courseLabel) + '</span>' : '') +
+        '<button type="button" class="mini" id="mWizardMinimize" title="Minimieren">' + I.back + '</button>' +
+        (course ? '<button type="button" class="mini" id="mWizardInfo" title="Loch-Info">' + I.info + '</button>' : '') +
+        '</div>' +
+        '<div class="wizardscore" style="color:' + colorOf(diff) + '">' + sign(diff) + '</div>' +
+        '<div class="wizardmid">' +
+        '<div class="holeprogress">Loch ' + (st.idx + 1) + ' von ' + totalHoles + '</div>' +
+        '<div class="stepperrow"><span class="steppertitle">Par</span>' +
+        (fixedPars
+          ? '<span class="steppertitle">' + st.par + '</span>'
+          : '<div class="stepper"><button type="button" id="mParMinus">−</button>' +
+            '<span id="mParVal">' + st.par + '</span>' +
+            '<button type="button" id="mParPlus">+</button></div>') +
+        '</div>' +
+        '<div class="stepperrow"><span class="steppertitle">Schläge</span>' +
+        '<div class="stepper"><button type="button" id="mScMinus">−</button>' +
+        '<span id="mScVal">' + st.sc + '</span>' +
+        '<button type="button" id="mScPlus">+</button></div></div>' +
+        ((st.idx === totalHoles - 1 && !course)
+          ? '<div class="form" style="margin-top:18px">' +
+            '<input type="text" id="mLocation" maxlength="80" placeholder="Wo gespielt? (optional)" ' +
+            'value="' + esc(st.roundLocation || '') + '"></div>' +
+            (playmateFriends.length
+              ? '<p class="hint" style="margin:0 0 8px;text-align:left">Mit wem gespielt?</p>' +
+                '<div class="pickrow" id="mPlaymates">' + playmateFriends.map(function (f) {
+                  return '<button type="button" class="pickava' +
+                    (st.selectedPlaymates[f.userId] ? ' on' : '') + '" data-uid="' + f.userId + '">' +
+                    avaHtml(f.avatarUrl, nameOf(f), '', '', badgeTypeFor(f.isAdmin, f.verifiedRole)) +
+                    '<span class="fname">' + esc(nameOf(f)) + '</span></button>';
+                }).join('') + '</div>'
+              : '')
+          : '') +
+        '</div>' +
+        '</div>' +
+        '<div class="actions">' +
+        '<div class="slidewrap" id="mHoleNextWrap">' +
+        '<div class="slidefill" id="mHoleNextFill"></div>' +
+        '<span class="slidelabel">' +
+        (st.idx === totalHoles - 1 ? 'Speichern' : 'Zum nächsten Loch') +
+        '</span>' +
+        '<div class="slidethumb" id="mHoleNextThumb">' +
+        '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>' +
+        '</div></div></div>' +
+        '</div>';
+
+      if (!fixedPars) {
+        document.getElementById('mParMinus').addEventListener('click', function () {
+          st.par = Math.max(3, st.par - 1); document.getElementById('mParVal').textContent = st.par;
+          pushLive();
+        });
+        document.getElementById('mParPlus').addEventListener('click', function () {
+          st.par = Math.min(6, st.par + 1); document.getElementById('mParVal').textContent = st.par;
+          pushLive();
+        });
+      }
+      document.getElementById('mScMinus').addEventListener('click', function () {
+        st.sc = Math.max(0, st.sc - 1); document.getElementById('mScVal').textContent = st.sc;
+        pushLive();
+      });
+      document.getElementById('mScPlus').addEventListener('click', function () {
+        st.sc = Math.min(15, st.sc + 1); document.getElementById('mScVal').textContent = st.sc;
+        pushLive();
+      });
+      var playmatesEl = document.getElementById('mPlaymates');
+      if (playmatesEl) {
+        Array.prototype.forEach.call(playmatesEl.querySelectorAll('.pickava'), function (btn) {
+          btn.addEventListener('click', function () {
+            var uid = btn.getAttribute('data-uid');
+            btn.classList.toggle('on');
+            if (btn.classList.contains('on')) st.selectedPlaymates[uid] = true;
+            else delete st.selectedPlaymates[uid];
+            Live.save();
+          });
+        });
+      }
+      var locEl = document.getElementById('mLocation');
+      if (locEl) {
+        locEl.addEventListener('input', function () { st.roundLocation = locEl.value; Live.save(); });
+      }
+      document.getElementById('mWizardClose').addEventListener('click', function () {
+        if (st.idx === 0) {
+          Live.clear(); LiveRoundNative.end(); location.hash = ''; route(); return;
+        }
+        confirmDialog('Laufende Runde verwerfen?', 'Verwerfen').then(function (ok) {
+          if (!ok) return;
+          Live.clear(); LiveRoundNative.end();
+          location.hash = ''; route();
+        });
+      });
+      document.getElementById('mWizardMinimize').addEventListener('click', function () {
+        location.hash = ''; route();
+      });
+      var infoBtn = document.getElementById('mWizardInfo');
+      if (infoBtn) {
+        infoBtn.addEventListener('click', function () {
+          var dm = (course.distMen || [])[st.idx];
+          var dw = (course.distWomen || [])[st.idx];
+          var hasInfo = dm != null || dw != null;
+          document.getElementById('holeInfoContent').innerHTML =
+            '<h3 style="margin-top:0">Loch ' + (st.idx + 1) + '</h3>' +
+            (hasInfo
+              ? '<div class="list">' +
+                (dm != null ? '<div class="item static"><span class="meta"><span class="d">Herrenabschlag</span>' +
+                  '<span class="s">' + dm + ' m bis zum Loch</span></span></div>' : '') +
+                (dw != null ? '<div class="item static"><span class="meta"><span class="d">Damenabschlag</span>' +
+                  '<span class="s">' + dw + ' m bis zum Loch</span></span></div>' : '') +
+                '</div>'
+              : '<p class="hint" style="margin:0">Keine Zusatzinfos für dieses Loch hinterlegt.</p>');
+          openHoleInfo();
+        });
+      }
+      setupSlideToAdvance();
+      if (animateIn) {
+        var fadeEl = mobileEl.querySelector('.wizardfade');
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () { fadeEl.classList.remove('stepenter'); });
+        });
+      }
+    }
+
+    function advanceHole() {
+      st.acc.push({ par:st.par, sc:st.sc });
+      st.idx++;
+      if (st.idx >= totalHoles) {
+        var loc = courseLabel || (st.roundLocation || '').trim() || null;
+        var mates = Object.keys(st.selectedPlaymates);
+        var finishedDate = dateCode, finishedAcc = st.acc;
+        Live.clear();
+        LiveRoundNative.end();
+        finishManual(finishedDate, finishedAcc, loc, mates.length ? mates : null);
+      } else {
+        st.par = fixedPars ? fixedPars[st.idx] : 4; st.sc = 0;
+        Live.save();
+        renderStep(true);
+        pushLive();
+      }
+    }
+
+    function setupSlideToAdvance() {
+      var wrap = document.getElementById('mHoleNextWrap');
+      var thumb = document.getElementById('mHoleNextThumb');
+      var fill = document.getElementById('mHoleNextFill');
+      var dragging = false, startX = 0, maxX = 0, done = false, curX = 0;
+
+      function thumbW() { return thumb.offsetWidth; }
+      function setX(x) {
+        x = Math.max(0, Math.min(maxX, x));
+        thumb.style.transform = 'translateX(' + x + 'px)';
+        fill.style.width = (x + thumbW() / 2) + 'px';
+        return x;
+      }
+      function snapBack() {
+        thumb.style.transition = 'transform .25s ease';
+        fill.style.transition = 'width .25s ease';
+        setX(0);
+        setTimeout(function () { thumb.style.transition = ''; fill.style.transition = ''; }, 260);
+      }
+      function playAdvanceAnimation() {
+        thumb.style.transition = 'transform .5s cubic-bezier(.34,1.56,.64,1)';
+        fill.style.transition = 'width .35s ease, opacity .3s ease';
+        fill.style.opacity = '0';
+        setX(0);
+        var fadeEl = mobileEl.querySelector('.wizardfade');
+        if (fadeEl) fadeEl.classList.add('stepexit');
+        setTimeout(advanceHole, 260);
+      }
+
+      thumb.addEventListener('pointerdown', function (e) {
+        if (done) return;
+        dragging = true;
+        maxX = wrap.getBoundingClientRect().width - thumbW() - 8;
+        startX = e.clientX;
+        curX = 0;
+        thumb.style.transition = ''; fill.style.transition = '';
+        thumb.setPointerCapture(e.pointerId);
+      });
+      thumb.addEventListener('pointermove', function (e) {
+        if (!dragging) return;
+        curX = setX(e.clientX - startX);
+      });
+      function endDrag() {
+        if (!dragging) return;
+        dragging = false;
+        if (curX >= maxX * 0.9) {
+          done = true;
+          setX(maxX);
+          playAdvanceAnimation();
+        } else {
+          snapBack();
+        }
+      }
+      thumb.addEventListener('pointerup', endDrag);
+      thumb.addEventListener('pointercancel', endDrag);
+    }
+
+    // Bei einer neuen Runde (idx===0, noch nichts gespeichert) die
+    // Sperrbildschirm-Anzeige starten - beim Fortsetzen nach Navigation/
+    // Neuladen laeuft sie (auf dem Geraet) ohnehin schon.
+    if (st.idx === 0 && !st.acc.length) {
+      LiveRoundNative.start({ courseName: courseLabel || 'Pocket Caddy', totalHoles: totalHoles,
+        hole: 1, par: st.par, strokes: st.sc, diff: 0 });
+    }
+    renderStep();
+  }
+
   function renderManualEntry(preselect) {
     brand.textContent = 'Manuell eintragen';
     var todayInput = codeToInput(todayCode());
@@ -4981,7 +6171,8 @@ var LiveRoundNative = (function () {
       }
       function goLive() {
         var dateCode = inputToCode(document.getElementById('mDate').value) || todayCode();
-        startHoleWizard(dateCode, holes, clubPars, 0, selectedCourse);
+        Live.start({ dateCode:dateCode, totalHoles:holes, fixedPars:clubPars, course:selectedCourse });
+        location.hash = 'live'; route();
       }
       document.getElementById('mNext').addEventListener('click', goErgebnisse);
       document.getElementById('mLive').addEventListener('click', goLive);
@@ -5279,14 +6470,6 @@ var LiveRoundNative = (function () {
           hole: 1, par: par, strokes: sc, diff: 0 });
       }
       renderStep();
-    }
-
-    function finishManual(dateCode, holesArr, roundLocation, playmates) {
-      var code = holesToCode(holesArr);
-      Store.add(code, dateCode, { location:roundLocation || null, playmates:playmates || null });
-      location.hash = dateCode + '-' + code;
-      route();
-      toast('Runde gespeichert.');
     }
 
     // Desktop-Fassung: statt Schritt-fuer-Schritt-Assistent gleich alle
@@ -5743,6 +6926,13 @@ var LiveRoundNative = (function () {
         '</div>';
 
       document.getElementById('btnGoogle').addEventListener('click', function () {
+        // Bei der Registrierung gilt dieselbe Pflicht wie beim E-Mail-Weg:
+        // ohne Haekchen keine Anmeldung. Im normalen "Anmelden"-Bildschirm
+        // gibt es das Haekchen nicht (bestehende Nutzer haben schon
+        // zugestimmt), dort greift diese Pruefung folglich nicht.
+        if (up && !document.getElementById('fConsent').checked) {
+          toast('Bitte bestätige die Datenschutzerklärung.', true); return;
+        }
         toast('Weiterleitung zu Google …');
         Auth.signInWithProvider('google').then(function (r) {
           if (r && r.error) toast(loginError(r.error), true);
@@ -6103,8 +7293,13 @@ var LiveRoundNative = (function () {
     lastRoutedRaw = raw;
     closeMenu(); closeScanChoice(); closeHoleInfo(); window.scrollTo(0,0);
     document.body.classList.remove('wizard-fullscreen');
-    LiveRoundNative.end();
     updateSidebarProfile();
+    // LiveRoundNative.end() NICHT mehr hier unbedingt - eine Live-Runde
+    // (siehe Live weiter oben) soll beim blossen Wegnavigieren gerade NICHT
+    // enden, das waere sonst der Sperrbildschirm-Anzeige und dem "im
+    // Hintergrund weiterspielen" im Weg. Beendet wird sie gezielt in
+    // renderLiveWizard() (Abbrechen bestaetigt / Runde fertig).
+    updateLiveBanner(raw);
 
     // Golfplatz-Konten sehen keine Spieler-Seiten (Statistik, Runde
     // Ohne Konto kommt man nicht in die App - einzige Ausnahmen sind die
@@ -6204,6 +7399,8 @@ var LiveRoundNative = (function () {
     if (raw === 'menu/about')  { renderAbout();      addLoggedOutBack(); return; }
     if (raw === 'menu/offers') { renderClubOffers(); return; }
     if (raw === 'menu/clubs')  { renderClubSearch(); return; }
+    if (raw === 'menu/map')    { renderClubMap(); return; }
+    if (raw === 'live')        { renderLiveWizard(); return; }
     if (raw === 'menu/admin')  { renderAdmin();      return; }
     if (Object.prototype.hasOwnProperty.call(PAGES, raw)) { renderPlaceholder(raw); return; }
 
@@ -6242,7 +7439,7 @@ var LiveRoundNative = (function () {
 
   // Erst den Kontostand ermitteln, dann zeichnen. Sonst wuerde kurz die
   // Ablage ohne Anmeldung angezeigt und danach umspringen.
-  Auth.onChange(function () { buildMenu(); route(); });
+  Auth.onChange(function () { buildMenu(); route(); refreshFeedDot(); });
 
   // Boot-Screen erst wieder wegnehmen, wenn BEIDES fertig ist: die feste
   // Animationsdauer (unten, Timeout) UND der Auth-Kontostand (hier) - je
