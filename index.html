@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://hieaduzvsqkwvdxfscoo.supabase.co https://*.tile.openstreetmap.org; media-src 'self' blob:; connect-src 'self' https://hieaduzvsqkwvdxfscoo.supabase.co wss://hieaduzvsqkwvdxfscoo.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://hieaduzvsqkwvdxfscoo.supabase.co https://*.tile.openstreetmap.org; media-src 'self' blob:; connect-src 'self' https://hieaduzvsqkwvdxfscoo.supabase.co wss://hieaduzvsqkwvdxfscoo.supabase.co https://challenges.cloudflare.com https://nominatim.openstreetmap.org; frame-src https://challenges.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#101217">
 <title>Pocket Caddy</title>
@@ -180,6 +180,7 @@
            align-items:center;gap:6px;cursor:pointer;color:inherit;font:inherit;width:58px}
   .pickava .ava{transition:box-shadow .15s ease}
   .pickava.on .ava{box-shadow:0 0 0 3px var(--lime)}
+  .pickava:disabled{opacity:.35;cursor:not-allowed}
   .pickava .fname{font-size:11.5px;color:var(--mut);text-align:center;
                   max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .linklike{color:var(--mut);font-size:13px;text-decoration:underline;
@@ -1667,7 +1668,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.50';
+var APP_VERSION = '0.51';
 
 /* Sperrbildschirm-Anzeige (iOS Live Activity) fuer live gespielte Runden.
    Nur in der nativen Capacitor-App vorhanden - im Browser/PWA sind alle
@@ -3669,6 +3670,7 @@ var LiveRoundNative = (function () {
                       id: e.id, title: e.title, date: e.event_date,
                       location: e.location, creator: e.creator,
                       clubId: e.club_id, courseId: e.course_id,
+                      isOpen: !!e.is_open,
                       isMine: e.creator === me,
                       creatorName: names[e.creator] || 'Spieler',
                       invites: evInvites.map(function (i) {
@@ -3695,7 +3697,8 @@ var LiveRoundNative = (function () {
       return db().from('events').insert({
         creator: me, title: data.title || 'Golfrunde',
         event_date: data.date, location: data.location || null,
-        club_id: data.clubId || null, course_id: data.courseId || null
+        club_id: data.clubId || null, course_id: data.courseId || null,
+        is_open: !!data.isOpen
       }).select().single().then(function (r) {
         if (r.error) throw r.error;
         var ev = r.data;
@@ -3726,7 +3729,29 @@ var LiveRoundNative = (function () {
       return db().from('events').update({ deleted:true }).eq('id', eventId);
     }
 
-    return { list:list, create:create, respond:respond, cancelEvent:cancelEvent };
+    // Fuer weitere Mitspieler oeffnen/schliessen - reines Update ueber die
+    // schon vorhandene Ersteller-Policy, keine neue Berechtigung noetig.
+    function setOpen(eventId, on) {
+      return db().from('events').update({ is_open: !!on }).eq('id', eventId);
+    }
+
+    // Offene Runden an einem Golfplatz - security-definer-Funktion, damit
+    // fremde Nutzer keine event_invites-Zeilen anderer lesen muessen, nur
+    // das Aggregat (siehe datenbank/21_termine_limit_offen.sql).
+    function listOpenEvents(clubId) {
+      return db().rpc('list_open_events', { p_club_id: clubId })
+        .then(function (r) { if (r.error) throw r.error; return r.data || []; })
+        .catch(function () { return []; });
+    }
+
+    // Selbst einer offenen Runde beitreten - Kapazitaet/Status werden
+    // serverseitig geprueft (join_open_event()), hier nur der Aufruf.
+    function joinOpenEvent(eventId) {
+      return db().rpc('join_open_event', { p_event_id: eventId });
+    }
+
+    return { list:list, create:create, respond:respond, cancelEvent:cancelEvent,
+             setOpen:setOpen, listOpenEvents:listOpenEvents, joinOpenEvent:joinOpenEvent };
   })();
 
   /* ==========================================================
@@ -4272,21 +4297,32 @@ var LiveRoundNative = (function () {
       content.innerHTML = html;
 
       document.getElementById('btnSaveClub').addEventListener('click', function () {
-        toast('Speichere …');
-        var latVal = document.getElementById('cLat').value.trim();
-        var lngVal = document.getElementById('cLng').value.trim();
-        Club.saveClub({
+        var latEl = document.getElementById('cLat'), lngEl = document.getElementById('cLng');
+        var fields = {
           name: document.getElementById('cName').value.trim(),
           description: document.getElementById('cDesc').value.trim(),
           address: document.getElementById('cAddress').value.trim(),
           phone: document.getElementById('cPhone').value.trim(),
           website: document.getElementById('cWebsite').value.trim(),
-          price_info: document.getElementById('cPrice').value.trim(),
-          lat: latVal === '' ? null : parseFloat(latVal),
-          lng: lngVal === '' ? null : parseFloat(lngVal)
-        }).then(function (r) {
-          toast(r.error ? 'Hat nicht geklappt.' : 'Gespeichert.', !!r.error);
-        });
+          price_info: document.getElementById('cPrice').value.trim()
+        };
+        function doSave(lat, lng) {
+          toast('Speichere …');
+          fields.lat = lat; fields.lng = lng;
+          Club.saveClub(fields).then(function (r) {
+            toast(r.error ? 'Hat nicht geklappt.' : 'Gespeichert.', !!r.error);
+          });
+        }
+        var latVal = latEl.value.trim(), lngVal = lngEl.value.trim();
+        if (latVal === '' && lngVal === '' && fields.address) {
+          toast('Ermittle Koordinaten …');
+          geocodeAddress(fields.address).then(function (pos) {
+            if (pos) { latEl.value = pos.lat; lngEl.value = pos.lng; }
+            doSave(pos ? pos.lat : null, pos ? pos.lng : null);
+          });
+        } else {
+          doSave(latVal === '' ? null : parseFloat(latVal), lngVal === '' ? null : parseFloat(lngVal));
+        }
       });
 
       mountCoursesEditor(document.getElementById('clubCoursesList'),
@@ -4423,6 +4459,22 @@ var LiveRoundNative = (function () {
   // aufgerufen wird - gleiches Nachlade-Muster wie loadJsQR() beim
   // QR-Scanner, spart das Gewicht fuer alle, die die Karte nie oeffnen.
   var leafletReady = null;
+  // Ermittelt Breiten-/Laengengrad aus einer freien Adresse ueber die
+  // kostenlose OpenStreetMap-Suche (Nominatim) - genutzt beim Speichern
+  // der Platz-Stammdaten, wenn die Koordinaten-Felder noch leer sind.
+  // Liefert null bei keinem Treffer oder Netzwerkfehler, blockiert das
+  // eigentliche Speichern dann nicht.
+  function geocodeAddress(address) {
+    var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=de&q=' +
+      encodeURIComponent(address);
+    return fetch(url).then(function (res) { return res.ok ? res.json() : []; })
+      .then(function (hits) {
+        if (!hits || !hits[0]) return null;
+        return { lat: parseFloat(hits[0].lat), lng: parseFloat(hits[0].lon) };
+      })
+      .catch(function () { return null; });
+  }
+
   function loadLeaflet() {
     if (window.L) return Promise.resolve();
     if (leafletReady) return leafletReady;
@@ -4564,9 +4616,11 @@ var LiveRoundNative = (function () {
     brand.textContent = 'Golfplatz';
     content.innerHTML = '<div class="loadwrap"><div class="spinner"></div></div>';
 
-    Promise.all([Club.clubById(id), Club.coursesOf(id), Club.offersOf(id), Club.isFollowing(id)]).then(function (res) {
+    Promise.all([Club.clubById(id), Club.coursesOf(id), Club.offersOf(id), Club.isFollowing(id),
+                 Planner.listOpenEvents(id)]).then(function (res) {
       var club = res[0], courses = res[1], offers = res[2];
       var following = res[3];
+      var openEvents = res[4];
       if (!club) {
         content.innerHTML = '<div class="empty"><b>Kein Zugriff</b>' +
           'Dieser Golfplatz ist nicht (mehr) verfügbar.</div>';
@@ -4622,6 +4676,25 @@ var LiveRoundNative = (function () {
               '<span class="chev">' + I.chev + '</span></button>';
           }).join('') + '</div>';
 
+      if (openEvents.length) {
+        var myId = Auth.id();
+        html += '<div class="sectionhead" style="margin-top:22px"><span class="t">Offene Runden</span>' +
+          '<span class="c">' + openEvents.length + '</span></div><div class="list">';
+        openEvents.forEach(function (oe) {
+          var free = oe.capacity - oe.taken;
+          html += '<div class="event">' +
+            '<div class="eventtitle">' + esc(oe.title || 'Golfrunde') + '</div>' +
+            '<div class="eventhead"><span class="eventdate">' + fmtDateTime(oe.event_date) + '</span></div>' +
+            '<div class="eventwho">Von ' + esc(oe.creator_name) + ' · ' + free +
+            (free === 1 ? ' Platz frei' : ' Plätze frei') + '</div>' +
+            (myId && oe.creator !== myId
+              ? '<div class="actions tight"><button class="btn ghost" data-join-open="' + oe.id + '">Mitspielen</button></div>'
+              : '') +
+            '</div>';
+        });
+        html += '</div>';
+      }
+
       if (offers.length) {
         html += '<div class="sectionhead" style="margin-top:22px"><span class="t">Angebote</span>' +
           '<span class="c">' + offers.length + '</span></div><div class="list">';
@@ -4661,6 +4734,16 @@ var LiveRoundNative = (function () {
         } else {
           doToggle();
         }
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-join-open]'), function (el) {
+        el.addEventListener('click', function () {
+          if (!Auth.id()) { toast('Bitte zuerst anmelden.', true); return; }
+          Planner.joinOpenEvent(el.getAttribute('data-join-open')).then(function (r) {
+            if (r.error) { toast(r.error.message || 'Hat nicht geklappt.', true); return; }
+            toast('Zugesagt! Steht jetzt unter „Planen“.');
+            renderClubProfile(id);
+          });
+        });
       });
       Array.prototype.forEach.call(document.querySelectorAll('[data-course]'), function (el) {
         el.addEventListener('click', function () {
@@ -4722,22 +4805,33 @@ var LiveRoundNative = (function () {
         '+ Neuen Platz anlegen</button></div></div>';
 
       document.getElementById('btnSaveAdminClub').addEventListener('click', function () {
-        toast('Speichere …');
-        var latVal = document.getElementById('cAdminLat').value.trim();
-        var lngVal = document.getElementById('cAdminLng').value.trim();
-        Club.saveClub({
+        var latEl = document.getElementById('cAdminLat'), lngEl = document.getElementById('cAdminLng');
+        var fields = {
           name: document.getElementById('cAdminName').value.trim(),
           description: document.getElementById('cAdminDesc').value.trim(),
           address: document.getElementById('cAdminAddress').value.trim(),
           phone: document.getElementById('cAdminPhone').value.trim(),
           website: document.getElementById('cAdminWebsite').value.trim(),
           price_info: document.getElementById('cAdminPrice').value.trim(),
-          lat: latVal === '' ? null : parseFloat(latVal),
-          lng: lngVal === '' ? null : parseFloat(lngVal),
           verified: document.getElementById('cAdminVerified').checked
-        }, clubId).then(function (r) {
-          toast(r.error ? 'Hat nicht geklappt.' : 'Gespeichert.', !!r.error);
-        });
+        };
+        function doSave(lat, lng) {
+          toast('Speichere …');
+          fields.lat = lat; fields.lng = lng;
+          Club.saveClub(fields, clubId).then(function (r) {
+            toast(r.error ? 'Hat nicht geklappt.' : 'Gespeichert.', !!r.error);
+          });
+        }
+        var latVal = latEl.value.trim(), lngVal = lngEl.value.trim();
+        if (latVal === '' && lngVal === '' && fields.address) {
+          toast('Ermittle Koordinaten …');
+          geocodeAddress(fields.address).then(function (pos) {
+            if (pos) { latEl.value = pos.lat; lngEl.value = pos.lng; }
+            doSave(pos ? pos.lat : null, pos ? pos.lng : null);
+          });
+        } else {
+          doSave(latVal === '' ? null : parseFloat(latVal), lngVal === '' ? null : parseFloat(lngVal));
+        }
       });
 
       mountCoursesEditor(document.getElementById('adminCoursesList'),
@@ -5304,6 +5398,27 @@ var LiveRoundNative = (function () {
   // garantiert, nur eben schmaler als 100% Breite statt versteckt.
   // Freunde als antippbare Avatare statt Abhak-Kaestchen: ausgewaehlt =
   // gruener Kranz (.pickava.on), siehe CSS.
+  function pickavaHtml(f) {
+    return '<button type="button" class="pickava" data-uid="' + f.userId + '">' +
+           avaHtml(f.avatarUrl, nameOf(f), '', '', badgeTypeFor(f.isAdmin, f.verifiedRole)) +
+           '<span class="fname">' + esc(nameOf(f)) + '</span></button>';
+  }
+
+  // Die zuletzt gespielten Mitspieler-IDs (neueste zuerst, ohne
+  // Wiederholung) aus den eigenen gespeicherten Runden - gleiche
+  // Datenquelle (rounds.playmates) wie loadPlaymatesSection() weiter
+  // oben, hier nur ueber alle eigenen Runden statt nur eine.
+  function recentPlaymateIds(knownIds) {
+    var seen = {}, out = [];
+    Store.all().slice().sort(function (a, b) { return b.createdAt - a.createdAt; })
+      .forEach(function (r) {
+        (r.playmates || []).forEach(function (uid) {
+          if (!seen[uid] && knownIds[uid]) { seen[uid] = true; out.push(uid); }
+        });
+      });
+    return out;
+  }
+
   function eventFormHtml(friends) {
     var html = '<div class="panel"><h3>Neuer Termin</h3>' +
       '<div class="form"><input type="text" id="fTitle" placeholder="Titel (z.B. Golfrunde)" ' +
@@ -5316,25 +5431,38 @@ var LiveRoundNative = (function () {
       '</div>' +
       '<div class="form"><button type="button" class="btn ghost" id="fCoursePickBtn" ' +
       'style="width:100%;justify-content:space-between">' +
-      '<span id="fCoursePickLabel">Kurs wählen</span>' + I.chev + '</button></div>';
+      '<span id="fCoursePickLabel">Kurs wählen</span>' + I.chev + '</button></div>' +
+      '<div class="form" id="fOpenRow" style="display:none">' +
+      '<label class="consent" style="margin:0"><input type="checkbox" id="fOpenRound"> ' +
+      '<span>Für weitere Mitspieler öffnen (auf der Golfplatz-Seite sichtbar)</span></label></div>';
 
     if (!friends.length) {
       html += '<p class="hint" style="margin-top:0">Noch keine Freunde zum Einladen. ' +
               'Füg welche über den Punkt Freunde hinzu, du kannst den Termin ' +
               'aber auch ohne Einladung für dich selbst anlegen.</p>';
     } else {
-      html += '<div class="pickrow">' + friends.map(function (f) {
-        return '<button type="button" class="pickava" data-uid="' + f.userId + '">' +
-               avaHtml(f.avatarUrl, nameOf(f), '', '', badgeTypeFor(f.isAdmin, f.verifiedRole)) +
-               '<span class="fname">' + esc(nameOf(f)) + '</span></button>';
-      }).join('') + '</div>';
+      var byId = {};
+      friends.forEach(function (f) { byId[f.userId] = f; });
+      var recentIds = recentPlaymateIds(byId).slice(0, 5);
+
+      html += '<p class="hint" style="margin:16px 0 8px;text-align:left">' +
+        'Mitspieler (höchstens ' + 3 + ')</p>';
+      if (recentIds.length) {
+        html += '<p class="hint" style="margin:0 0 8px;text-align:left;font-size:11.5px">' +
+          'Zuletzt gespielt mit</p>' +
+          '<div class="pickrow" id="fRecentPick">' +
+          recentIds.map(function (uid) { return pickavaHtml(byId[uid]); }).join('') + '</div>';
+      }
+      html += '<div class="form"><input type="text" id="fFriendSearch" ' +
+        'placeholder="Freund suchen …" autocomplete="off"></div>' +
+        '<div class="pickrow" id="fSearchPick"></div>';
     }
 
     html += '<div class="actions"><button class="btn" id="btnCreate">Termin anlegen</button></div></div>';
     return html;
   }
 
-  function wireEventForm(slot) {
+  function wireEventForm(slot, friends) {
     var dateInput = slot.querySelector('#fDate');
     var timeInput = slot.querySelector('#fTime');
     [dateInput, timeInput].forEach(function (el) {
@@ -5345,25 +5473,65 @@ var LiveRoundNative = (function () {
     // openClubPick()). club_id/course_id werden mitgespeichert (fuer den
     // Live-Start direkt am Termin, siehe renderPlan()); location bleibt
     // trotzdem ein reiner Anzeige-Text, der bei einer spaeteren
-    // Umbenennung des Kurses stabil bleibt.
+    // Umbenennung des Kurses stabil bleibt. "Fuer Mitspieler oeffnen" ergibt
+    // nur mit einem festen Platz Sinn (siehe fOpenRow), daher erst ab hier
+    // sichtbar/aktiv.
     var pickBtn = slot.querySelector('#fCoursePickBtn');
     var pickLabel = slot.querySelector('#fCoursePickLabel');
+    var openRow = slot.querySelector('#fOpenRow');
     var pickedClub = null, pickedCourse = null;
     pickBtn.addEventListener('click', function () {
       openClubPick(function (club, course) {
         pickedClub = club; pickedCourse = course;
         pickLabel.textContent = club.name + ' – ' + (course.name || 'Platz');
+        if (openRow) openRow.style.display = '';
       });
     });
 
+    // Gemeinsame Auswahl-Logik fuer "Zuletzt gespielt mit" und die
+    // Such-Ergebnisse - beide sind einfache .pickava-Kacheln, die in
+    // dasselbe selected-Objekt schreiben. Ab MAX_INVITEES gewaehlten
+    // Personen werden die uebrigen, nicht ausgewaehlten Kacheln gesperrt
+    // (nur Abwaehlen bleibt moeglich) - die eigentliche Grenze setzt aber
+    // die Datenbank (datenbank/21_termine_limit_offen.sql).
     var selected = {};
-    Array.prototype.forEach.call(slot.querySelectorAll('.pickava'), function (btn) {
+    function updateLock() {
+      var atMax = Object.keys(selected).length >= 3;
+      Array.prototype.forEach.call(slot.querySelectorAll('.pickava'), function (btn) {
+        var on = !!selected[btn.getAttribute('data-uid')];
+        btn.classList.toggle('on', on);
+        btn.disabled = atMax && !on;
+      });
+    }
+    function wirePickava(btn) {
       btn.addEventListener('click', function () {
         var uid = btn.getAttribute('data-uid');
-        btn.classList.toggle('on');
-        if (btn.classList.contains('on')) selected[uid] = true; else delete selected[uid];
+        if (selected[uid]) delete selected[uid];
+        else {
+          if (Object.keys(selected).length >= 3) {
+            toast('Höchstens 3 weitere Mitspieler (Flight von 4).', true); return;
+          }
+          selected[uid] = true;
+        }
+        updateLock();
       });
-    });
+    }
+    Array.prototype.forEach.call(slot.querySelectorAll('#fRecentPick .pickava'), wirePickava);
+
+    var searchInput = slot.querySelector('#fFriendSearch');
+    var searchList = slot.querySelector('#fSearchPick');
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        var q = searchInput.value.trim().toLowerCase();
+        if (!q) { searchList.innerHTML = ''; return; }
+        var hits = friends.filter(function (f) {
+          return nameOf(f).toLowerCase().indexOf(q) >= 0;
+        }).slice(0, 12);
+        searchList.innerHTML = hits.map(pickavaHtml).join('');
+        Array.prototype.forEach.call(searchList.querySelectorAll('.pickava'), wirePickava);
+        updateLock();
+      });
+    }
 
     slot.querySelector('#btnCreate').addEventListener('click', function () {
       var title = slot.querySelector('#fTitle').value.trim();
@@ -5373,12 +5541,14 @@ var LiveRoundNative = (function () {
       var d = new Date(dateInput.value + 'T' + timeInput.value);
       if (isNaN(d.getTime())) { toast('Datum konnte nicht gelesen werden.', true); return; }
       var loc = pickedClub ? (pickedClub.name + ' – ' + (pickedCourse.name || 'Platz')) : null;
+      var openEl = slot.querySelector('#fOpenRound');
 
       toast('Lege Termin an …');
       Planner.create({
         date: d.toISOString(), location: loc, title: title,
         clubId: pickedClub ? pickedClub.id : null,
-        courseId: pickedCourse ? pickedCourse.id : null
+        courseId: pickedCourse ? pickedCourse.id : null,
+        isOpen: !!(pickedClub && openEl && openEl.checked)
       }, Object.keys(selected)).then(function (r) {
         if (!r.ok) { toast('Hat nicht geklappt: ' + (r.message || 'unbekannt'), true); return; }
         slot.innerHTML = '';
@@ -5470,6 +5640,12 @@ var LiveRoundNative = (function () {
             html += '<button class="btn ghost" data-enter-result="' + ev.clubId + '/' + ev.courseId + '">Ergebnisse eintragen</button></div>';
           }
 
+          if (ev.isMine && ev.clubId && !past && ev.invites.length < 3) {
+            html += '<div class="linkrow"><button class="linkbtn" data-toggle-open="' + ev.id + '">' +
+              (ev.isOpen ? 'Nicht mehr für Mitspieler offen' : 'Für weitere Mitspieler öffnen') +
+              '</button></div>';
+          }
+
           if (ev.isMine) {
             html += '<div class="linkrow"><button class="linkbtn" data-cancel="' + ev.id + '">Termin absagen</button></div>';
           }
@@ -5486,7 +5662,7 @@ var LiveRoundNative = (function () {
         var slot = document.getElementById('newEventSlot');
         if (slot.innerHTML) { slot.innerHTML = ''; return; }
         slot.innerHTML = eventFormHtml(friends);
-        wireEventForm(slot);
+        wireEventForm(slot, friends);
       });
 
       Array.prototype.forEach.call(content.querySelectorAll('[data-accept-invite]'), function (el) {
@@ -5500,6 +5676,17 @@ var LiveRoundNative = (function () {
         el.addEventListener('click', function () {
           Planner.respond(el.getAttribute('data-decline-invite'), 'declined').then(function () {
             toast('Abgesagt.'); renderPlan();
+          });
+        });
+      });
+      Array.prototype.forEach.call(content.querySelectorAll('[data-toggle-open]'), function (el) {
+        el.addEventListener('click', function () {
+          var eventId = el.getAttribute('data-toggle-open');
+          var ev = events.filter(function (e) { return e.id === eventId; })[0];
+          Planner.setOpen(eventId, !ev.isOpen).then(function (r) {
+            if (r.error) { toast('Hat nicht geklappt.', true); return; }
+            toast(ev.isOpen ? 'Nicht mehr offen.' : 'Für Mitspieler geöffnet.');
+            renderPlan();
           });
         });
       });
@@ -5744,7 +5931,15 @@ var LiveRoundNative = (function () {
     content.innerHTML = '<div class="mobile-only" id="manualMobile"></div>';
     var mobileEl = document.getElementById('manualMobile');
     document.body.classList.add('wizard-fullscreen');
-    content.classList.remove('fadein');
+    // Das gerade gesetzte content.innerHTML loest den MutationObserver oben
+    // aus (entfernt/setzt .fadein neu, siehe dort) - der laeuft aber erst
+    // als Microtask NACH dieser Funktion. Ein sofortiges remove('fadein')
+    // hier wuerde der Observer gleich wieder ueberschreiben (fuegt .fadein
+    // erneut hinzu), wodurch #manualMobile wieder auf #contents Innenmasse
+    // statt den echten Bildschirm begrenzt wuerde (siehe Lektion weiter
+    // unten bei startHoleWizard). Deshalb erst einen Frame spaeter entfernen,
+    // wenn der Observer laengst durch ist.
+    requestAnimationFrame(function () { content.classList.remove('fadein'); });
 
     var playmateFriends = [];
     if (!course) {
