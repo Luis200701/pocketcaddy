@@ -1699,7 +1699,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.54';
+var APP_VERSION = '0.55';
 
 /* Sperrbildschirm-Anzeige (iOS Live Activity) fuer live gespielte Runden.
    Nur in der nativen Capacitor-App vorhanden - im Browser/PWA sind alle
@@ -1789,7 +1789,7 @@ var LiveRoundNative = (function () {
     // ist als Ziel fuer Links aus E-Mails/OAuth ungueltig. Dort zeigen die
     // Links auf die Web-Fassung (Konto ist dasselbe, danach in der App
     // einfach anmelden).
-    var WEB_APP_URL = 'https://luis200701.github.io/pocketcaddy/';
+    var WEB_APP_URL = 'https://play.pocketcaddy.de/';
     function isNative() {
       try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }
       catch (e) { return false; }
