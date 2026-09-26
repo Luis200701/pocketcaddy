@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://hieaduzvsqkwvdxfscoo.supabase.co https://*.basemaps.cartocdn.com; media-src 'self' blob:; connect-src 'self' https://hieaduzvsqkwvdxfscoo.supabase.co wss://hieaduzvsqkwvdxfscoo.supabase.co https://challenges.cloudflare.com https://nominatim.openstreetmap.org; frame-src https://challenges.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://hieaduzvsqkwvdxfscoo.supabase.co https://*.tile.openstreetmap.org; media-src 'self' blob:; connect-src 'self' https://hieaduzvsqkwvdxfscoo.supabase.co wss://hieaduzvsqkwvdxfscoo.supabase.co https://challenges.cloudflare.com https://nominatim.openstreetmap.org; frame-src https://challenges.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#101217">
 <title>Pocket Caddy</title>
@@ -1473,6 +1473,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   .clubpin{background:none;border:none}
   .leaflet-container{background:#161921;font-family:inherit}
+  /* Normale OpenStreetMap-Kacheln (bunt, hell) per Farbumkehr+Drehung auf
+     dunkel/ruhig getrimmt - kostenlos und ohne Zugangsschluessel, anders
+     als vorgefertigte dunkle Kartendienste. Nur die Kachel-Ebene, Pins/
+     Popups/Bedienelemente (eigene Ebenen) bleiben davon unberuehrt. */
+  .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(0.94) contrast(0.92) saturate(0.85)}
 
   /* Leaflet-Bedienelemente an die App angepasst statt Leaflets grauem
      Standard-Look - gleiche runde, dunkel-transluzente Optik wie .mini. */
@@ -1694,7 +1699,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.53';
+var APP_VERSION = '0.54';
 
 /* Sperrbildschirm-Anzeige (iOS Live Activity) fuer live gespielte Runden.
    Nur in der nativen Capacitor-App vorhanden - im Browser/PWA sind alle
@@ -4549,14 +4554,15 @@ var LiveRoundNative = (function () {
         .setView([clubs[0].lat, clubs[0].lng], 8);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      // Dunkle, ruhige Kacheln (CartoDB "dark_all", kostenlos) statt der
-      // bunten Standard-OpenStreetMap-Ansicht - passt zur dunklen App statt
-      // dagegen zu arbeiten. img-src in der CSP entsprechend erlaubt.
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 18, subdomains: 'abcd',
+      // Normale, garantiert kostenlose OpenStreetMap-Kacheln (kein API-Key
+      // noetig) - per CSS-Filter (.leaflet-tile-pane, siehe <style>) auf
+      // dunkel/ruhig umgefaerbt statt der bunten Originalfarben. Ein
+      // vorheriger Versuch mit CartoDBs "dark_all"-Kacheln musste wieder
+      // raus, die verlangen inzwischen einen eigenen Zugangsschluessel.
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" ' +
-          'rel="noopener">OpenStreetMap</a>-Mitwirkende &copy; <a href="https://carto.com/attributions" ' +
-          'target="_blank" rel="noopener">CARTO</a>'
+          'rel="noopener">OpenStreetMap</a>-Mitwirkende'
       }).addTo(map);
 
       var icon = L.divIcon({
