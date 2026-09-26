@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<link rel="icon" type="image/png" sizes="192x192" href="icon.png">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://hieaduzvsqkwvdxfscoo.supabase.co; media-src 'self' blob:; connect-src 'self' https://hieaduzvsqkwvdxfscoo.supabase.co wss://hieaduzvsqkwvdxfscoo.supabase.co https://nominatim.openstreetmap.org; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Verwaltung für Golfplätze auf Pocket Caddy – Stammdaten, Plätze und Angebote pflegen.">
+<title>Club-Verwaltung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#101217; --card:#161921; --bar:#1a1d24; --lime:#a3e635;
+    --txt:#fff; --mut:#8b93a3; --good:#5ede8f; --bad:#ff5c5c; --line:#ffffff14;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--txt);font-family:"Work Sans",-apple-system,BlinkMacSystemFont,sans-serif;
+    font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  h1,h2,h3{font-weight:700;letter-spacing:-.01em}
+  .kicker{font-family:"IBM Plex Mono",monospace;color:var(--lime);font-size:11.5px;
+    letter-spacing:.14em;text-transform:uppercase}
+  input,textarea{background:var(--bg);border:1px solid var(--line);border-radius:10px;
+    padding:11px 13px;color:var(--txt);font:inherit;width:100%}
+  input:focus,textarea:focus{outline:none;border-color:#ffffff33}
+  label{display:block;font-size:12.5px;color:var(--mut);margin:0 0 6px}
+  .field{margin-bottom:16px}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  .row .field{flex:1;min-width:220px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--lime);color:#0b0e13;border:0;border-radius:999px;padding:11px 20px;
+    font:inherit;font-weight:700;font-size:14px;cursor:pointer}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line)}
+  .btn.danger{background:transparent;color:var(--bad);border:1px solid #ff5c5c33}
+  .linkbtn{background:none;border:0;color:var(--mut);text-decoration:underline;
+    cursor:pointer;font:inherit;padding:0}
+  .hint{color:var(--mut);font-size:12.5px;margin:6px 0 0}
+
+  /* ---------- Anmeldung ---------- */
+  .loginwrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+  .loginbox{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);
+    border-radius:16px;padding:32px}
+  .loginbox h1{font-size:22px;margin:14px 0 22px}
+  .logo{width:40px;height:40px;border-radius:11px;display:block;margin-bottom:8px}
+  .orline{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--mut);font-size:12.5px}
+  .orline::before,.orline::after{content:"";flex:1;height:1px;background:var(--line)}
+  button.google{width:100%;background:#fff;color:#1f1f1f;justify-content:center;
+    padding:11px 20px;border-radius:999px;border:0;font:inherit;font-weight:600;
+    display:flex;align-items:center;gap:10px;cursor:pointer}
+  .pwrules{list-style:none;margin:10px 0 0;padding:0;font-size:12px;color:var(--mut);
+    display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
+  .pwrules li.ok{color:var(--good)}
+
+  /* ---------- App-Rahmen ---------- */
+  .shell{display:none;min-height:100%}
+  .shell.on{display:flex}
+  .sidebar{width:230px;flex:none;background:var(--bar);border-right:1px solid var(--line);
+    padding:24px 16px;display:flex;flex-direction:column;min-height:100vh;position:sticky;top:0}
+  .sidebar .brand{display:flex;align-items:center;gap:10px;margin-bottom:28px;padding:0 8px}
+  .sidebar .brand img{width:30px;height:30px;border-radius:8px}
+  .sidebar .brand b{font-size:14.5px}
+  .navitem{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;
+    color:var(--mut);text-decoration:none;font-size:14px;font-weight:600;cursor:pointer;border:0;
+    background:none;font-family:inherit;width:100%;text-align:left}
+  .navitem:hover{background:#ffffff0a}
+  .navitem.active{background:var(--lime);color:#0b0e13}
+  .sidebar .spacer{flex:1}
+  .clubchip{padding:10px 12px;background:var(--card);border-radius:10px;margin-bottom:16px;
+    font-size:12.5px;color:var(--mut)}
+  .clubchip b{display:block;color:var(--txt);font-size:14px;margin-bottom:2px}
+
+  .main{flex:1;padding:36px 40px;max-width:920px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:24px;margin-bottom:22px}
+  .panel h2{font-size:16px;margin:0 0 18px}
+  .panel h3{font-size:14.5px;margin:0 0 4px}
+  .actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+
+  .table{width:100%;border-collapse:collapse}
+  .table th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--mut);padding:0 10px 10px;font-weight:600}
+  .table td{padding:12px 10px;border-top:1px solid var(--line);font-size:14px}
+  .table tr:last-child td{border-bottom:1px solid var(--line)}
+  .table .num{width:64px}
+  .table input[type=number]{width:64px;padding:8px}
+  .rowactions{display:flex;gap:8px;justify-content:flex-end}
+  .mini{width:32px;height:32px;border-radius:999px;border:1px solid var(--line);background:transparent;
+    color:var(--mut);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+  .mini svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2}
+  .mini.danger{color:var(--bad);border-color:#ff5c5c33}
+
+  .avatarrow{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+  .avatarrow img{width:64px;height:64px;border-radius:12px;object-fit:cover;background:var(--bg)}
+  .cover{width:100%;max-width:480px;border-radius:12px;margin-bottom:14px;display:block}
+
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);
+    background:var(--card);border:1px solid var(--line);color:var(--txt);
+    padding:12px 18px;border-radius:12px;font-size:13.5px;box-shadow:0 10px 30px #000a;
+    opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:50}
+  .toast.on{opacity:1}
+  .toast.bad{border-color:#ff5c5c55;color:#ffb0b0}
+
+  @media (max-width:760px){
+    .sidebar{width:76px;padding:20px 10px}
+    .sidebar .brand b,.navitem span{display:none}
+    .navitem{justify-content:center}
+    .clubchip{display:none}
+    .main{padding:24px 18px}
+  }
+</style>
+</head>
+<body>
+
+<div id="loginView" class="loginwrap">
+  <div class="loginbox" id="loginBox"></div>
+</div>
+
+<div id="appShell" class="shell">
+  <nav class="sidebar">
+    <div class="brand"><img src="icon.png" alt="" onerror="this.style.display='none'"><b>Club-Verwaltung</b></div>
+    <div class="clubchip" id="clubChip"></div>
+    <button type="button" class="navitem" data-tab="profil"><span>Stammdaten</span></button>
+    <button type="button" class="navitem" data-tab="plaetze"><span>Plätze</span></button>
+    <button type="button" class="navitem" data-tab="angebote"><span>Angebote</span></button>
+    <div class="spacer"></div>
+    <button type="button" class="navitem" id="btnLogout"><span>Abmelden</span></button>
+  </nav>
+  <div class="main" id="main"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"
+  integrity="sha384-iLddHTLokph6Omwoyid4XKxHaWa6w41BnoEj0q5oOrzmYPpHIKt1wyjReA7s//pP" crossorigin="anonymous"></script>
+<script>
+(function () {
+  'use strict';
+
+  var SUPABASE_URL = 'https://hieaduzvsqkwvdxfscoo.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  var loginView = document.getElementById('loginView');
+  var loginBox = document.getElementById('loginBox');
+  var appShell = document.getElementById('appShell');
+  var mainEl = document.getElementById('main');
+  var clubChip = document.getElementById('clubChip');
+  var toastEl = document.getElementById('toast');
+  var toastTimer = null;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+    });
+  }
+  function toast(msg, isBad) {
+    clearTimeout(toastTimer);
+    toastEl.textContent = msg;
+    toastEl.className = 'toast on' + (isBad ? ' bad' : '');
+    toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, 3200);
+  }
+
+  // Gleiche Regeln wie in der Handy-App (web_app/index.html) - beide
+  // Oberflaechen teilen sich dasselbe Supabase-Projekt/dieselben
+  // Passwort-Einstellungen, die Anzeige hier muss also mithalten.
+  var PW_MIN = 10;
+  function pwCheck(p) {
+    return {
+      len: p.length >= PW_MIN,
+      low: /[a-zß-ÿ]/.test(p),
+      up:  /[A-ZÀ-Þ]/.test(p),
+      dig: /[0-9]/.test(p)
+    };
+  }
+  function authError(err) {
+    var m = (err && err.message ? err.message : '').toLowerCase();
+    if (m.indexOf('invalid login') >= 0) return 'E-Mail oder Passwort stimmt nicht.';
+    if (m.indexOf('not confirmed') >= 0) return 'Konto noch nicht bestätigt. Bitte den Link in der E-Mail antippen.';
+    if (m.indexOf('already registered') >= 0) return 'Zu dieser E-Mail gibt es schon ein Konto.';
+    if (m.indexOf('password should') >= 0 || m.indexOf('weak password') >= 0)
+      return 'Das Passwort erfüllt die Regeln nicht (mind. ' + PW_MIN + ' Zeichen, Groß-/Kleinbuchstaben und Ziffer).';
+    if (m.indexOf('rate limit') >= 0 || m.indexOf('too many') >= 0) return 'Zu viele Versuche, bitte kurz warten.';
+    if (m.indexOf('failed to fetch') >= 0) return 'Keine Verbindung. Bitte Internet prüfen.';
+    return 'Es hat nicht geklappt. Bitte nochmal versuchen.';
+  }
+
+  // Ermittelt Breiten-/Laengengrad aus einer freien Adresse ueber die
+  // kostenlose OpenStreetMap-Suche - gleiches Vorgehen wie in der Handy-App.
+  function geocodeAddress(address) {
+    var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=de&q=' +
+      encodeURIComponent(address);
+    return fetch(url).then(function (res) { return res.ok ? res.json() : []; })
+      .then(function (hits) {
+        if (!hits || !hits[0]) return null;
+        return { lat: parseFloat(hits[0].lat), lng: parseFloat(hits[0].lon) };
+      })
+      .catch(function () { return null; });
+  }
+
+  // Wandelt ein hochgeladenes Bild in ein quadratisches JPEG um (der
+  // Speicher-Ordner "club_media" nimmt serverseitig nur JPEG an) - Kopie
+  // desselben Vorgehens aus web_app/index.html.
+  function resizeImageToJpeg(file, maxW, maxH) {
+    maxH = maxH || maxW;
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var targetRatio = maxW / maxH, srcRatio = img.width / img.height;
+        var sx, sy, sw, sh;
+        if (srcRatio > targetRatio) {
+          sh = img.height; sw = sh * targetRatio; sx = (img.width - sw) / 2; sy = 0;
+        } else {
+          sw = img.width; sh = sw / targetRatio; sx = 0; sy = (img.height - sh) / 2;
+        }
+        var outW = Math.min(maxW, sw), outH = Math.min(maxH, sh);
+        var canvas = document.createElement('canvas');
+        canvas.width = outW; canvas.height = outH;
+        canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+        canvas.toBlob(function (blob) {
+          URL.revokeObjectURL(img.src);
+          blob ? resolve(blob) : reject(new Error('Bild konnte nicht verarbeitet werden.'));
+        }, 'image/jpeg', 0.85);
+      };
+      img.onerror = function () { reject(new Error('Bild konnte nicht gelesen werden.')); };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+  function uploadClubMedia(file, maxW, maxH) {
+    var uid = user.id;
+    return resizeImageToJpeg(file, maxW, maxH).then(function (blob) {
+      var path = uid + '/' + Date.now() + '.jpg';
+      return sb.storage.from('club_media').upload(path, blob, { contentType:'image/jpeg' })
+        .then(function (up) {
+          if (up.error) throw up.error;
+          return sb.storage.from('club_media').getPublicUrl(path).data.publicUrl;
+        });
+    });
+  }
+
+  /* ==========================================================
+     Anmeldung
+     ========================================================== */
+  var user = null;
+  var authMode = 'in'; // 'in' | 'up' | 'forgot'
+  var typedEmail = '';
+
+  var GOOGLE_SVG = '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>';
+
+  function redirectUrl() { return location.origin + location.pathname; }
+
+  function drawLogin() {
+    var up = authMode === 'up', forgot = authMode === 'forgot';
+    var title = forgot ? 'Passwort vergessen' : (up ? 'Konto erstellen' : 'Club-Anmeldung');
+    loginBox.innerHTML =
+      '<div class="kicker">Pocket Caddy</div><h1>' + title + '</h1>' +
+      (forgot ? '' :
+        '<button type="button" class="google" id="btnGoogle">' + GOOGLE_SVG +
+        (up ? 'Mit Google registrieren' : 'Mit Google anmelden') + '</button>' +
+        '<div class="orline">oder mit E-Mail</div>') +
+      '<div class="field"><label for="fEmail">E-Mail</label>' +
+      '<input type="email" id="fEmail" autocomplete="email" value="' + esc(typedEmail) + '"></div>' +
+      (forgot ? '' :
+        '<div class="field"><label for="fPass">Passwort</label>' +
+        '<input type="password" id="fPass" autocomplete="' + (up ? 'new-password' : 'current-password') + '"></div>') +
+      (up ? '<ul class="pwrules" id="pwRules">' +
+        '<li data-r="len">Mindestens ' + PW_MIN + ' Zeichen</li>' +
+        '<li data-r="low">Ein Kleinbuchstabe</li>' +
+        '<li data-r="up">Ein Großbuchstabe</li>' +
+        '<li data-r="dig">Eine Ziffer</li></ul>' : '') +
+      '<div class="actions">' +
+      (forgot
+        ? '<button class="btn" id="btnDo">Mail schicken</button>'
+        : (up ? '<button class="btn" id="btnDo">Konto erstellen</button>'
+              : '<button class="btn" id="btnDo">Anmelden</button>')) +
+      '<button class="linkbtn" id="btnSwitch">' +
+      (forgot ? 'Zurück' : (up ? 'Schon ein Konto? Anmelden' : 'Neues Konto erstellen')) +
+      '</button></div>' +
+      (forgot || up ? '' : '<p class="hint"><button class="linkbtn" id="btnForgot">Passwort vergessen?</button></p>');
+
+    var passEl = document.getElementById('fPass');
+    if (up && passEl) {
+      passEl.addEventListener('input', function () {
+        var c = pwCheck(passEl.value);
+        Array.prototype.forEach.call(document.querySelectorAll('#pwRules li'), function (li) {
+          li.classList.toggle('ok', !!c[li.getAttribute('data-r')]);
+        });
+      });
+    }
+    var googleBtn = document.getElementById('btnGoogle');
+    if (googleBtn) googleBtn.addEventListener('click', function () {
+      toast('Weiterleitung zu Google …');
+      sb.auth.signInWithOAuth({ provider:'google', options:{ redirectTo: redirectUrl() } })
+        .then(function (r) { if (r.error) toast(authError(r.error), true); });
+    });
+    document.getElementById('btnSwitch').addEventListener('click', function () {
+      typedEmail = document.getElementById('fEmail').value.trim();
+      authMode = forgot ? 'in' : (up ? 'in' : 'up');
+      drawLogin();
+    });
+    var forgotBtn = document.getElementById('btnForgot');
+    if (forgotBtn) forgotBtn.addEventListener('click', function () {
+      typedEmail = document.getElementById('fEmail').value.trim();
+      authMode = 'forgot'; drawLogin();
+    });
+    document.getElementById('btnDo').addEventListener('click', function () {
+      var email = document.getElementById('fEmail').value.trim();
+      if (!email) { toast('Bitte E-Mail eingeben.', true); return; }
+      if (forgot) {
+        toast('Schicke Mail …');
+        sb.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl() }).then(function (r) {
+          if (r.error) { toast(authError(r.error), true); return; }
+          toast('Falls es ein Konto gibt, ist die Mail unterwegs.');
+        });
+        return;
+      }
+      var pass = document.getElementById('fPass').value;
+      if (!pass) { toast('Bitte Passwort eingeben.', true); return; }
+      if (up) {
+        var c = pwCheck(pass);
+        if (!c.len || !c.low || !c.up || !c.dig) { toast('Das Passwort erfüllt die Regeln noch nicht.', true); return; }
+        toast('Lege Konto an …');
+        sb.auth.signUp({ email:email, password:pass, options:{ emailRedirectTo: redirectUrl() } }).then(function (r) {
+          if (r.error) { toast(authError(r.error), true); return; }
+          if (!(r.data && r.data.session)) toast('Konto angelegt - bitte Bestätigungsmail antippen.');
+        });
+      } else {
+        toast('Melde an …');
+        sb.auth.signInWithPassword({ email:email, password:pass }).then(function (r) {
+          if (r.error) toast(authError(r.error), true);
+        });
+      }
+    });
+  }
+
+  function drawNotAClub(profile) {
+    loginBox.innerHTML =
+      '<div class="kicker">Pocket Caddy</div><h1>Kein Golfplatz-Konto</h1>' +
+      '<p class="hint" style="margin-bottom:18px">Dieses Konto (' + esc(user.email) + ') ist kein ' +
+      'freigeschaltetes Golfplatz-Konto. Diese Seite ist nur für Vereine gedacht - Spieler nutzen die ' +
+      'normale Pocket-Caddy-App.</p>' +
+      '<button class="btn ghost" id="btnOut2">Abmelden</button>';
+    document.getElementById('btnOut2').addEventListener('click', function () { sb.auth.signOut(); });
+  }
+
+  /* ==========================================================
+     App: Profil / Plaetze / Angebote
+     ========================================================== */
+  var club = null, courses = [], offers = [];
+  var activeTab = 'profil';
+
+  function loadAll() {
+    return Promise.all([
+      sb.from('golf_clubs').select('*').eq('user_id', user.id).maybeSingle(),
+      sb.from('golf_courses').select('*').eq('club_id', user.id).order('created_at'),
+      sb.from('club_offers').select('*').eq('club_id', user.id).eq('deleted', false).order('created_at', { ascending:false })
+    ]).then(function (res) {
+      club = (res[0].data) || null;
+      courses = res[1].data || [];
+      offers = res[2].data || [];
+    });
+  }
+
+  function setTab(tab) {
+    activeTab = tab;
+    Array.prototype.forEach.call(document.querySelectorAll('.navitem[data-tab]'), function (el) {
+      el.classList.toggle('active', el.getAttribute('data-tab') === tab);
+    });
+    if (tab === 'profil') renderProfil();
+    else if (tab === 'plaetze') renderPlaetze();
+    else renderAngebote();
+  }
+
+  function renderShell() {
+    clubChip.innerHTML = '<b>' + esc(club && club.name || 'Golfplatz') + '</b>' + esc(user.email);
+    setTab(activeTab);
+  }
+
+  /* ---- Stammdaten ---- */
+  function renderProfil() {
+    mainEl.innerHTML =
+      '<h2 style="font-size:20px;margin:0 0 22px">Stammdaten</h2>' +
+      '<div class="panel"><h3>Bilder</h3>' +
+      '<div class="avatarrow"><img id="pfAvatarImg" src="' + esc(club.avatar_url || '') + '" ' +
+      'onerror="this.hidden=true"><button type="button" class="btn ghost" id="btnAvatarPick">Profilbild wählen</button>' +
+      '<input type="file" id="fAvatarFile" accept="image/*" style="display:none"></div>' +
+      (club.cover_image_url ? '<img class="cover" src="' + esc(club.cover_image_url) + '">' : '') +
+      '<button type="button" class="btn ghost" id="btnCoverPick">Titelbild wählen</button>' +
+      '<input type="file" id="fCoverFile" accept="image/*" style="display:none">' +
+      '</div>' +
+      '<div class="panel"><h3>Angaben</h3>' +
+      '<div class="field"><label>Name des Platzes</label><input id="pfName" value="' + esc(club.name || '') + '"></div>' +
+      '<div class="field"><label>Beschreibung</label><textarea id="pfDesc" rows="3">' + esc(club.description || '') + '</textarea></div>' +
+      '<div class="field"><label>Adresse</label><input id="pfAddress" value="' + esc(club.address || '') + '"></div>' +
+      '<div class="row">' +
+      '<div class="field"><label>Telefon</label><input id="pfPhone" value="' + esc(club.phone || '') + '"></div>' +
+      '<div class="field"><label>Website</label><input id="pfWebsite" value="' + esc(club.website || '') + '"></div>' +
+      '</div>' +
+      '<div class="field"><label>Preise (Freitext, z.B. Greenfee 45€, Wochenende 55€)</label>' +
+      '<input id="pfPrice" value="' + esc(club.price_info || '') + '"></div>' +
+      '<div class="row">' +
+      '<div class="field"><label>Breitengrad</label><input type="number" step="any" id="pfLat" ' +
+      'value="' + (club.lat != null ? club.lat : '') + '"></div>' +
+      '<div class="field"><label>Längengrad</label><input type="number" step="any" id="pfLng" ' +
+      'value="' + (club.lng != null ? club.lng : '') + '"></div>' +
+      '</div>' +
+      '<p class="hint">Werden beim Speichern automatisch aus der Adresse ermittelt, wenn beide Felder leer ' +
+      'sind (für die Karte in der App) - danach hier jederzeit überschreibbar.</p>' +
+      '<div class="actions"><button class="btn" id="btnSaveProfil">Speichern</button></div>' +
+      '</div>';
+
+    document.getElementById('btnAvatarPick').addEventListener('click', function () {
+      document.getElementById('fAvatarFile').click();
+    });
+    document.getElementById('fAvatarFile').addEventListener('change', function (e) {
+      var f = e.target.files[0]; if (!f) return;
+      toast('Lade hoch …');
+      uploadClubMedia(f, 400, 400).then(function (url) {
+        return sb.from('golf_clubs').update({ avatar_url:url }).eq('user_id', user.id);
+      }).then(function () { return loadAll(); }).then(function () {
+        toast('Profilbild gespeichert.'); renderProfil();
+      }).catch(function () { toast('Hat nicht geklappt.', true); });
+    });
+    document.getElementById('btnCoverPick').addEventListener('click', function () {
+      document.getElementById('fCoverFile').click();
+    });
+    document.getElementById('fCoverFile').addEventListener('change', function (e) {
+      var f = e.target.files[0]; if (!f) return;
+      toast('Lade hoch …');
+      uploadClubMedia(f, 1200, 480).then(function (url) {
+        return sb.from('golf_clubs').update({ cover_image_url:url }).eq('user_id', user.id);
+      }).then(function () { return loadAll(); }).then(function () {
+        toast('Titelbild gespeichert.'); renderProfil();
+      }).catch(function () { toast('Hat nicht geklappt.', true); });
+    });
+
+    document.getElementById('btnSaveProfil').addEventListener('click', function () {
+      var latEl = document.getElementById('pfLat'), lngEl = document.getElementById('pfLng');
+      var fields = {
+        name: document.getElementById('pfName').value.trim(),
+        description: document.getElementById('pfDesc').value.trim(),
+        address: document.getElementById('pfAddress').value.trim(),
+        phone: document.getElementById('pfPhone').value.trim(),
+        website: document.getElementById('pfWebsite').value.trim(),
+        price_info: document.getElementById('pfPrice').value.trim()
+      };
+      function doSave(lat, lng) {
+        fields.lat = lat; fields.lng = lng;
+        fields.updated_at = new Date().toISOString();
+        toast('Speichere …');
+        sb.from('golf_clubs').update(fields).eq('user_id', user.id).then(function (r) {
+          if (r.error) { toast('Hat nicht geklappt.', true); return; }
+          toast('Gespeichert.');
+          loadAll().then(renderShell);
+        });
+      }
+      var latVal = latEl.value.trim(), lngVal = lngEl.value.trim();
+      if (latVal === '' && lngVal === '' && fields.address) {
+        toast('Ermittle Koordinaten …');
+        geocodeAddress(fields.address).then(function (pos) {
+          doSave(pos ? pos.lat : null, pos ? pos.lng : null);
+        });
+      } else {
+        doSave(latVal === '' ? null : parseFloat(latVal), lngVal === '' ? null : parseFloat(lngVal));
+      }
+    });
+  }
+
+  /* ---- Plaetze ---- */
+  function renderPlaetze() {
+    mainEl.innerHTML =
+      '<h2 style="font-size:20px;margin:0 0 22px">Plätze</h2>' +
+      '<div class="panel">' +
+      (courses.length ? '<table class="table"><thead><tr><th>Name</th><th>Löcher</th><th></th></tr></thead><tbody>' +
+        courses.map(function (c) {
+          return '<tr><td><input data-course-name="' + c.id + '" value="' + esc(c.name || '') + '"></td>' +
+            '<td class="num"><input type="number" min="1" max="18" data-course-holes="' + c.id + '" value="' + c.holes + '"></td>' +
+            '<td class="rowactions">' +
+            '<button class="mini" data-course-save="' + c.id + '" title="Speichern"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></button>' +
+            '<button class="mini danger" data-course-del="' + c.id + '" title="Löschen"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>' +
+            '</td></tr>';
+        }).join('') + '</tbody></table>'
+        : '<p class="hint">Noch keine Plätze angelegt.</p>') +
+      '<div class="actions"><button class="btn ghost" id="btnAddCourse">+ Neuen Platz anlegen</button></div>' +
+      '<p class="hint">Par je Loch und Loch-Distanzen lassen sich weiterhin in der Pocket-Caddy-App unter ' +
+      '"Platz verwalten" eintragen - das kommt hier in einer späteren Ausbaustufe dazu.</p>' +
+      '</div>';
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-course-save]'), function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-course-save');
+        var name = document.querySelector('[data-course-name="' + id + '"]').value.trim();
+        var holes = parseInt(document.querySelector('[data-course-holes="' + id + '"]').value, 10) || 18;
+        sb.from('golf_courses').update({ name:name, holes:holes, updated_at:new Date().toISOString() })
+          .eq('id', id).eq('club_id', user.id).then(function (r) {
+            if (r.error) { toast('Hat nicht geklappt.', true); return; }
+            toast('Gespeichert.'); loadAll().then(renderPlaetze);
+          });
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-course-del]'), function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('Diesen Platz wirklich löschen?')) return;
+        var id = btn.getAttribute('data-course-del');
+        sb.from('golf_courses').delete().eq('id', id).eq('club_id', user.id).then(function (r) {
+          if (r.error) { toast('Hat nicht geklappt.', true); return; }
+          toast('Gelöscht.'); loadAll().then(renderPlaetze);
+        });
+      });
+    });
+    document.getElementById('btnAddCourse').addEventListener('click', function () {
+      sb.from('golf_courses').insert({ club_id:user.id, name:'Neuer Platz', holes:18 }).then(function (r) {
+        if (r.error) { toast('Hat nicht geklappt.', true); return; }
+        loadAll().then(renderPlaetze);
+      });
+    });
+  }
+
+  /* ---- Angebote ---- */
+  function renderAngebote() {
+    mainEl.innerHTML =
+      '<h2 style="font-size:20px;margin:0 0 22px">Angebote</h2>' +
+      '<div class="panel"><h3>Neues Angebot</h3>' +
+      '<div class="field"><label>Titel</label><input id="ofTitle" placeholder="z.B. Anfänger-Kurs"></div>' +
+      '<div class="field"><label>Beschreibung</label><textarea id="ofDesc" rows="2"></textarea></div>' +
+      '<div class="field"><label>Preis (Freitext)</label><input id="ofPrice" placeholder="optional"></div>' +
+      '<div class="actions"><button class="btn" id="btnAddOffer">Anlegen</button></div>' +
+      '</div>' +
+      '<div class="panel"><h3>Bestehende Angebote</h3>' +
+      (offers.length ? offers.map(function (o) {
+        return '<div style="padding:14px 0;border-top:1px solid var(--line)">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">' +
+          '<div><b>' + esc(o.title) + '</b>' +
+          (o.description ? '<div class="hint">' + esc(o.description) + '</div>' : '') +
+          (o.price_info ? '<div class="hint">' + esc(o.price_info) + '</div>' : '') + '</div>' +
+          '<button class="mini danger" data-offer-del="' + o.id + '" title="Löschen">' +
+          '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>' +
+          '</div></div>';
+      }).join('') : '<p class="hint">Noch keine Angebote.</p>') +
+      '</div>';
+
+    document.getElementById('btnAddOffer').addEventListener('click', function () {
+      var title = document.getElementById('ofTitle').value.trim();
+      if (!title) { toast('Bitte einen Titel eingeben.', true); return; }
+      sb.from('club_offers').insert({
+        club_id: user.id, title: title,
+        description: document.getElementById('ofDesc').value.trim() || null,
+        price_info: document.getElementById('ofPrice').value.trim() || null
+      }).then(function (r) {
+        if (r.error) { toast('Hat nicht geklappt.', true); return; }
+        toast('Angelegt.'); loadAll().then(renderAngebote);
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-offer-del]'), function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('Dieses Angebot wirklich löschen?')) return;
+        sb.from('club_offers').update({ deleted:true }).eq('id', btn.getAttribute('data-offer-del')).then(function (r) {
+          if (r.error) { toast('Hat nicht geklappt.', true); return; }
+          toast('Gelöscht.'); loadAll().then(renderAngebote);
+        });
+      });
+    });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.navitem[data-tab]'), function (el) {
+    el.addEventListener('click', function () { setTab(el.getAttribute('data-tab')); });
+  });
+  document.getElementById('btnLogout').addEventListener('click', function () { sb.auth.signOut(); });
+
+  /* ==========================================================
+     Boot
+     ========================================================== */
+  function showLogin() {
+    appShell.classList.remove('on');
+    loginView.style.display = 'flex';
+    authMode = 'in';
+    drawLogin();
+  }
+  function showApp() {
+    loginView.style.display = 'none';
+    appShell.classList.add('on');
+    renderShell();
+  }
+
+  function boot() {
+    sb.auth.getSession().then(function (res) {
+      user = (res.data && res.data.session) ? res.data.session.user : null;
+      afterAuthChange();
+    });
+    sb.auth.onAuthStateChange(function (evt, session) {
+      user = session ? session.user : null;
+      if (evt === 'PASSWORD_RECOVERY') {
+        var pw = prompt('Neues Passwort (mind. ' + PW_MIN + ' Zeichen, Groß-/Kleinbuchstabe, Ziffer):');
+        if (pw) sb.auth.updateUser({ password: pw }).then(function (r) {
+          toast(r.error ? authError(r.error) : 'Passwort geändert.', !!r.error);
+        });
+        return;
+      }
+      afterAuthChange();
+    });
+  }
+
+  function afterAuthChange() {
+    if (!user) { showLogin(); return; }
+    sb.from('profiles').select('account_type').eq('user_id', user.id).maybeSingle().then(function (r) {
+      if (!r.data || r.data.account_type !== 'club') {
+        loginView.style.display = 'flex'; appShell.classList.remove('on');
+        drawNotAClub();
+        return;
+      }
+      loadAll().then(showApp);
+    });
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
