@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://hieaduzvsqkwvdxfscoo.supabase.co https://*.tile.openstreetmap.org; media-src 'self' blob:; connect-src 'self' https://hieaduzvsqkwvdxfscoo.supabase.co wss://hieaduzvsqkwvdxfscoo.supabase.co https://challenges.cloudflare.com https://nominatim.openstreetmap.org; frame-src https://challenges.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://hieaduzvsqkwvdxfscoo.supabase.co https://*.basemaps.cartocdn.com; media-src 'self' blob:; connect-src 'self' https://hieaduzvsqkwvdxfscoo.supabase.co wss://hieaduzvsqkwvdxfscoo.supabase.co https://challenges.cloudflare.com https://nominatim.openstreetmap.org; frame-src https://challenges.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#101217">
 <title>Pocket Caddy</title>
@@ -1473,6 +1473,32 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   .clubpin{background:none;border:none}
   .leaflet-container{background:#161921;font-family:inherit}
+
+  /* Leaflet-Bedienelemente an die App angepasst statt Leaflets grauem
+     Standard-Look - gleiche runde, dunkel-transluzente Optik wie .mini. */
+  .leaflet-control-zoom{border:0!important;background:none!important;
+    box-shadow:none!important;display:flex;flex-direction:column;gap:8px}
+  .leaflet-control-zoom a{width:36px!important;height:36px!important;
+    line-height:36px!important;border-radius:999px!important;
+    background:#1a1d24c2!important;color:var(--txt)!important;
+    border:1px solid #ffffff1a!important;font-size:19px!important;
+    -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+  .leaflet-control-zoom a:hover{background:#ffffff1e!important}
+  .leaflet-control-attribution{background:#00000066!important;color:var(--mut)!important;
+    font-size:10.5px!important;border-radius:8px 0 0 0!important;padding:2px 8px!important}
+  .leaflet-control-attribution a{color:var(--mut)!important}
+
+  /* Popup im Karten-Pin: gleiche dunkle Karten-Optik wie .panel statt
+     Leaflets weisser Sprechblase. */
+  .leaflet-popup-content-wrapper{background:var(--card)!important;color:var(--txt)!important;
+    border-radius:14px!important;box-shadow:0 10px 30px #000a!important}
+  .leaflet-popup-tip{background:var(--card)!important}
+  .leaflet-popup-content{margin:12px 14px!important}
+  .leaflet-popup-close-button{color:var(--mut)!important}
+  .mappopup{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+  .mappopup b{font-size:14px}
+  .mappopup button{background:var(--lime);color:#0b0e13;border:0;border-radius:999px;
+    padding:6px 14px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -1668,7 +1694,7 @@ var SUPABASE_KEY = 'sb_publishable_Qn7gucn459dApRgYZgTbyQ_8FZS2sJG';
    Kleinigkeit. Nicht zu verwechseln mit CACHE_NAME in service-worker.js,
    das zaehlt bei jedem Ausliefern hoch und hat nichts mit dem
    Funktionsstand zu tun. Siehe PROJEKTUEBERSICHT.md. */
-var APP_VERSION = '0.51';
+var APP_VERSION = '0.53';
 
 /* Sperrbildschirm-Anzeige (iOS Live Activity) fuer live gespielte Runden.
    Nur in der nativen Capacitor-App vorhanden - im Browser/PWA sind alle
@@ -4510,13 +4536,27 @@ var LiveRoundNative = (function () {
         return;
       }
 
-      content.innerHTML = '<div id="clubMapEl" style="height:65vh;min-height:340px;' +
-        'border-radius:14px;overflow:hidden"></div>';
+      content.innerHTML = '<div id="clubMapEl" style="height:56vh;min-height:300px;' +
+        'border-radius:16px;overflow:hidden;margin-bottom:18px"></div>' +
+        '<div class="sectionhead"><span class="t">Golfplätze</span>' +
+        '<span class="c">' + clubs.length + '</span></div>' +
+        '<div class="list">' + clubs.map(function (c) {
+          return '<button class="item" data-fly="' + c.id + '"><span class="meta"><span class="d">' +
+            esc(c.name || 'Golfplatz') + '</span></span><span class="chev">' + I.chev + '</span></button>';
+        }).join('') + '</div>';
 
-      var map = L.map('clubMapEl').setView([clubs[0].lat, clubs[0].lng], 8);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" ' +
-          'target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende'
+      var map = L.map('clubMapEl', { zoomControl: false })
+        .setView([clubs[0].lat, clubs[0].lng], 8);
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      // Dunkle, ruhige Kacheln (CartoDB "dark_all", kostenlos) statt der
+      // bunten Standard-OpenStreetMap-Ansicht - passt zur dunklen App statt
+      // dagegen zu arbeiten. img-src in der CSP entsprechend erlaubt.
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 18, subdomains: 'abcd',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" ' +
+          'rel="noopener">OpenStreetMap</a>-Mitwirkende &copy; <a href="https://carto.com/attributions" ' +
+          'target="_blank" rel="noopener">CARTO</a>'
       }).addTo(map);
 
       var icon = L.divIcon({
@@ -4528,14 +4568,39 @@ var LiveRoundNative = (function () {
         iconSize: [30, 30], iconAnchor: [15, 30], popupAnchor: [0, -28]
       });
 
+      // Antippen eines Pins/Listeneintrags oeffnet nur ein Popup mit einem
+      // eigenen "Ansehen"-Knopf - der Sprung zur Profilseite passiert erst
+      // ueber den Knopf, nicht mehr sofort beim blossen Antippen (das liess
+      // das Popup vorher nur kurz aufblitzen, bevor man schon weg war).
+      var markers = {};
       var bounds = [];
       clubs.forEach(function (c) {
         var m = L.marker([c.lat, c.lng], { icon: icon, title: c.name || 'Golfplatz' }).addTo(map);
-        m.bindPopup(esc(c.name || 'Golfplatz'));
-        m.on('click', function () { location.hash = 'club/' + c.id; route(); });
+        m.bindPopup(
+          '<div class="mappopup"><b>' + esc(c.name || 'Golfplatz') + '</b>' +
+          '<button type="button" data-open-club="' + c.id + '">Ansehen</button></div>'
+        );
+        markers[c.id] = m;
         bounds.push([c.lat, c.lng]);
       });
       if (bounds.length > 1) map.fitBounds(bounds, { padding: [32, 32] });
+
+      map.on('popupopen', function (e) {
+        var btn = e.popup.getElement().querySelector('[data-open-club]');
+        if (btn) btn.addEventListener('click', function () {
+          location.hash = 'club/' + btn.getAttribute('data-open-club'); route();
+        });
+      });
+
+      Array.prototype.forEach.call(content.querySelectorAll('[data-fly]'), function (el) {
+        el.addEventListener('click', function () {
+          var id = el.getAttribute('data-fly');
+          var c = clubs.filter(function (x) { return x.id === id; })[0];
+          if (!c) return;
+          map.flyTo([c.lat, c.lng], 14);
+          markers[id].openPopup();
+        });
+      });
     });
   }
 
@@ -5419,6 +5484,21 @@ var LiveRoundNative = (function () {
     return out;
   }
 
+  // Vorbelegte Mitspieler-Kacheln, bevor ueberhaupt gesucht wird: wer
+  // zuletzt mit einem gespielt hat, steht vorne (in der Reihenfolge der
+  // letzten gemeinsamen Runde), der Rest der Freunde fuellt danach
+  // alphabetisch auf - auch ganz ohne gemeinsame Rundenhistorie soll man
+  // sofort ein paar Freunde antippen koennen statt erst suchen zu muessen.
+  function defaultInviteIds(friends, byId) {
+    var recent = recentPlaymateIds(byId);
+    var already = {};
+    recent.forEach(function (uid) { already[uid] = true; });
+    var rest = friends.filter(function (f) { return !already[f.userId]; })
+      .sort(function (a, b) { return nameOf(a).localeCompare(nameOf(b), 'de'); })
+      .map(function (f) { return f.userId; });
+    return recent.concat(rest).slice(0, 8);
+  }
+
   function eventFormHtml(friends) {
     var html = '<div class="panel"><h3>Neuer Termin</h3>' +
       '<div class="form"><input type="text" id="fTitle" placeholder="Titel (z.B. Golfrunde)" ' +
@@ -5443,19 +5523,17 @@ var LiveRoundNative = (function () {
     } else {
       var byId = {};
       friends.forEach(function (f) { byId[f.userId] = f; });
-      var recentIds = recentPlaymateIds(byId).slice(0, 5);
+      var defaultIds = defaultInviteIds(friends, byId);
 
       html += '<p class="hint" style="margin:16px 0 8px;text-align:left">' +
-        'Mitspieler (höchstens ' + 3 + ')</p>';
-      if (recentIds.length) {
-        html += '<p class="hint" style="margin:0 0 8px;text-align:left;font-size:11.5px">' +
-          'Zuletzt gespielt mit</p>' +
-          '<div class="pickrow" id="fRecentPick">' +
-          recentIds.map(function (uid) { return pickavaHtml(byId[uid]); }).join('') + '</div>';
+        'Mitspieler (höchstens ' + 3 + ')</p>' +
+        '<div class="pickrow" id="fRecentPick">' +
+        defaultIds.map(function (uid) { return pickavaHtml(byId[uid]); }).join('') + '</div>';
+      if (friends.length > defaultIds.length) {
+        html += '<div class="form"><input type="text" id="fFriendSearch" ' +
+          'placeholder="Weitere Freunde suchen …" autocomplete="off"></div>' +
+          '<div class="pickrow" id="fSearchPick"></div>';
       }
-      html += '<div class="form"><input type="text" id="fFriendSearch" ' +
-        'placeholder="Freund suchen …" autocomplete="off"></div>' +
-        '<div class="pickrow" id="fSearchPick"></div>';
     }
 
     html += '<div class="actions"><button class="btn" id="btnCreate">Termin anlegen</button></div></div>';
